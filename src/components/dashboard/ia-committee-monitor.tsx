@@ -6,7 +6,7 @@ import { aiConsensusMonitor, type AiConsensusMonitorOutput } from '@/ai/flows/ai
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Brain, ArrowUpCircle, ArrowDownCircle, Activity, Zap, ShieldCheck, Loader2, Search, Info, Cpu } from 'lucide-react';
+import { Brain, ArrowUpCircle, ArrowDownCircle, Activity, Zap, ShieldCheck, Loader2, Info, Cpu, TrendingUp } from 'lucide-react';
 import { useUser, useFirestore, useDoc } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { executeTrade } from '@/lib/actions';
@@ -57,7 +57,7 @@ export function IACommitteeMonitor() {
     setIsExecuting(true);
     executionCooldown.current = true;
     
-    const amount = botParams?.investmentPerTrade || 10;
+    const amount = botParams?.investmentPerTrade || 4000; // Valor maestro V7
     const pair = activePair;
 
     try {
@@ -71,7 +71,7 @@ export function IACommitteeMonitor() {
         setLastExecution(new Date().toLocaleTimeString());
         toast({
           title: `OPERACIÓN IA V7: ${result.status === 'win' ? 'PROFIT' : 'LOSS'}`,
-          description: `Ejecutada orden de ${amount} en ${pair}.`,
+          description: `Ejecutada orden de $${amount} en ${pair}.`,
           variant: result.status === 'win' ? 'default' : 'destructive'
         });
       }
@@ -81,13 +81,13 @@ export function IACommitteeMonitor() {
       setIsExecuting(false);
       setTimeout(() => {
         executionCooldown.current = false;
-      }, 15000); // Cooldown reducido para alta frecuencia
+      }, 10000); // Latencia reducida para monitoreo en tiempo real
     }
   };
 
   useEffect(() => {
     fetchConsensus();
-    const interval = setInterval(fetchConsensus, 15000); // Análisis cada 15 segundos
+    const interval = setInterval(fetchConsensus, 15000); // Análisis ultra-rápido cada 15 segundos
     return () => clearInterval(interval);
   }, [user, botParams?.bot_activo, brokerConfig?.status, activePair]);
 
@@ -100,48 +100,48 @@ export function IACommitteeMonitor() {
             <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping" />
           </div>
           <div className="space-y-1 text-center">
-            <p className="text-sm font-bold text-foreground uppercase tracking-widest">Escaneando {activePair}</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] animate-pulse">Analizando micro-variaciones...</p>
+            <p className="text-sm font-bold text-foreground uppercase tracking-widest font-headline">Analizando Clúster</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] animate-pulse">{activePair}</p>
           </div>
         </div>
       </Card>
     );
   }
 
-  const badgeLabel = data?.overallConsensus === 'CALL' ? 'COMPRA' : data?.overallConsensus === 'PUT' ? 'VENTA' : 'NEUTRAL';
+  const badgeLabel = data?.overallConsensus === 'CALL' ? 'CALL (COMPRA)' : data?.overallConsensus === 'PUT' ? 'PUT (VENTA)' : 'NEUTRAL';
 
   return (
-    <Card className="h-full bg-card/50 border-white/5 backdrop-blur-xl relative overflow-hidden flex flex-col shadow-2xl">
+    <Card className="h-full bg-card/50 border-white/5 backdrop-blur-xl relative overflow-hidden flex flex-col shadow-2xl group hover:border-primary/20 transition-all duration-500">
       <CardHeader className="pb-4 border-b border-white/5 bg-white/5">
         <div className="flex justify-between items-center">
           <div className="flex flex-col gap-1">
             <CardTitle className="text-lg font-headline flex items-center gap-2 text-white">
               <Cpu className="h-5 w-5 text-primary" />
-              Algoritmo V7
+              EJÉRCITO IA V7
             </CardTitle>
             <span className="text-[10px] text-primary font-bold uppercase tracking-widest flex items-center gap-1.5">
-              <div className="w-1 h-1 rounded-full bg-primary animate-ping" />
-              Sincronizado: {activePair}
+              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
+              MONITOREO: {activePair}
             </span>
           </div>
           <Badge className={botParams?.bot_activo ? "bg-primary/20 text-primary border-primary/50" : "bg-red-500/20 text-red-500"}>
-            {botParams?.bot_activo ? "HFT MODE ON" : "OFFLINE"}
+            {botParams?.bot_activo ? "HFT OPERACIONAL" : "STANDBY"}
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-6 pt-6 flex-1 bg-black/20">
         <div className="p-4 bg-zinc-900/50 border border-white/10 rounded-xl">
            <div className="flex items-start gap-2 mb-3">
-             <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+             <TrendingUp className="h-4 w-4 text-primary shrink-0 mt-0.5" />
              <p className="text-[11px] text-muted-foreground leading-tight italic">
-               {data?.marketContext || "Procesando feed de datos de alta velocidad..."}
+               {data?.marketContext || "Analizando flujo de datos en tiempo real..."}
              </p>
            </div>
            <div className="flex justify-between items-center mb-2">
-             <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Confianza V7</span>
+             <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Confianza del Comité</span>
              <span className="text-xl font-headline font-bold text-primary">{data?.consensusPercentage}%</span>
            </div>
-           <Progress value={data?.consensusPercentage || 0} className="h-1.5 bg-zinc-800" />
+           <Progress value={data?.consensusPercentage || 0} className="h-2 bg-zinc-800" />
            <div className="mt-4 flex justify-between items-center">
              <div className={`text-xl font-headline font-bold flex items-center gap-2 ${data?.overallConsensus === 'CALL' ? 'text-green-500' : data?.overallConsensus === 'PUT' ? 'text-red-500' : 'text-muted-foreground'}`}>
                {data?.overallConsensus === 'CALL' ? <ArrowUpCircle className="h-6 w-6" /> : data?.overallConsensus === 'PUT' ? <ArrowDownCircle className="h-6 w-6" /> : null}
@@ -149,15 +149,15 @@ export function IACommitteeMonitor() {
              </div>
              {lastExecution && (
                <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-code">
-                 LAT: 12ms | {lastExecution}
+                 ULT: {lastExecution}
                </Badge>
              )}
            </div>
         </div>
 
-        <div className="space-y-2 flex-1 overflow-y-auto max-h-[220px] custom-scrollbar pr-1">
+        <div className="space-y-2 flex-1 overflow-y-auto max-h-[200px] custom-scrollbar pr-1">
           {data?.agentRecommendations.map((agent, i) => (
-            <div key={i} className="p-3 bg-zinc-900/30 rounded-lg border border-white/5 flex items-center justify-between group hover:border-primary/40 transition-all">
+            <div key={i} className="p-3 bg-zinc-900/30 rounded-lg border border-white/5 flex items-center justify-between group/agent hover:border-primary/40 transition-all">
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center ${agent.recommendation === 'CALL' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
                   {agent.recommendation === 'CALL' ? <ArrowUpCircle className="h-4 w-4" /> : <ArrowDownCircle className="h-4 w-4" />}
@@ -177,9 +177,9 @@ export function IACommitteeMonitor() {
              <Loader2 className="h-16 w-16 text-primary animate-spin mb-6" />
              <div className="absolute inset-0 bg-primary/10 rounded-full animate-ping" />
            </div>
-           <p className="text-2xl font-headline font-bold text-primary animate-pulse uppercase tracking-[0.2em]">EXECUTING HFT ORDER</p>
+           <p className="text-2xl font-headline font-bold text-primary animate-pulse uppercase tracking-[0.2em]">EJECUTANDO ORDEN HFT</p>
            <p className="text-[10px] text-muted-foreground mt-4 font-code bg-white/5 px-4 py-1 rounded-full border border-white/10 uppercase">
-             Tunnel: IQ-QUANTUM | Latency: 8μs | Asset: {activePair}
+             Tunnel: IQ-QUANTUM | Inversión: $4000 | Activo: {activePair}
            </p>
         </div>
       )}
