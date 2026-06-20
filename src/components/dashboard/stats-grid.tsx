@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useFirestore } from '@/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,6 +25,9 @@ export function StatsGrid() {
       if (docSnapshot.exists()) {
         setStats(docSnapshot.data() as any);
       }
+    }, (error) => {
+      // Si hay error de permisos o no existe, mantenemos los valores en 0
+      console.warn("Dashboard stats not available yet.");
     });
     return () => unsub();
   }, [firestore]);
@@ -35,27 +38,27 @@ export function StatsGrid() {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <MetricCard
         title="Saldo Total"
-        value={`$${stats.balance.toLocaleString()}`}
+        value={`$${(stats.balance || 0).toLocaleString()}`}
         icon={<Wallet className="h-4 w-4 text-primary" />}
         subtitle="Bróker Tiempo Real"
       />
       <MetricCard
         title="Beneficio Diario"
-        value={`$${stats.dailyProfit.toLocaleString()}`}
-        icon={stats.dailyProfit >= 0 ? <TrendingUp className="h-4 w-4 text-green-500" /> : <TrendingDown className="h-4 w-4 text-red-500" />}
+        value={`$${(stats.dailyProfit || 0).toLocaleString()}`}
+        icon={(stats.dailyProfit || 0) >= 0 ? <TrendingUp className="h-4 w-4 text-green-500" /> : <TrendingDown className="h-4 w-4 text-red-500" />}
         subtitle="Rendimiento de Hoy"
-        trend={stats.dailyProfit >= 0 ? 'up' : 'down'}
+        trend={(stats.dailyProfit || 0) >= 0 ? 'up' : 'down'}
       />
       <MetricCard
         title="Tasa de Acierto"
-        value={`${stats.winRate}%`}
+        value={`${stats.winRate || 0}%`}
         icon={<Target className="h-4 w-4 text-secondary" />}
         subtitle="Probabilidad Éxito"
         valueClassName={winRateColor}
       />
       <MetricCard
         title="Inversión Acumulada"
-        value={`$${stats.totalInvestment.toLocaleString()}`}
+        value={`$${(stats.totalInvestment || 0).toLocaleString()}`}
         icon={<Activity className="h-4 w-4 text-accent" />}
         subtitle="Volumen Histórico"
       />

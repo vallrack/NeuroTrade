@@ -33,7 +33,7 @@ export default function DashboardPage() {
   }, []);
   
   const profileRef = useMemo(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-  const { data: profile, loading: profileLoading } = useDoc(profileRef);
+  const { data: profile } = useDoc(profileRef);
 
   useEffect(() => {
     if (mounted && !authLoading && !user) {
@@ -44,14 +44,8 @@ export default function DashboardPage() {
   const isSuperAdmin = profile?.role === 'super-admin';
   const hasNoRole = mounted && user && profile && !profile.role;
 
-  if (!mounted || authLoading) {
-    return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center gap-4 bg-background">
-        <Loader2 className="h-10 w-10 text-primary animate-spin" />
-        <p className="text-muted-foreground font-headline animate-pulse uppercase tracking-widest text-[10px] font-bold">Iniciando Sistemas de Red...</p>
-      </div>
-    );
-  }
+  // Evitamos el bloqueo de carga infinita. Si ya está montado, mostramos el panel.
+  if (!mounted) return null;
 
   return (
     <SidebarProvider>
@@ -72,7 +66,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {(hasNoRole || !profile) && !profileLoading && user && (
+            {(hasNoRole || !profile) && user && (
               <Button 
                 onClick={() => {
                   setInitLoading(true);
