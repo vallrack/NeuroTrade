@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -13,9 +14,9 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useDoc, useFirestore } from '@/firebase';
-import { doc, setDoc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { disconnectBroker } from '@/lib/actions';
-import { Globe, Lock, ShieldCheck, Zap, Loader2, ShieldAlert, ArrowRight, Trash2, Beaker, Landmark, Coins } from 'lucide-react';
+import { Globe, ShieldCheck, Zap, Loader2, ShieldAlert, ArrowRight, Trash2, Beaker, Landmark } from 'lucide-react';
 
 export default function BrokerPage() {
   const { user } = useUser();
@@ -43,14 +44,14 @@ export default function BrokerPage() {
     }
   }, [brokerConfig]);
 
-  // CAMBIO DINÁMICO INSTANTÁNEO
   const handleAccountTypeChange = async (type: 'demo' | 'real') => {
     setAccountType(type);
-    if (user && brokerRef && brokerConfig?.status === 'connected') {
+    if (user && brokerRef) {
       try {
-        await updateDoc(brokerRef, { accountType: type });
+        // Actualización atómica del canal
+        await setDoc(brokerRef, { accountType: type }, { merge: true });
         
-        // Inicializar estadísticas si no existen para el nuevo canal
+        // Inicializar estadísticas si es necesario
         const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', type);
         const statsSnap = await getDoc(statsRef);
         
@@ -72,7 +73,7 @@ export default function BrokerPage() {
           description: `Bot ahora operando en modo ${type.toUpperCase()}.`,
         });
       } catch (err) {
-        console.error("Error switching account:", err);
+        console.error("Error al cambiar de canal:", err);
       }
     }
   };
@@ -85,7 +86,6 @@ export default function BrokerPage() {
     try {
       const demoBalance = 11046.71;
 
-      // 1. Vincular credenciales
       await setDoc(brokerRef, {
         provider,
         email: provider === 'IQ Option' ? email : '',
@@ -98,19 +98,20 @@ export default function BrokerPage() {
         bridgeProtocol: provider === 'IQ Option' ? 'WSS-BUYV3' : 'REST-ABSTRACTION'
       }, { merge: true });
 
-      // 2. Inicializar estadísticas del canal activo
       const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', accountType);
-      await setDoc(statsRef, {
-        balance: accountType === 'demo' ? demoBalance : 0,
-        dailyProfit: 0,
-        winRate: 0,
-        totalInvestment: 0,
-        tradesCount: 0,
-        winsCount: 0,
-        lastSync: new Date().toISOString()
-      }, { merge: true });
+      const statsSnap = await getDoc(statsRef);
+      if (!statsSnap.exists()) {
+        await setDoc(statsRef, {
+          balance: accountType === 'demo' ? demoBalance : 0,
+          dailyProfit: 0,
+          winRate: 0,
+          totalInvestment: 0,
+          tradesCount: 0,
+          winsCount: 0,
+          lastSync: new Date().toISOString()
+        });
+      }
 
-      // 3. Activar el bot automáticamente
       const botParamsRef = doc(firestore, 'configuracion', 'bot_params');
       await setDoc(botParamsRef, {
         bot_activo: true,
@@ -127,7 +128,7 @@ export default function BrokerPage() {
     } catch (err: any) {
       toast({
         title: "ERROR DE VÍNCULO",
-        description: "No se pudo establecer el puente: " + err.message,
+        description: "Fallo en el puente: " + err.message,
         variant: "destructive"
       });
     } finally {
@@ -147,15 +148,11 @@ export default function BrokerPage() {
         setApiSecret('');
         toast({
           title: "PUENTE CERRADO",
-          description: "La sesión ha sido finalizada por el usuario.",
+          description: "La sesión ha sido finalizada.",
         });
       }
     } catch (err: any) {
-      toast({
-        title: "ERROR",
-        description: "No se pudo desvincular.",
-        variant: "destructive"
-      });
+      toast({ title: "ERROR", description: "Fallo al desvincular.", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -169,15 +166,15 @@ export default function BrokerPage() {
       <SidebarInset>
         <header className="flex h-16 items-center px-6 border-b border-white/5 bg-background/80 backdrop-blur-md sticky top-0 z-10">
           <SidebarTrigger />
-          <h1 className="ml-4 font-headline text-xl font-bold flex items-center gap-2">
+          <h1 className="ml-4 font-headline text-xl font-bold flex items-center gap-2 uppercase">
             <Globe className="h-5 w-5 text-primary" />
-            Vincular Bróker Maestros
+            Vínculo de Bróker V7
           </h1>
         </header>
 
         <main className="p-6 max-w-4xl mx-auto space-y-8">
           <div className="flex flex-col gap-2">
-            <h2 className="text-3xl font-headline font-bold text-foreground">Gestión de Conectividad V7</h2>
+            <h2 className="text-3xl font-headline font-bold text-foreground">Gestión de Conectividad</h2>
             <p className="text-muted-foreground italic">Cambio dinámico entre Demo y Real con persistencia absoluta.</p>
           </div>
 
@@ -190,7 +187,7 @@ export default function BrokerPage() {
                     <CardDescription>Seleccione su infraestructura de ejecución.</CardDescription>
                   </div>
                   {isConnected && (
-                    <Badge className="bg-green-500/20 text-green-500 border-green-500/50 uppercase animate-pulse">
+                    <Badge className="bg-green-500/20 text-green-500 border-green-500/50 uppercase">
                       Sincronizado
                     </Badge>
                   )}
@@ -206,9 +203,8 @@ export default function BrokerPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="IQ Option">IQ Option (Binarias/Forex)</SelectItem>
-                        <SelectItem value="Alpaca">Alpaca Markets (Acciones/Crypto)</SelectItem>
-                        <SelectItem value="Binance">Binance (Criptomonedas)</SelectItem>
-                        <SelectItem value="Bybit">Bybit (Derivados Crypto)</SelectItem>
+                        <SelectItem value="Alpaca">Alpaca Markets</SelectItem>
+                        <SelectItem value="Binance">Binance</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -220,27 +216,33 @@ export default function BrokerPage() {
                       onValueChange={(v: any) => handleAccountTypeChange(v)}
                       className="grid grid-cols-2 gap-4"
                     >
-                      <div className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${accountType === 'demo' ? 'bg-primary/10 border-primary' : 'bg-background/50 border-white/5 hover:border-white/10'}`} onClick={() => handleAccountTypeChange('demo')}>
+                      <div 
+                        className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${accountType === 'demo' ? 'bg-primary/10 border-primary' : 'bg-background/50 border-white/5'}`}
+                        onClick={() => handleAccountTypeChange('demo')}
+                      >
                         <div className="flex items-center gap-3">
                           <RadioGroupItem value="demo" id="demo" />
-                          <Label htmlFor="demo" className="font-bold cursor-pointer">PAPER / DEMO</Label>
+                          <Label htmlFor="demo" className="font-bold cursor-pointer uppercase">Paper / Demo</Label>
                         </div>
                         <Beaker className="h-5 w-5 opacity-50" />
                       </div>
-                      <div className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${accountType === 'real' ? 'bg-secondary/10 border-secondary' : 'bg-background/50 border-white/5 hover:border-white/10'}`} onClick={() => handleAccountTypeChange('real')}>
+                      <div 
+                        className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${accountType === 'real' ? 'bg-secondary/10 border-secondary' : 'bg-background/50 border-white/5'}`}
+                        onClick={() => handleAccountTypeChange('real')}
+                      >
                         <div className="flex items-center gap-3">
                           <RadioGroupItem value="real" id="real" />
-                          <Label htmlFor="real" className="font-bold cursor-pointer text-secondary">REAL ACCOUNT</Label>
+                          <Label htmlFor="real" className="font-bold cursor-pointer uppercase text-secondary">Real Account</Label>
                         </div>
-                        < Landmark className="h-5 w-5 opacity-50" />
+                        <Landmark className="h-5 w-5 opacity-50" />
                       </div>
                     </RadioGroup>
                   </div>
 
                   {!isConnected && (
-                    <>
+                    <div className="space-y-4 animate-in fade-in duration-300">
                       {provider === 'IQ Option' ? (
-                        <div className="space-y-4">
+                        <>
                           <div className="space-y-2">
                             <Label>Email IQ Option</Label>
                             <Input 
@@ -252,7 +254,7 @@ export default function BrokerPage() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>Clave Cifrada</Label>
+                            <Label>Clave de Acceso</Label>
                             <Input 
                               type="password" 
                               value={password} 
@@ -261,11 +263,11 @@ export default function BrokerPage() {
                               required
                             />
                           </div>
-                        </div>
+                        </>
                       ) : (
                         <div className="space-y-4">
                           <div className="space-y-2">
-                            <Label>API Key (Pública)</Label>
+                            <Label>API Key</Label>
                             <Input 
                               value={apiKey}
                               onChange={(e) => setApiKey(e.target.value)}
@@ -273,36 +275,27 @@ export default function BrokerPage() {
                               required
                             />
                           </div>
-                          <div className="space-y-2">
-                            <Label>API Secret (Privada)</Label>
-                            <Input 
-                              type="password" 
-                              value={apiSecret}
-                              onChange={(e) => setApiSecret(e.target.value)}
-                              className="bg-background/50 border-white/5 h-12"
-                              required
-                            />
-                          </div>
                         </div>
                       )}
-                    </>
+                    </div>
                   )}
 
                   {isConnected && (
                     <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-2">
-                       <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Credenciales Activas</p>
-                       <p className="text-sm font-code">{email || apiKey || 'Sincronizado vía Bridge'}</p>
+                       <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Credenciales Activas</p>
+                       <p className="text-sm font-code text-white">{email || apiKey || 'Protección WSS Activa'}</p>
                     </div>
                   )}
                 </CardContent>
                 <CardFooter className="flex justify-between border-t border-white/5 pt-6 bg-white/5 p-6">
-                   <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">
+                   <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest flex items-center gap-2">
+                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                      Bridge Latency: &lt;150ms
                    </div>
                    {!isConnected ? (
-                     <Button type="submit" disabled={loading} className="gap-2 px-10 h-12 font-headline shadow-lg shadow-primary/20">
+                     <Button type="submit" disabled={loading} className="gap-2 px-10 h-12 font-headline shadow-xl shadow-primary/20">
                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-                       VINCULAR NÚCLEO {provider.toUpperCase()}
+                       VINCULAR NÚCLEO
                      </Button>
                    ) : (
                      <Button type="button" variant="outline" onClick={() => router.push('/dashboard')} className="gap-2">
@@ -316,23 +309,18 @@ export default function BrokerPage() {
             <div className="space-y-6">
               <Card className="bg-primary/5 border-primary/20">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-headline flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-primary" />
-                    Protocolos Soportados
+                  <CardTitle className="text-xs font-headline flex items-center gap-2 uppercase tracking-widest">
+                    Infraestructura
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="text-[11px] text-muted-foreground space-y-4">
                   <div>
                     <span className="text-white font-bold block mb-1">IQ OPTION (WSS)</span>
-                    <p>Login vía HTTP -&gt; SSID Token -&gt; WebSocket bidireccional buyV3 para ejecución HFT.</p>
+                    <p>Comunicación unilateral persistente vía buyV3 para ejecución HFT.</p>
                   </div>
                   <div>
-                    <span className="text-white font-bold block mb-1">ALPACA (REST/WSS)</span>
-                    <p>Ejecución oficial vía REST API con feed de datos Real-Time vía WebSockets.</p>
-                  </div>
-                  <div>
-                    <span className="text-white font-bold block mb-1">CRYPTO (CCXT)</span>
-                    <p>Abstracción unificada para Binance y Bybit compatible con trading algorítmico.</p>
+                    <span className="text-white font-bold block mb-1">ALPACA (REST)</span>
+                    <p>Puente oficial para acciones y cripto con feed en tiempo real.</p>
                   </div>
                 </CardContent>
               </Card>
@@ -345,18 +333,15 @@ export default function BrokerPage() {
                       Zona de Peligro
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-[10px] text-red-500/70 italic leading-tight uppercase font-bold">
-                      Desvincular cerrará el túnel de datos y detendrá el bot.
-                    </p>
+                  <CardContent>
                     <Button 
                       variant="ghost" 
                       onClick={handleDisconnect}
                       disabled={loading}
-                      className="w-full text-red-500 hover:bg-red-500/10 h-10 text-[10px] gap-2 border border-red-500/20 font-bold"
+                      className="w-full text-red-500 hover:bg-red-500/10 h-10 text-[10px] gap-2 border border-red-500/20 font-bold uppercase"
                     >
-                      {loading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Trash2 className="h-3 w-3" />}
-                      CERRAR PUENTE Y BORRAR DATOS
+                      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                      CERRAR PUENTE
                     </Button>
                   </CardContent>
                 </Card>

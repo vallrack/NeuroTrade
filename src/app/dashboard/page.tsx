@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -12,7 +13,7 @@ import { Bell, Settings, ShieldCheck, Crown, Activity, RefreshCw, Loader2 } from
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useUser, useDoc, useFirestore } from '@/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { SuperAdminTools } from '@/components/dashboard/super-admin-tools';
 import { Badge } from '@/components/ui/badge';
 import { promoteToSuperAdmin } from '@/lib/actions';
@@ -31,16 +32,16 @@ export default function DashboardPage() {
     setMounted(true);
   }, []);
   
-  const profileRef = useMemo(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-  const { data: profile } = useDoc(profileRef);
-
   const brokerRef = useMemo(() => user ? doc(firestore, 'users', user.uid, 'config', 'broker') : null, [user, firestore]);
   const { data: brokerConfig } = useDoc(brokerRef);
+
+  const profileRef = useMemo(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
+  const { data: profile } = useDoc(profileRef);
 
   const botParamsRef = useMemo(() => doc(firestore, 'configuracion', 'bot_params'), [firestore]);
   const { data: botParams } = useDoc(botParamsRef);
 
-  // AUTO-SINCRONIZACIÓN DINÁMICA
+  // AUTO-SINCRONIZACIÓN DINÁMICA DE CANAL
   useEffect(() => {
     if (mounted && user && firestore && brokerConfig) {
       const syncAccount = async () => {
@@ -48,7 +49,7 @@ export default function DashboardPage() {
         const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', accountType);
         const statsSnap = await getDoc(statsRef);
         
-        // Solo sincronizamos el balance de la imagen ($11,046.71) si es DEMO
+        // Sincronización absoluta del saldo de la imagen para el canal DEMO
         if (accountType === 'demo') {
           const demoBalance = 11046.71;
           if (!statsSnap.exists() || Math.abs(statsSnap.data()?.balance - demoBalance) > 0.01) {
@@ -63,8 +64,8 @@ export default function DashboardPage() {
             }, { merge: true });
             
             toast({
-              title: "CANAL DEMO SINCRONIZADO",
-              description: `Balance IQ Option detectado: $${demoBalance.toLocaleString()}.`,
+              title: "SINCRONIZACIÓN IQ OPTION",
+              description: `Saldo Demo calibrado en $${demoBalance.toLocaleString()}.`,
             });
           }
         }
@@ -82,6 +83,7 @@ export default function DashboardPage() {
   const isSuperAdmin = profile?.role === 'super-admin';
   const hasNoRole = mounted && user && profile && !profile.role;
   const isBotActive = botParams?.bot_activo;
+  const currentChannel = brokerConfig?.accountType || 'demo';
 
   if (!mounted) return null;
 
@@ -100,7 +102,7 @@ export default function DashboardPage() {
               {isBotActive && (
                 <Badge className="bg-primary/10 text-primary border-primary/20 gap-1.5 py-0.5 px-3 text-[10px] hidden xs:flex">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
-                  MOTOR {brokerConfig?.accountType?.toUpperCase() || 'DEMO'} ACTIVO
+                  CANAL {currentChannel.toUpperCase()} ACTIVO
                 </Badge>
               )}
             </div>
@@ -110,7 +112,7 @@ export default function DashboardPage() {
             {isSuperAdmin && (
               <Badge variant="outline" className="hidden lg:flex border-primary/30 text-primary gap-1 bg-primary/5 uppercase text-[9px] font-bold tracking-wider">
                 <Crown className="h-3 w-3" />
-                Nivel Maestro L-5
+                L-5 MASTER ACCESS
               </Badge>
             )}
             <div className="flex items-center gap-1">
@@ -118,23 +120,23 @@ export default function DashboardPage() {
                 <Bell className="h-4 w-4 md:h-5 md:w-5" />
                 <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-primary rounded-full" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 md:h-9 md:w-9">
+              <Button variant="ghost" size="icon" className="h-8 w-8 md:h-9 md:w-9" onClick={() => router.push('/dashboard/settings')}>
                 <Settings className="h-4 w-4 md:h-5 md:w-5" />
               </Button>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 p-4 md:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto w-full overflow-y-auto">
+        <main className="flex-1 p-4 md:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto w-full overflow-y-auto custom-scrollbar">
           <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-primary/5 p-4 rounded-2xl border border-white/5">
              <div className="flex items-center gap-3 w-full sm:w-auto">
                 <div className={`p-2.5 rounded-xl ${isBotActive ? 'bg-green-500/20 text-green-500' : 'bg-destructive/20 text-destructive'}`}>
                   <Activity className={`h-5 w-5 ${isBotActive ? 'animate-pulse' : ''}`} />
                 </div>
                 <div>
-                   <h2 className="font-headline font-bold text-sm md:text-base leading-none uppercase">Canal: {brokerConfig?.accountType?.toUpperCase() || 'DEMO'}</h2>
+                   <h2 className="font-headline font-bold text-sm md:text-base leading-none uppercase">ENTORNO: {currentChannel.toUpperCase()}</h2>
                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mt-1">
-                     {isBotActive ? 'Comunicación Unilateral Persistente' : 'Núcleo en Standby'}
+                     {isBotActive ? 'Comunicación Bilateral Persistente' : 'Núcleo en Standby'}
                    </p>
                 </div>
              </div>
@@ -154,7 +156,7 @@ export default function DashboardPage() {
                     className="w-full sm:w-auto border-primary/50 text-primary hover:bg-primary/10 gap-2 h-9 text-xs"
                   >
                     {initLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                    Sincronizar Acceso
+                    Sincronizar Acceso Maestro
                   </Button>
                 )}
              </div>
@@ -172,7 +174,7 @@ export default function DashboardPage() {
                   <div className="flex-1 p-6 bg-card/40 border border-white/5 rounded-2xl shadow-xl backdrop-blur-sm">
                     <h3 className="font-headline font-bold mb-4 flex items-center gap-2 text-destructive text-sm uppercase tracking-wider">
                       <ShieldCheck className="h-4 w-4" />
-                      Kill-Switch de Emergencia
+                      Kill-Switch Global
                     </h3>
                     <KillSwitch />
                   </div>
