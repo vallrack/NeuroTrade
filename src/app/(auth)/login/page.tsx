@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Zap, Loader2, UserPlus, LogIn, AlertCircle } from 'lucide-react';
+import { Zap, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
@@ -33,13 +33,18 @@ export default function LoginPage() {
     setMounted(true);
   }, []);
 
-  // Si ya hay usuario, intentar redirigir
+  // Si ya hay usuario detectado por Firebase, intentamos sincronizar cookie y entrar
   useEffect(() => {
     if (mounted && user) {
-      const from = searchParams.get('from') || '/dashboard';
-      router.push(from);
+      const syncAndGo = async () => {
+        const token = await user.getIdToken();
+        document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax; Secure`;
+        const from = searchParams.get('from') || '/dashboard';
+        window.location.href = from;
+      };
+      syncAndGo();
     }
-  }, [mounted, user, router, searchParams]);
+  }, [mounted, user, searchParams]);
 
   const ensureUserProfile = async (user: any, name?: string) => {
     const userRef = doc(firestore, 'users', user.uid);
@@ -55,7 +60,7 @@ export default function LoginPage() {
         await setDoc(userRef, userData, { merge: true });
       }
     } catch (err) {
-      console.error("Error al asegurar perfil:", err);
+      // Error silencioso para no bloquear el flujo
     }
   };
 
@@ -80,28 +85,32 @@ export default function LoginPage() {
 
       if (loggedUser) {
         const token = await loggedUser.getIdToken();
-        // Sincronización de cookie
-        document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
+        // Sincronización de cookie con parámetros de seguridad
+        document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax; Secure`;
         
         toast({
           title: "SISTEMA SINCRONIZADO",
-          description: "Accediendo...",
+          description: "Entrando al Centro de Comando...",
         });
 
-        // Forzar navegación
-        const from = searchParams.get('from') || '/dashboard';
-        window.location.href = from;
+        // Pequeña espera para asegurar que la cookie se procese
+        setTimeout(() => {
+          const from = searchParams.get('from') || '/dashboard';
+          window.location.href = from;
+        }, 500);
       }
     } catch (err: any) {
       setLoading(false);
-      console.error("Auth Error:", err.code, err.message);
+      console.log("Auth attempt details:", err.code);
       
-      let message = 'Error de conexión cuántica.';
+      let message = 'Fallo en la conexión cuántica.';
       if (err.code === 'auth/email-already-in-use') {
-        message = 'El ID ya existe. Por favor, inicia sesión.';
+        message = 'El ID de operador ya existe. Por favor, inicia sesión.';
         setIsRegister(false);
       } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
-        message = 'Credenciales incorrectas.';
+        message = 'Credenciales de acceso inválidas.';
+      } else if (err.code === 'auth/weak-password') {
+        message = 'La clave debe tener al menos 6 caracteres.';
       }
       setError(message);
     }
@@ -119,19 +128,20 @@ export default function LoginPage() {
             </div>
           </div>
           <CardTitle className="text-3xl font-headline font-bold">
-            {isRegister ? 'Registro' : 'Conexión'}
+            {isRegister ? 'Registro de Operador' : 'Conexión Segura'}
           </CardTitle>
           <CardDescription className="uppercase text-[10px] tracking-widest font-bold text-muted-foreground mt-2">
-            NeuroTrade Quantum Access
+            Protocolo de Acceso NeuroTrade
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleAuth}>
           <CardContent className="space-y-4">
             {isRegister && (
               <div className="space-y-2">
-                <Label htmlFor="name">Nombre Operador</Label>
+                <Label htmlFor="name">Identificación del Operador</Label>
                 <Input 
                   id="name" 
+                  placeholder="Nombre o Alias"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   className="bg-background/50 border-white/5"
@@ -140,10 +150,11 @@ export default function LoginPage() {
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="email">Email de Operador</Label>
+              <Label htmlFor="email">Email del Operador</Label>
               <Input 
                 id="email" 
                 type="email" 
+                placeholder="operador@neurotrade.ai"
                 required 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -155,6 +166,7 @@ export default function LoginPage() {
               <Input 
                 id="password" 
                 type="password" 
+                placeholder="••••••••"
                 required 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -162,25 +174,28 @@ export default function LoginPage() {
               />
             </div>
             {error && (
-              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-[11px] flex items-center gap-2 font-bold">
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-[11px] flex items-center gap-2 font-bold animate-in fade-in zoom-in duration-300">
                 <AlertCircle className="h-4 w-4" />
                 <span>{error}</span>
               </div>
             )}
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full h-12 font-headline" disabled={loading}>
+            <Button type="submit" className="w-full h-12 font-headline text-md tracking-tight" disabled={loading}>
               {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
-              {isRegister ? 'CREAR CUENTA' : 'ENTRAR AL SISTEMA'}
+              {isRegister ? 'CREAR CUENTA' : 'ESTABLECER CONEXIÓN'}
             </Button>
             <Button 
               type="button" 
               variant="ghost" 
-              className="w-full text-xs" 
-              onClick={() => setIsRegister(!isRegister)}
+              className="w-full text-xs hover:bg-white/5" 
+              onClick={() => {
+                setIsRegister(!isRegister);
+                setError('');
+              }}
               disabled={loading}
             >
-              {isRegister ? '¿Ya tienes cuenta? Inicia Sesión' : '¿Eres nuevo? Regístrate'}
+              {isRegister ? '¿Ya tienes cuenta? Inicia Sesión' : '¿Nuevo operador? Regístrate aquí'}
             </Button>
           </CardFooter>
         </form>

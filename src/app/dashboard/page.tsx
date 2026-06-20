@@ -18,11 +18,13 @@ import { SuperAdminTools } from '@/components/dashboard/super-admin-tools';
 import { Badge } from '@/components/ui/badge';
 import { promoteToSuperAdmin } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const router = useRouter();
   const [initLoading, setInitLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -32,6 +34,13 @@ export default function DashboardPage() {
   
   const profileRef = useMemo(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: profile, loading: profileLoading } = useDoc(profileRef);
+
+  // Redirigir al login si auth finaliza y no hay usuario
+  useEffect(() => {
+    if (mounted && !authLoading && !user) {
+      router.push('/login?from=/dashboard');
+    }
+  }, [mounted, authLoading, user, router]);
 
   const isSuperAdmin = profile?.role === 'super-admin';
   const hasNoRole = (mounted && !authLoading && user && !profileLoading && (!profile || !profile.role));
@@ -58,21 +67,18 @@ export default function DashboardPage() {
     }
   };
 
-  // Solo mostramos carga si no sabemos quién es el usuario todavía
+  // Solo bloqueamos con pantalla de carga si realmente no tenemos información de auth
   if (!mounted || (authLoading && !user)) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center gap-4 bg-background">
         <Loader2 className="h-10 w-10 text-primary animate-spin" />
-        <p className="text-muted-foreground font-headline animate-pulse uppercase tracking-widest text-xs font-bold">Sincronizando con la Red NeuroTrade...</p>
+        <p className="text-muted-foreground font-headline animate-pulse uppercase tracking-widest text-[10px] font-bold">Sincronizando con la Red NeuroTrade...</p>
       </div>
     );
   }
 
-  // Si después de cargar no hay usuario, el middleware debería habernos echado, 
-  // pero por seguridad devolvemos null
-  if (!user) {
-    return null; 
-  }
+  // Si no hay usuario, el useEffect de arriba se encargará de redirigir
+  if (!user) return null;
 
   return (
     <SidebarProvider>
