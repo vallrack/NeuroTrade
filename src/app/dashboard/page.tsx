@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { StatsGrid } from '@/components/dashboard/stats-grid';
 import { IACommitteeMonitor } from '@/components/dashboard/ia-committee-monitor';
 import { EquityChart } from '@/components/dashboard/equity-chart';
@@ -62,13 +62,8 @@ export default function DashboardPage() {
     );
   }
 
-  // Si no hay usuario, el middleware debería habernos sacado, pero por si acaso:
   if (!user) {
-    return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-background">
-        <p className="text-muted-foreground font-headline">Redireccionando a Puerta de Acceso...</p>
-      </div>
-    );
+    return null; // El middleware se encarga de la redirección
   }
 
   return (

@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, onAuthStateChanged } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,18 +29,30 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
-  // Si ya hay una sesión activa de Firebase, intentamos redirigir
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const token = await user.getIdToken();
-        document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
-        const from = searchParams.get('from') || '/dashboard';
-        router.replace(from);
-      }
+  // Gestión de sesión mediante Cookies
+  const setSessionCookie = async (user: any) => {
+    const token = await user.getIdToken();
+    document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
+  };
+
+  const ensureUserProfile = async (user: any, name?: string) => {
+    const userRef = doc(firestore, 'users', user.uid);
+    const userData = {
+      email: user.email,
+      displayName: name || user.displayName || user.email?.split('@')[0],
+      lastActive: new Date().toISOString(),
+    };
+    
+    // Intentamos crear/actualizar el perfil sin bloquear el flujo principal
+    setDoc(userRef, userData, { merge: true }).catch((err) => {
+      const permissionError = new FirestorePermissionError({
+        path: userRef.path,
+        operation: 'write',
+        requestResourceData: userData,
+      } satisfies SecurityRuleContext);
+      errorEmitter.emit('permission-error', permissionError);
     });
-    return () => unsub();
-  }, [auth, router, searchParams]);
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,66 +64,50 @@ export default function LoginPage() {
       if (isRegister) {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         user = userCredential.user;
-
         if (displayName) {
           await updateProfile(user, { displayName });
         }
-
-        // Crear perfil inicial de forma no bloqueante
-        const userRef = doc(firestore, 'users', user.uid);
-        const userData = {
-          email: user.email,
-          displayName: displayName || user.email?.split('@')[0],
-          role: null, // Se asignará vía dashboard con el botón de inicialización
-          createdAt: new Date().toISOString(),
-          lastActive: new Date().toISOString(),
-        };
-
-        setDoc(userRef, userData, { merge: true }).catch(async (err) => {
-          const permissionError = new FirestorePermissionError({
-            path: userRef.path,
-            operation: 'create',
-            requestResourceData: userData,
-          } satisfies SecurityRuleContext);
-          errorEmitter.emit('permission-error', permissionError);
-        });
-
-        toast({
-          title: "OPERADOR REGISTRADO",
-          description: "Perfil cuántico creado. Sincronizando sesión...",
-        });
+        await ensureUserProfile(user, displayName);
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         user = userCredential.user;
+        // Al loguear, también aseguramos que tenga perfil por si el registro falló antes
+        await ensureUserProfile(user);
       }
 
       if (user) {
-        const token = await user.getIdToken();
-        // Establecer la cookie sin el flag Secure para evitar problemas en local si no es HTTPS
-        document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
+        await setSessionCookie(user);
+        toast({
+          title: isRegister ? "OPERADOR REGISTRADO" : "CONEXIÓN ESTABLECIDA",
+          description: "Sincronizando con el Centro de Comando...",
+        });
         
-        const from = searchParams.get('from') || '/dashboard';
-        
-        // Forzar navegación
+        // Redirección forzada para asegurar que el middleware vea la cookie
         setTimeout(() => {
+          const from = searchParams.get('from') || '/dashboard';
           window.location.href = from;
-        }, 500);
+        }, 800);
       }
     } catch (err: any) {
       console.error(err);
       let message = 'Fallo en el protocolo de autenticación.';
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-        message = 'ID o Protocolo de Seguridad incorrecto.';
-      } else if (err.code === 'auth/email-already-in-use') {
-        message = 'El ID de operador ya está activo.';
+      
+      if (err.code === 'auth/email-already-in-use') {
+        message = 'El ID de operador ya existe. Por favor, inicia sesión.';
+        setIsRegister(false);
+      } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        message = 'Credenciales no válidas para este nodo.';
+      } else if (err.code === 'auth/weak-password') {
+        message = 'Protocolo débil. Usa al menos 6 caracteres.';
       }
+      
       setError(message);
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background font-body">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background font-body text-foreground">
       <Card className="w-full max-w-md bg-card/50 border-white/5 backdrop-blur-xl shadow-2xl">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
@@ -137,7 +133,6 @@ export default function LoginPage() {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   className="bg-background/50 border-white/5 focus:border-primary/50"
-                  autoComplete="name"
                 />
               </div>
             )}
@@ -151,7 +146,6 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="bg-background/50 border-white/5 focus:border-primary/50"
-                autoComplete="email"
               />
             </div>
             <div className="space-y-2">
@@ -163,18 +157,17 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="bg-background/50 border-white/5 focus:border-primary/50"
-                autoComplete="current-password"
               />
             </div>
             {error && (
-              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-[11px] flex items-center gap-2 font-bold uppercase animate-in fade-in slide-in-from-top-1">
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-[11px] flex items-center gap-2 font-bold uppercase">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{error}</span>
               </div>
             )}
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full h-12 font-headline text-lg bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20" disabled={loading}>
+            <Button type="submit" className="w-full h-12 font-headline text-lg bg-primary hover:bg-primary/90" disabled={loading}>
               {loading ? (
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
               ) : isRegister ? (
