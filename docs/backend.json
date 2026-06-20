@@ -13,6 +13,18 @@
       },
       "required": ["email"]
     },
+    "BrokerConfig": {
+      "title": "Configuración del Bróker",
+      "description": "Credenciales y estado de conexión con el bróker (ej. IQ Option).",
+      "type": "object",
+      "properties": {
+        "provider": { "type": "string" },
+        "email": { "type": "string" },
+        "password": { "type": "string" },
+        "status": { "type": "string", "enum": ["connected", "pending", "disconnected"] },
+        "connectedAt": { "type": "string", "format": "date-time" }
+      }
+    },
     "BotParams": {
       "title": "Parámetros del Bot",
       "description": "Configuración operativa para el bot de trading de IA.",
@@ -53,19 +65,23 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "Datos del perfil de usuario. Permite acceso total si role es super-admin."
+      "description": "Datos del perfil de usuario."
+    },
+    "/users/{userId}/config/broker": {
+      "schema": "BrokerConfig",
+      "description": "Configuración privada del bróker para cada usuario."
     },
     "/configuracion/bot_params": {
       "schema": "BotParams",
-      "description": "Configuración global de los parámetros del bot. Solo editable por admins y super-admins."
+      "description": "Configuración global de los parámetros del bot."
     },
     "/rendimiento_diario/{recordId}": {
       "schema": "DailyEquity",
-      "description": "Datos temporales para el gráfico de equidad. Acceso total para super-admin."
+      "description": "Datos temporales para el gráfico de equidad."
     },
     "/dashboard/current_stats": {
       "schema": "DashboardStats",
-      "description": "Resumen de estadísticas en tiempo real para el dashboard. Acceso total para super-admin."
+      "description": "Resumen de estadísticas en tiempo real."
     }
   }
 }

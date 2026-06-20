@@ -11,7 +11,8 @@ import {
   ShieldCheck,
   UserCircle,
   LogOut,
-  Zap
+  Zap,
+  Globe
 } from "lucide-react"
 
 import {
@@ -46,20 +47,15 @@ const data = {
           url: "/dashboard/history",
           icon: History,
         },
-        {
-          title: "Analítica Avanzada",
-          url: "/dashboard/analytics",
-          icon: TrendingUp,
-        },
       ],
     },
     {
-      title: "Inteligencia",
+      title: "Conectividad",
       items: [
         {
-          title: "Laboratorio de IA",
-          url: "/dashboard/lab",
-          icon: Zap,
+          title: "Conexión Bróker",
+          url: "/dashboard/broker",
+          icon: Globe,
         },
         {
           title: "Control de Riesgo",
