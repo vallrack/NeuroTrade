@@ -39,7 +39,6 @@ export function IACommitteeMonitor() {
       const brokerIsConnected = brokerConfig?.status === 'connected';
       const hasStrongConsensus = result.overallConsensus !== 'NEUTRAL' && result.consensusPercentage >= 80;
 
-      // Lógica de Ejecución Autónoma V7
       if (user && botIsActive && brokerIsConnected && hasStrongConsensus && !executionCooldown.current && !isExecuting) {
         handleAutoTrade(result.overallConsensus as 'CALL' | 'PUT');
       }
@@ -76,7 +75,6 @@ export function IACommitteeMonitor() {
       console.error('Fallo en auto-trade:', err);
     } finally {
       setIsExecuting(false);
-      // Cooldown de seguridad entre señales HFT
       setTimeout(() => {
         executionCooldown.current = false;
       }, 10000); 
@@ -91,74 +89,71 @@ export function IACommitteeMonitor() {
 
   if (loading && !data) {
     return (
-      <Card className="h-full bg-card/50 border-white/5 min-h-[400px] flex items-center justify-center">
+      <Card className="h-[400px] md:h-[450px] bg-card/40 border-white/5 flex items-center justify-center rounded-2xl">
         <div className="flex flex-col items-center gap-4">
           <RefreshCw className="h-8 w-8 text-primary animate-spin" />
-          <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground animate-pulse">Sincronizando ráfaga HFT...</p>
+          <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-muted-foreground animate-pulse">Sincronizando HFT...</p>
         </div>
       </Card>
     );
   }
 
   return (
-    <Card className="h-full bg-card/50 border-white/5 backdrop-blur-xl relative overflow-hidden flex flex-col shadow-2xl">
-      <CardHeader className="pb-4 border-b border-white/5 bg-white/5">
+    <Card className="h-[400px] md:h-[450px] bg-card/40 border-white/5 backdrop-blur-xl relative overflow-hidden flex flex-col shadow-2xl rounded-2xl">
+      <CardHeader className="pb-4 border-b border-white/5 bg-white/5 px-6">
         <div className="flex justify-between items-center">
           <div className="flex flex-col gap-1">
-            <CardTitle className="text-lg font-headline flex items-center gap-2 text-white">
-              <Cpu className="h-5 w-5 text-primary" />
-              NÚCLEO MAESTRO V7
+            <CardTitle className="text-base font-headline flex items-center gap-2 text-white">
+              <Cpu className="h-4 w-4 text-primary" />
+              NÚCLEO V7
             </CardTitle>
-            <span className="text-[10px] text-primary font-bold uppercase tracking-widest flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
-              FEED: {activePair}
+            <span className="text-[9px] text-primary font-bold uppercase tracking-widest flex items-center gap-1.5">
+              <div className="w-1 h-1 rounded-full bg-primary animate-ping" />
+              {activePair}
             </span>
           </div>
           <div className="text-right">
-             <p className="text-[9px] font-bold text-muted-foreground uppercase">Ticker HFT</p>
-             <p className="text-sm font-code text-primary font-bold animate-pulse">{data?.livePrice}</p>
+             <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Ticker</p>
+             <p className="text-xs md:text-sm font-code text-primary font-bold">{data?.livePrice}</p>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6 pt-6 flex-1 bg-black/20">
-        <div className="p-4 bg-zinc-900/50 border border-white/10 rounded-xl relative overflow-hidden">
-           <div className="absolute top-0 right-0 p-2 opacity-10">
-              <BarChart3 className="h-12 w-12" />
-           </div>
-           <div className="flex items-start gap-2 mb-3">
+      <CardContent className="space-y-4 pt-6 px-6 flex-1 overflow-hidden flex flex-col">
+        <div className="p-4 bg-white/5 border border-white/5 rounded-xl relative overflow-hidden shrink-0">
+           <div className="flex items-start gap-3 mb-4">
              <TrendingUp className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-             <p className="text-[11px] text-muted-foreground leading-tight italic min-h-[32px]">
+             <p className="text-[10px] md:text-[11px] text-muted-foreground leading-snug italic line-clamp-2">
                {data?.marketContext || "Analizando ráfaga de datos..."}
              </p>
            </div>
            <div className="flex justify-between items-center mb-2">
-             <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Consenso del Comité</span>
-             <span className="text-xl font-headline font-bold text-primary">{data?.consensusPercentage}%</span>
+             <span className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest">Consenso</span>
+             <span className="text-lg font-headline font-bold text-primary">{data?.consensusPercentage}%</span>
            </div>
-           <Progress value={data?.consensusPercentage || 0} className="h-2 bg-zinc-800" />
+           <Progress value={data?.consensusPercentage || 0} className="h-1.5 bg-zinc-800" />
            <div className="mt-4 flex justify-between items-center">
-             <div className={`text-xl font-headline font-bold flex items-center gap-2 ${data?.overallConsensus === 'CALL' ? 'text-green-500' : data?.overallConsensus === 'PUT' ? 'text-red-500' : 'text-muted-foreground'}`}>
-               {data?.overallConsensus === 'CALL' ? <ArrowUpCircle className="h-6 w-6 animate-bounce" /> : data?.overallConsensus === 'PUT' ? <ArrowDownCircle className="h-6 w-6 animate-bounce" /> : null}
+             <div className={`text-lg font-headline font-bold flex items-center gap-2 ${data?.overallConsensus === 'CALL' ? 'text-green-500' : data?.overallConsensus === 'PUT' ? 'text-red-500' : 'text-muted-foreground'}`}>
+               {data?.overallConsensus === 'CALL' ? <ArrowUpCircle className="h-5 w-5 animate-bounce" /> : data?.overallConsensus === 'PUT' ? <ArrowDownCircle className="h-5 w-5 animate-bounce" /> : null}
                {data?.overallConsensus}
              </div>
              {lastExecution && (
-               <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-code">
-                 L-EXEC: {lastExecution}
+               <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/5 font-code">
+                 L-EX: {lastExecution}
                </Badge>
              )}
            </div>
         </div>
 
-        <div className="space-y-2 flex-1 overflow-y-auto max-h-[180px] custom-scrollbar pr-1">
+        <div className="space-y-2 flex-1 overflow-y-auto pr-1 custom-scrollbar">
           {data?.agentRecommendations.map((agent, i) => (
-            <div key={i} className="p-3 bg-zinc-900/30 rounded-lg border border-white/5 flex items-center justify-between group/agent hover:border-primary/40 transition-all animate-in fade-in duration-300">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${agent.recommendation === 'CALL' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                  {agent.recommendation === 'CALL' ? <ArrowUpCircle className="h-4 w-4" /> : <ArrowDownCircle className="h-4 w-4" />}
+            <div key={i} className="p-3 bg-white/5 rounded-lg border border-white/5 flex items-center justify-between group/agent hover:border-primary/30 transition-all">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className={`w-7 h-7 shrink-0 rounded-full flex items-center justify-center ${agent.recommendation === 'CALL' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                  {agent.recommendation === 'CALL' ? <ArrowUpCircle className="h-3.5 w-3.5" /> : <ArrowDownCircle className="h-3.5 w-3.5" />}
                 </div>
-                <div className="space-y-0.5">
-                  <p className="text-[11px] font-bold text-white/90">{agent.agentName}</p>
-                  <p className="text-[9px] text-muted-foreground italic leading-tight">{agent.reasoning}</p>
+                <div className="space-y-0.5 overflow-hidden">
+                  <p className="text-[10px] font-bold text-white/90 truncate">{agent.agentName}</p>
+                  <p className="text-[9px] text-muted-foreground italic truncate">{agent.reasoning}</p>
                 </div>
               </div>
             </div>
@@ -166,10 +161,10 @@ export function IACommitteeMonitor() {
         </div>
       </CardContent>
       {isExecuting && (
-        <div className="absolute inset-0 bg-background/90 backdrop-blur-xl flex flex-col items-center justify-center z-50 animate-in fade-in duration-300">
-           <Zap className="h-16 w-16 text-primary animate-bounce mb-4" />
-           <p className="text-2xl font-headline font-bold text-primary animate-pulse tracking-tighter">ORDEN V7 EN CURSO</p>
-           <p className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">Inyectando capital en túnel IQ...</p>
+        <div className="absolute inset-0 bg-background/95 backdrop-blur-2xl flex flex-col items-center justify-center z-50 animate-in fade-in">
+           <Zap className="h-12 w-12 text-primary animate-bounce mb-4" />
+           <p className="text-xl font-headline font-bold text-primary tracking-tighter">ORDEN V7</p>
+           <p className="text-[9px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">Injecting Capital...</p>
         </div>
       )}
     </Card>

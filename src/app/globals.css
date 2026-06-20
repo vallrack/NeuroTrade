@@ -4,26 +4,26 @@
 
 @layer base {
   :root {
-    --background: 222 47% 11%;
+    --background: 222 47% 7%;
     --foreground: 210 40% 98%;
-    --card: 222 47% 14%;
+    --card: 222 47% 10%;
     --card-foreground: 210 40% 98%;
-    --popover: 222 47% 11%;
+    --popover: 222 47% 7%;
     --popover-foreground: 210 40% 98%;
     --primary: 221 83% 53%;
     --primary-foreground: 210 40% 98%;
     --secondary: 199 89% 48%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 222 47% 18%;
+    --muted: 222 47% 14%;
     --muted-foreground: 215 20.2% 65.1%;
     --accent: 199 89% 48%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 222 47% 20%;
-    --input: 222 47% 20%;
+    --border: 222 47% 15%;
+    --input: 222 47% 15%;
     --ring: 221 83% 53%;
-    --radius: 0.75rem;
+    --radius: 1rem;
   }
 }
 
@@ -32,38 +32,50 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-body;
+    @apply bg-background text-foreground font-body overflow-x-hidden;
   }
   h1, h2, h3, h4, h5, h6 {
-    @apply font-headline;
+    @apply font-headline tracking-tight;
   }
 }
 
-.trading-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
+/* Custom Thin Techy Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-primary/20 rounded-full hover:bg-primary/40 transition-colors;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 3px;
 }
 
 .log-entry {
   font-family: var(--font-code);
-  font-size: 0.8rem;
-  line-height: 1.4;
+  font-size: 0.75rem;
+  line-height: 1.5;
   border-left: 2px solid transparent;
-  padding-left: 0.5rem;
-  margin-bottom: 0.25rem;
+  padding-left: 0.75rem;
+  margin-bottom: 0.35rem;
 }
 
-.log-entry-call { border-left-color: #22c55e; }
-.log-entry-put { border-left-color: #ef4444; }
-.log-entry-none { border-left-color: #64748b; }
+.log-entry-call { border-left-color: #22c55e; @apply bg-green-500/5; }
+.log-entry-put { border-left-color: #ef4444; @apply bg-red-500/5; }
+.log-entry-none { border-left-color: #3b82f6; @apply bg-blue-500/5; }
 
 @keyframes pulse-subtle {
-  0% { opacity: 1; }
-  50% { opacity: 0.7; }
-  100% { opacity: 1; }
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
 }
 
 .live-indicator {
-  animation: pulse-subtle 2s infinite ease-in-out;
+  animation: pulse-subtle 3s infinite ease-in-out;
 }
