@@ -29,12 +29,17 @@ export default function BrokerPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  // Sincronizar estado local con Firestore
   useEffect(() => {
     if (brokerConfig) {
       setEmail(brokerConfig.email || '');
       setPassword(brokerConfig.password || '');
+    } else if (!configLoading) {
+      // Si el documento no existe, asegurar que los campos estén limpios
+      setEmail('');
+      setPassword('');
     }
-  }, [brokerConfig]);
+  }, [brokerConfig, configLoading]);
 
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,9 +77,11 @@ export default function BrokerPage() {
     try {
       const result = await disconnectBroker(user.uid);
       if (result.success) {
+        setEmail(''); // Limpiar campos inmediatamente en la UI
+        setPassword('');
         toast({
           title: "CUENTA DESVINCULADA",
-          description: "El puente con IQ Option ha sido cerrado de forma segura.",
+          description: "Los datos de conexión han sido eliminados de la base de datos de forma segura.",
         });
       }
     } catch (err: any) {
@@ -258,7 +265,7 @@ export default function BrokerPage() {
                       className="w-full text-red-500 hover:bg-red-500/10 h-8 text-[10px]"
                     >
                       {loading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : null}
-                      DESVINCULAR CUENTA
+                      DESVINCULAR CUENTA Y BORRAR DATOS
                     </Button>
                   </CardContent>
                 </Card>

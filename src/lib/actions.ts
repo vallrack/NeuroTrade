@@ -120,13 +120,15 @@ export async function signOutUser() {
 }
 
 /**
- * Desvincula la cuenta del bróker.
+ * Desvincula la cuenta del bróker y ELIMINA los datos de conexión.
  */
 export async function disconnectBroker(userId: string) {
   const { firestore: db } = getFirebase();
   try {
     const brokerRef = doc(db, 'users', userId, 'config', 'broker');
     await updateDoc(brokerRef, {
+      email: '',
+      password: '',
       status: 'disconnected',
       disconnectedAt: new Date().toISOString()
     });
