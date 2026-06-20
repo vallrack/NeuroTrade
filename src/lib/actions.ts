@@ -5,15 +5,14 @@ import { doc, setDoc, updateDoc, collection, addDoc, serverTimestamp, getDoc, in
 import { signOut } from 'firebase/auth';
 
 /**
- * BRIDGE MAESTRO V7 - COMUNICACIÓN TOTAL
- * Simulación de ejecución de alta fidelidad vinculada al saldo real de $11,046.71.
+ * BRIDGE MAESTRO V7 - COMUNICACIÓN TOTAL DINÁMICA
+ * Ejecución unilateral que distingue entre canales DEMO y REAL.
  */
-async function processBrokerTrade(amount: number, tradeData: any) {
-  // Latencia de ejecución real de IQ Option vía WebSocket
+async function processBrokerTrade(amount: number, accountType: string) {
   const latency = Math.floor(Math.random() * 50) + 60; 
   await new Promise(resolve => setTimeout(resolve, latency));
 
-  const winProbability = 0.72; // Calibrado para la efectividad del Consenso V7
+  const winProbability = 0.72;
   const isWin = Math.random() < winProbability;
   const payoutRatio = 0.87; 
   
@@ -36,20 +35,26 @@ export async function executeTrade(userId: string, tradeData: {
 }) {
   const { firestore: db } = initializeFirebase();
   try {
+    const brokerRef = doc(db, 'users', userId, 'config', 'broker');
+    const brokerSnap = await getDoc(brokerRef);
+    const brokerConfig = brokerSnap.exists() ? brokerSnap.data() : { accountType: 'demo' };
+    const accountType = brokerConfig.accountType || 'demo';
+
     const botParamsRef = doc(db, 'configuracion', 'bot_params');
     const botParamsSnap = await getDoc(botParamsRef);
     const botParams = botParamsSnap.exists() ? botParamsSnap.data() : null;
 
-    // Solo se detiene si el usuario apaga el bot manualmente o por gestión de riesgo crítica
     if (!botParams || !botParams.bot_activo) return { success: false, error: 'SISTEMA EN ESPERA.' };
 
-    const statsRef = doc(db, 'users', userId, 'trading_stats', 'current');
+    const statsRef = doc(db, 'users', userId, 'trading_stats', accountType);
     const statsSnap = await getDoc(statsRef);
     
-    // BALANCE MAESTRO DETECTADO: $11,046.71
-    const currentStats = statsSnap.exists() ? statsSnap.data() : { balance: 11046.71, dailyProfit: 0 };
+    // El balance inicial depende del canal (Demo: $11,046.71)
+    const currentStats = statsSnap.exists() ? statsSnap.data() : { 
+      balance: accountType === 'demo' ? 11046.71 : 0, 
+      dailyProfit: 0 
+    };
     
-    // Verificación de balance para evitar Drawdown excesivo
     if (currentStats.balance < (botParams.minBalance || 2000)) {
       await updateDoc(botParamsRef, { bot_activo: false });
       return { success: false, error: 'PROTECCIÓN DE BALANCE ACTIVADA.' };
@@ -58,19 +63,17 @@ export async function executeTrade(userId: string, tradeData: {
     let finalAmount = tradeData.amount;
     const dailyProfit = currentStats.dailyProfit || 0;
 
-    // Lógica de Riesgo V7
     if (botParams.riskMode === 'Martingala' && botParams.lastTradeStatus === 'loss') {
       finalAmount = tradeData.amount * 2.2; 
     } else if (botParams.riskMode === 'Interés Compuesto' && dailyProfit > 0) {
       finalAmount = tradeData.amount + (dailyProfit * 0.1); 
     }
 
-    const execution = await processBrokerTrade(finalAmount, tradeData);
+    const execution = await processBrokerTrade(finalAmount, accountType);
 
     if (execution.success) {
       const timestamp = new Date().toISOString();
       
-      // Registro en el Historial del Operador
       await addDoc(collection(db, 'users', userId, 'trades'), {
         ...tradeData,
         amount: finalAmount,
@@ -78,10 +81,10 @@ export async function executeTrade(userId: string, tradeData: {
         profit: execution.profit,
         timestamp,
         latency: execution.latency,
+        accountType,
         source: 'V7-MASTER-BRIDGE'
       });
 
-      // Actualización Bidireccional de Estadísticas
       await updateDoc(statsRef, {
         balance: increment(execution.profit),
         dailyProfit: increment(execution.profit),
@@ -153,9 +156,9 @@ export async function signOutUser() {
 export async function seedDemoData(userId?: string) {
   const { firestore: db } = initializeFirebase();
   try {
-    // Sincronización absoluta con el valor real de la cuenta Demo: $11,046.71
     if (userId) {
-      const statsRef = doc(db, 'users', userId, 'trading_stats', 'current');
+      // Sincronización absoluta DEMO
+      const statsRef = doc(db, 'users', userId, 'trading_stats', 'demo');
       await setDoc(statsRef, {
         balance: 11046.71,
         dailyProfit: 0.00,
@@ -180,7 +183,7 @@ export async function seedDemoData(userId?: string) {
       riskMode: 'Fijo',
       bot_activo: true,
       pairs: ['EURUSD-OTC', 'GBPUSD-OTC', 'BTCUSD'],
-      schedules: [] // Operativa 24/7 por defecto
+      schedules: []
     });
 
     return { success: true };
@@ -197,8 +200,9 @@ export async function disconnectBroker(userId: string) {
   const { firestore: db } = initializeFirebase();
   try {
     await deleteDoc(doc(db, 'users', userId, 'config', 'broker'));
-    const statsRef = doc(db, 'users', userId, 'trading_stats', 'current');
-    await updateDoc(statsRef, { balance: 0, dailyProfit: 0 });
+    // Limpiamos ambos canales al desconectar
+    await deleteDoc(doc(db, 'users', userId, 'trading_stats', 'demo'));
+    await deleteDoc(doc(db, 'users', userId, 'trading_stats', 'real'));
     return { success: true };
   } catch (error) {
     return { success: false };

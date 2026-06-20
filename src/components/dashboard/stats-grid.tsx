@@ -1,8 +1,7 @@
-
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useFirestore, useUser } from '@/firebase';
+import { useState, useEffect, useMemo } from 'react';
+import { useFirestore, useUser, useDoc } from '@/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Wallet, Target, Activity, Zap } from 'lucide-react';
@@ -20,10 +19,15 @@ export function StatsGrid() {
     totalInvestment: 0
   });
 
+  const brokerRef = useMemo(() => user ? doc(firestore, 'users', user.uid, 'config', 'broker') : null, [user, firestore]);
+  const { data: brokerConfig } = useDoc(brokerRef);
+  const accountType = brokerConfig?.accountType || 'demo';
+
   useEffect(() => {
     if (!firestore || !user) return;
     
-    const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', 'current');
+    // Escucha dinámica basada en el tipo de cuenta activa
+    const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', accountType);
     
     const unsub = onSnapshot(
       statsRef, 
@@ -40,6 +44,14 @@ export function StatsGrid() {
             totalInvestment: data.totalInvestment || 0,
             winRate: winRate
           });
+        } else {
+          // Valores por defecto si no existe el documento de estadísticas para ese canal
+          setStats({
+            balance: accountType === 'demo' ? 11046.71 : 0,
+            dailyProfit: 0,
+            winRate: 0,
+            totalInvestment: 0
+          });
         }
       },
       async (serverError) => {
@@ -51,17 +63,17 @@ export function StatsGrid() {
       }
     );
     return () => unsub();
-  }, [firestore, user]);
+  }, [firestore, user, accountType]);
 
   const winRateColor = stats.winRate >= 65 ? 'text-green-500' : stats.winRate < 55 ? 'text-red-500' : 'text-yellow-500';
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <MetricCard
-        title="Saldo de Cuenta"
+        title={`Saldo ${accountType.toUpperCase()}`}
         value={`$${(stats.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
         icon={<Wallet className="h-4 w-4 text-primary" />}
-        subtitle="Sincronizado"
+        subtitle={`Vínculo ${accountType}`}
         pulse
       />
       <MetricCard

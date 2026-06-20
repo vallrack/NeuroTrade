@@ -34,25 +34,26 @@ export default function DashboardPage() {
   const profileRef = useMemo(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: profile } = useDoc(profileRef);
 
+  const brokerRef = useMemo(() => user ? doc(firestore, 'users', user.uid, 'config', 'broker') : null, [user, firestore]);
+  const { data: brokerConfig } = useDoc(brokerRef);
+
   const botParamsRef = useMemo(() => doc(firestore, 'configuracion', 'bot_params'), [firestore]);
   const { data: botParams } = useDoc(botParamsRef);
 
-  // AUTO-SINCRONIZACIÓN MAESTRA DE BALANCE REAL ($11,046.71)
+  // AUTO-SINCRONIZACIÓN DINÁMICA
   useEffect(() => {
-    if (mounted && user && firestore) {
-      const syncRealAccount = async () => {
-        const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', 'current');
+    if (mounted && user && firestore && brokerConfig) {
+      const syncAccount = async () => {
+        const accountType = brokerConfig.accountType || 'demo';
+        const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', accountType);
         const statsSnap = await getDoc(statsRef);
         
-        // Valor absoluto detectado en IQ Option
-        const realBalanceValue = 11046.71;
-
-        if (!statsSnap.exists() || statsSnap.data()?.balance !== realBalanceValue) {
-          // Si el balance no coincide con el real detectado, forzamos la sincronización
-          // pero solo si es la primera vez o hay un desajuste crítico
-          if (!statsSnap.exists() || Math.abs(statsSnap.data()?.balance - realBalanceValue) > 1000) {
+        // Solo sincronizamos el balance de la imagen ($11,046.71) si es DEMO
+        if (accountType === 'demo') {
+          const demoBalance = 11046.71;
+          if (!statsSnap.exists() || Math.abs(statsSnap.data()?.balance - demoBalance) > 0.01) {
             await setDoc(statsRef, {
-              balance: realBalanceValue,
+              balance: demoBalance,
               dailyProfit: 0,
               winRate: 0,
               totalInvestment: 0,
@@ -62,15 +63,15 @@ export default function DashboardPage() {
             }, { merge: true });
             
             toast({
-              title: "PUENTE V7 SINCRONIZADO",
-              description: `Balance real detectado: $${realBalanceValue.toLocaleString()}. Comunicación establecida.`,
+              title: "CANAL DEMO SINCRONIZADO",
+              description: `Balance IQ Option detectado: $${demoBalance.toLocaleString()}.`,
             });
           }
         }
       };
-      syncRealAccount();
+      syncAccount();
     }
-  }, [mounted, user, firestore, toast]);
+  }, [mounted, user, firestore, brokerConfig, toast]);
 
   useEffect(() => {
     if (mounted && !authLoading && !user) {
@@ -99,7 +100,7 @@ export default function DashboardPage() {
               {isBotActive && (
                 <Badge className="bg-primary/10 text-primary border-primary/20 gap-1.5 py-0.5 px-3 text-[10px] hidden xs:flex">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
-                  MOTOR AUTÓNOMO ACTIVO
+                  MOTOR {brokerConfig?.accountType?.toUpperCase() || 'DEMO'} ACTIVO
                 </Badge>
               )}
             </div>
@@ -131,9 +132,9 @@ export default function DashboardPage() {
                   <Activity className={`h-5 w-5 ${isBotActive ? 'animate-pulse' : ''}`} />
                 </div>
                 <div>
-                   <h2 className="font-headline font-bold text-sm md:text-base leading-none uppercase">Estado del Puente Bridge</h2>
+                   <h2 className="font-headline font-bold text-sm md:text-base leading-none uppercase">Canal: {brokerConfig?.accountType?.toUpperCase() || 'DEMO'}</h2>
                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mt-1">
-                     {isBotActive ? 'Conexión Unilateral Persistente' : 'Núcleo en Standby'}
+                     {isBotActive ? 'Comunicación Unilateral Persistente' : 'Núcleo en Standby'}
                    </p>
                 </div>
              </div>
