@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -34,7 +33,7 @@ export default function DashboardPage() {
   const { data: profile, loading: profileLoading } = useDoc(profileRef);
 
   const isSuperAdmin = profile?.role === 'super-admin';
-  const hasNoRole = profile && !profile.role;
+  const hasNoRole = (mounted && !authLoading && user && !profileLoading && (!profile || !profile.role));
 
   const handleInitialSetup = async () => {
     if (!user) return;
@@ -58,7 +57,7 @@ export default function DashboardPage() {
     }
   };
 
-  if (!mounted || authLoading || (user && profileLoading)) {
+  if (!mounted || authLoading) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center gap-4 bg-background">
         <Loader2 className="h-10 w-10 text-primary animate-spin" />
@@ -145,29 +144,6 @@ export default function DashboardPage() {
             
             <div className="space-y-6">
               <LogConsole />
-              <div className="bg-card/50 border border-white/5 rounded-xl p-4 shadow-sm backdrop-blur-sm">
-                <h3 className="font-headline font-bold text-xs mb-4 px-2 text-muted-foreground tracking-widest uppercase">EJECUCIONES RECIENTES</h3>
-                <div className="space-y-3">
-                  {[
-                    { pair: 'EUR/USD', type: 'COMPRA', price: '1.0842', result: 'WIN', time: 'hace 2m', profit: '+85%' },
-                    { pair: 'BTC/USD', type: 'VENTA', price: '94,231', result: 'WIN', time: 'hace 8m', profit: '+120%' },
-                  ].map((trade, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-1 h-8 rounded-full ${trade.result === 'WIN' ? 'bg-green-500' : 'bg-red-500'}`} />
-                        <div>
-                          <p className="text-sm font-bold">{trade.pair}</p>
-                          <p className="text-[10px] text-muted-foreground">{trade.type} @ {trade.price}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className={`text-sm font-bold ${trade.result === 'WIN' ? 'text-green-500' : 'text-red-500'}`}>{trade.profit}</p>
-                        <p className="text-[10px] text-muted-foreground">{trade.time}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
           </div>
         </main>

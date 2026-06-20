@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -30,27 +29,9 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
-  // Evitar errores de hidratación
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  // Gestión de sesión y redirección
-  useEffect(() => {
-    if (!mounted) return;
-
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const token = await user.getIdToken();
-        // Establecer cookie de sesión de forma robusta
-        document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
-        
-        const from = searchParams.get('from') || '/dashboard';
-        router.replace(from);
-      }
-    });
-    return () => unsubscribe();
-  }, [auth, router, searchParams, mounted]);
 
   const ensureUserProfile = async (user: any, name?: string) => {
     const userRef = doc(firestore, 'users', user.uid);
@@ -64,17 +45,10 @@ export default function LoginPage() {
           createdAt: new Date().toISOString(),
         };
         
-        setDoc(userRef, userData, { merge: true }).catch((err) => {
-          const permissionError = new FirestorePermissionError({
-            path: userRef.path,
-            operation: 'write',
-            requestResourceData: userData,
-          } satisfies SecurityRuleContext);
-          errorEmitter.emit('permission-error', permissionError);
-        });
+        await setDoc(userRef, userData, { merge: true });
       }
     } catch (err) {
-      // Silencioso, manejado por el listener global si es error de permisos
+      // Manejado por listener global
     }
   };
 
@@ -95,20 +69,25 @@ export default function LoginPage() {
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         user = userCredential.user;
-        // Asegurar que el perfil existe incluso si ya estaba registrado
         await ensureUserProfile(user);
       }
 
       if (user) {
         const token = await user.getIdToken();
+        // Sincronización crítica de cookie para el Middleware
         document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
         
         toast({
           title: "SISTEMA SINCRONIZADO",
           description: "Entrando al Centro de Comando...",
         });
+
+        // Forzar recarga total para asegurar que el Middleware vea la cookie
+        const from = searchParams.get('from') || '/dashboard';
+        window.location.href = from;
       }
     } catch (err: any) {
+      setLoading(false);
       let message = 'Fallo en la conexión cuántica.';
       if (err.code === 'auth/email-already-in-use') {
         message = 'El ID ya existe. Por favor, inicia sesión.';
@@ -119,7 +98,6 @@ export default function LoginPage() {
         message = 'Demasiados intentos. Acceso bloqueado temporalmente.';
       }
       setError(message);
-      setLoading(false);
     }
   };
 
