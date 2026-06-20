@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useState } from 'react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { useState, useEffect } from 'react';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, onAuthStateChanged } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -29,6 +29,21 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
+  // Escuchar cambios de auth para limpiar errores
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // Si ya hay usuario, intentar ir al dashboard
+        const from = searchParams.get('from') || '/dashboard';
+        user.getIdToken().then(token => {
+          document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
+          router.push(from);
+        });
+      }
+    });
+    return () => unsubscribe();
+  }, [auth, router, searchParams]);
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -44,17 +59,16 @@ export default function LoginPage() {
           await updateProfile(user, { displayName });
         }
 
-        // Crear perfil inicial en Firestore
         const userRef = doc(firestore, 'users', user.uid);
         const userData = {
           email: user.email,
           displayName: displayName || user.email?.split('@')[0],
-          role: null, // Sin rol inicial para permitir inicialización manual
+          role: null,
           createdAt: serverTimestamp(),
           lastActive: serverTimestamp(),
         };
 
-        // Mutation no bloqueante siguiendo directrices
+        // Crear perfil inicial (no bloqueante)
         setDoc(userRef, userData, { merge: true }).catch(async (serverError) => {
           const permissionError = new FirestorePermissionError({
             path: userRef.path,
@@ -66,7 +80,7 @@ export default function LoginPage() {
 
         toast({
           title: "OPERADOR REGISTRADO",
-          description: "Perfil cuántico creado. Iniciando sesión...",
+          description: "Perfil cuántico creado. Sincronizando sesión...",
         });
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -75,14 +89,15 @@ export default function LoginPage() {
 
       if (user) {
         const token = await user.getIdToken();
-        // Establecer cookie de sesión para el middleware
+        // Establecer cookie con mayor compatibilidad
         document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
         
-        // Redirección forzada para asegurar que el middleware detecte la cookie
         const from = searchParams.get('from') || '/dashboard';
+        
+        // Pequeña espera para asegurar que la cookie se procese
         setTimeout(() => {
           window.location.href = from;
-        }, 500);
+        }, 800);
       }
     } catch (err: any) {
       console.error(err);
@@ -93,15 +108,16 @@ export default function LoginPage() {
         message = 'El ID de operador ya está activo.';
       } else if (err.code === 'auth/weak-password') {
         message = 'Seguridad insuficiente (mín. 6 caracteres).';
+      } else if (err.code === 'auth/network-request-failed') {
+        message = 'Error de conexión con el núcleo central.';
       }
       setError(message);
-    } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background font-body">
       <Card className="w-full max-w-md bg-card/50 border-white/5 backdrop-blur-xl shadow-2xl">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
@@ -127,6 +143,7 @@ export default function LoginPage() {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   className="bg-background/50 border-white/5 focus:border-primary/50"
+                  autoComplete="name"
                 />
               </div>
             )}
@@ -140,6 +157,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="bg-background/50 border-white/5 focus:border-primary/50"
+                autoComplete="email"
               />
             </div>
             <div className="space-y-2">
@@ -151,6 +169,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="bg-background/50 border-white/5 focus:border-primary/50"
+                autoComplete="current-password"
               />
             </div>
             {error && (
@@ -179,6 +198,7 @@ export default function LoginPage() {
                 setIsRegister(!isRegister);
                 setError('');
               }}
+              disabled={loading}
             >
               {isRegister ? '¿Ya tienes cuenta? Inicia Sesión' : '¿Nuevo operador? Regístrate aquí'}
             </Button>
