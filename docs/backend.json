@@ -28,13 +28,27 @@
     },
     "BotParams": {
       "title": "Parámetros del Bot",
-      "description": "Configuración operativa para el bot de trading de IA.",
+      "description": "Configuración operativa avanzada para el bot de trading de IA (Versión 7).",
       "type": "object",
       "properties": {
         "investmentPerTrade": { "type": "number" },
         "stopLoss": { "type": "number" },
+        "takeProfit": { "type": "number" },
+        "maxLosses": { "type": "number", "description": "Límite de pérdidas consecutivas." },
+        "minRsi": { "type": "number", "description": "Umbral inferior de RSI para sobreventa." },
+        "maxRsi": { "type": "number", "description": "Umbral superior de RSI para sobrecompra." },
         "martingale": { "type": "boolean" },
         "pairs": { "type": "array", "items": { "type": "string" } },
+        "schedules": { 
+          "type": "array", 
+          "items": { 
+            "type": "object",
+            "properties": {
+              "start": { "type": "string" },
+              "end": { "type": "string" }
+            }
+          }
+        },
         "bot_activo": { "type": "boolean" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }

@@ -7,7 +7,7 @@ import { signOut } from 'firebase/auth';
 
 /**
  * Registra una nueva operación en el historial y actualiza estadísticas.
- * AHORA INCLUYE LÓGICA DE SIMULACIÓN BASADA EN CALIDAD DE SEÑAL.
+ * AHORA INCLUYE LÓGICA DE SIMULACIÓN BASADA EN CALIDAD DE SEÑAL Y PARÁMETROS V7.
  */
 export async function executeTrade(userId: string, tradeData: {
   pair: string;
@@ -24,6 +24,20 @@ export async function executeTrade(userId: string, tradeData: {
       return { success: false, error: 'Motor de IA desactivado.' };
     }
 
+    // Validación de horario (Simulada para MVP)
+    const now = new Date();
+    const currentH = now.getHours().toString().padStart(2, '0');
+    const currentM = now.getMinutes().toString().padStart(2, '0');
+    const currentTimeStr = `${currentH}:${currentM}`;
+
+    const isWithinSchedule = botParams?.schedules?.some((s: any) => {
+      return currentTimeStr >= s.start && currentTimeStr <= s.end;
+    }) || true; // Fallback para desarrollo
+
+    if (!isWithinSchedule) {
+      return { success: false, error: 'Fuera de horario operativo.' };
+    }
+
     const brokerRef = doc(db, 'users', userId, 'config', 'broker');
     const brokerSnap = await getDoc(brokerRef);
     if (!brokerSnap.exists() || brokerSnap.data().status !== 'connected') {
@@ -32,7 +46,6 @@ export async function executeTrade(userId: string, tradeData: {
     const brokerConfig = brokerSnap.data();
 
     // Simular un resultado que dependa un poco de la tendencia (simulada aquí)
-    // En una app real, esto consultaría el precio de cierre vs apertura.
     const trendAligns = Math.random() > 0.4; // 60% de probabilidad de éxito por análisis de IA
     const isWin = trendAligns;
     const payoutRatio = 0.85; 
@@ -152,9 +165,12 @@ export async function seedDemoData() {
       investmentPerTrade: 10.0,
       stopLoss: 50,
       takeProfit: 100,
-      maxTradesPerDay: 20,
+      maxLosses: 3,
+      minRsi: 30,
+      maxRsi: 70,
       martingale: false,
       pairs: ['EUR/USD', 'BTC/USD'],
+      schedules: [{start: '09:00', end: '18:00'}],
       bot_activo: true,
       updatedAt: serverTimestamp()
     });
