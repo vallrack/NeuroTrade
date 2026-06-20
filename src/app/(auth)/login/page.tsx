@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Zap, ShieldCheck, Loader2, UserPlus } from 'lucide-react';
+import { Zap, ShieldCheck, Loader2, UserPlus, LogIn } from 'lucide-react';
 
 export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false);
@@ -31,11 +31,21 @@ export default function LoginPage() {
         : await signInWithEmailAndPassword(auth, email, password);
       
       const token = await userCredential.user.getIdToken();
+      // Establecemos la cookie de sesión para el middleware
       document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Strict`;
       
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err.message || 'Error de autenticación. Verifique sus credenciales.');
+      console.error(err);
+      let message = 'Error de autenticación.';
+      
+      if (err.code === 'auth/user-not-found') message = 'El usuario no existe. ¿Has intentado registrarte?';
+      if (err.code === 'auth/wrong-password') message = 'Contraseña incorrecta.';
+      if (err.code === 'auth/email-already-in-use') message = 'Este correo ya está registrado.';
+      if (err.code === 'auth/operation-not-allowed') message = 'El registro por email no está habilitado en Firebase Console.';
+      if (err.code === 'auth/weak-password') message = 'La contraseña es muy débil.';
+      
+      setError(message || err.message);
     } finally {
       setLoading(false);
     }
@@ -86,32 +96,35 @@ export default function LoginPage() {
               />
             </div>
             {error && (
-              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-[10px] text-center font-bold uppercase">
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-[11px] text-center font-bold uppercase animate-shake">
                 {error}
               </div>
             )}
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full h-12 font-headline text-lg group" disabled={loading}>
+            <Button type="submit" className="w-full h-12 font-headline text-lg group bg-primary hover:bg-primary/90" disabled={loading}>
               {loading ? (
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
               ) : isRegister ? (
                 <UserPlus className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform" />
               ) : (
-                <ShieldCheck className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform" />
+                <LogIn className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform" />
               )}
               {isRegister ? 'CREAR OPERADOR' : 'ESTABLECER CONEXIÓN'}
             </Button>
             <Button 
               type="button" 
               variant="ghost" 
-              className="w-full text-xs" 
-              onClick={() => setIsRegister(!isRegister)}
+              className="w-full text-xs text-muted-foreground hover:text-primary" 
+              onClick={() => {
+                setIsRegister(!isRegister);
+                setError('');
+              }}
             >
               {isRegister ? '¿Ya tienes cuenta? Inicia Sesión' : '¿Nuevo operador? Regístrate aquí'}
             </Button>
-            <p className="text-center text-[10px] text-muted-foreground">
-              Sesión cifrada. El acceso no autorizado es monitoreado.
+            <p className="text-center text-[10px] text-muted-foreground/60">
+              Sesión cifrada con estándar AES-256. El acceso no autorizado es monitoreado.
             </p>
           </CardFooter>
         </form>
