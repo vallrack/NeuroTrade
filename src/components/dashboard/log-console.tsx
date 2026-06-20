@@ -8,6 +8,7 @@ import { doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Terminal, Copy, Trash2, Zap, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 export function LogConsole() {
   const rtdb = useRTDB();

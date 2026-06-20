@@ -13,7 +13,7 @@ import { executeTrade } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 
 export function IACommitteeMonitor() {
-  const { user } = user ? useUser() : { user: null };
+  const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
   const [data, setData] = useState<AiConsensusMonitorOutput | null>(null);
