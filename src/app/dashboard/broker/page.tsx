@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { disconnectBroker } from '@/lib/actions';
-import { Globe, Lock, ShieldCheck, Zap, Loader2, CheckCircle2, ShieldAlert, LineChart, ArrowRight } from 'lucide-react';
+import { Globe, Lock, ShieldCheck, Zap, Loader2, CheckCircle2, ShieldAlert, LineChart, ArrowRight, Trash2 } from 'lucide-react';
 
 export default function BrokerPage() {
   const { user } = useUser();
@@ -35,7 +35,7 @@ export default function BrokerPage() {
       setEmail(brokerConfig.email || '');
       setPassword(brokerConfig.password || '');
     } else if (!configLoading) {
-      // Si el documento no existe, asegurar que los campos estén limpios
+      // Si el documento no existe (borrado), asegurar que los campos estén limpios
       setEmail('');
       setPassword('');
     }
@@ -96,6 +96,7 @@ export default function BrokerPage() {
   };
 
   const isConnected = brokerConfig?.status === 'connected';
+  const hasConfig = !!brokerConfig?.email;
 
   return (
     <SidebarProvider>
@@ -249,7 +250,7 @@ export default function BrokerPage() {
                 </div>
               </div>
 
-              {isConnected && (
+              {hasConfig && (
                 <Card className="bg-red-500/5 border-red-500/20">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-xs font-headline flex items-center gap-2 text-red-500 uppercase">
@@ -262,10 +263,10 @@ export default function BrokerPage() {
                       variant="ghost" 
                       onClick={handleDisconnect}
                       disabled={loading}
-                      className="w-full text-red-500 hover:bg-red-500/10 h-8 text-[10px]"
+                      className="w-full text-red-500 hover:bg-red-500/10 h-10 text-[10px] gap-2 border border-red-500/20"
                     >
-                      {loading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : null}
-                      DESVINCULAR CUENTA Y BORRAR DATOS
+                      {loading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Trash2 className="h-3 w-3" />}
+                      BORRAR DATOS Y DESVINCULAR
                     </Button>
                   </CardContent>
                 </Card>

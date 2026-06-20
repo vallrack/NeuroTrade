@@ -2,7 +2,7 @@
 'use client';
 
 import { getFirebase } from '@/firebase';
-import { doc, setDoc, updateDoc, collection, addDoc, serverTimestamp, getDoc, increment } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, collection, addDoc, serverTimestamp, getDoc, increment, deleteDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 
 /**
@@ -120,18 +120,14 @@ export async function signOutUser() {
 }
 
 /**
- * Desvincula la cuenta del bróker y ELIMINA los datos de conexión.
+ * Desvincula la cuenta del bróker y ELIMINA físicamente los datos de conexión.
  */
 export async function disconnectBroker(userId: string) {
   const { firestore: db } = getFirebase();
   try {
     const brokerRef = doc(db, 'users', userId, 'config', 'broker');
-    await updateDoc(brokerRef, {
-      email: '',
-      password: '',
-      status: 'disconnected',
-      disconnectedAt: new Date().toISOString()
-    });
+    // Usamos deleteDoc para asegurar que no queden residuos en la base de datos
+    await deleteDoc(brokerRef);
     return { success: true };
   } catch (error) {
     console.error('Error disconnecting broker:', error);
