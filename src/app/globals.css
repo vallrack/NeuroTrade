@@ -26,11 +26,11 @@
     --ring: 221 83% 53%;
     --radius: 0.75rem;
     
-    --sidebar-background: 222 47% 5%;
+    --sidebar-background: 222 47% 3%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 221 83% 53%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 47% 10%;
+    --sidebar-accent: 222 47% 6%;
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 222 47% 10%;
     --sidebar-ring: 221 83% 53%;
@@ -51,8 +51,8 @@
 
 /* Custom Scrollbars - Clean & Minimal */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -94,10 +94,24 @@
 
 /* Glassmorphism */
 .glass-sidebar {
-  @apply bg-sidebar/80 backdrop-blur-2xl border-r border-white/5;
+  @apply bg-sidebar/80 backdrop-blur-3xl border-r border-white/5;
 }
 
-/* Fix for overlapping sidebar */
+/* Fix for overlapping sidebar and proper layout */
 [data-sidebar="sidebar"] {
-  @apply border-r border-white/5;
+  @apply border-r border-white/5 bg-sidebar;
+}
+
+.sidebar-inset-fix {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Hide potential double scrollbars on the main main layout */
+main {
+  scrollbar-width: none;
+}
+main::-webkit-scrollbar {
+  display: none;
 }

@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
-import { Zap, Wifi, Layers, ArrowRight, RefreshCw, ChevronDown, Activity, Maximize2 } from 'lucide-react';
+import { Zap, Wifi, Layers, ArrowRight, RefreshCw, ChevronDown, Activity, Maximize2, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -35,6 +35,7 @@ export default function TerminalPage() {
   const [chartLoading, setChartLoading] = useState(true);
   const [latency, setLatency] = useState(8);
 
+  // Efecto para simular latencia de red HFT
   useEffect(() => {
     const interval = setInterval(() => {
       setLatency(Math.floor(Math.random() * 5) + 3);
@@ -42,6 +43,7 @@ export default function TerminalPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Limpieza y mapeo de símbolos para evitar el error "Símbolo no existe"
   useEffect(() => {
     let cleanPair = selectedPair.toUpperCase()
       .replace('/', '')
@@ -49,24 +51,30 @@ export default function TerminalPage() {
       .replace('OTC', '')
       .trim();
     
-    // Mapeo dinámico para asegurar que el gráfico siempre se mueva
-    let symbol = `FX_IDC:${cleanPair}`;
+    // Mapeo Maestro de Símbolos compatibles con la widget gratuita de TradingView
+    let symbol = `FX:EURUSD`; // Fallback seguro
+    
     if (cleanPair === 'EURUSD') symbol = 'FX:EURUSD';
-    if (cleanPair === 'GBPUSD') symbol = 'FX:GBPUSD';
-    if (cleanPair.includes('BTC') || cleanPair.includes('ETH') || cleanPair.includes('SOL')) {
-      symbol = `BINANCE:${cleanPair}USDT`;
-    } else {
-      symbol = `FXCM:${cleanPair}`;
+    else if (cleanPair === 'GBPUSD') symbol = 'FX:GBPUSD';
+    else if (cleanPair === 'USDJPY') symbol = 'FX:USDJPY';
+    else if (cleanPair === 'AUDUSD') symbol = 'FX:AUDUSD';
+    else if (cleanPair.includes('BTC')) symbol = 'BINANCE:BTCUSDT';
+    else if (cleanPair.includes('ETH')) symbol = 'BINANCE:ETHUSDT';
+    else if (cleanPair.includes('SOL')) symbol = 'BINANCE:SOLUSDT';
+    else {
+      // Si es otro par Forex, intentamos con prefijo FX: o OANDA:
+      symbol = `FX:${cleanPair}`;
     }
 
     setActiveSymbol(symbol);
   }, [selectedPair]);
 
+  // Inicialización del Widget de TradingView
   useEffect(() => {
     if (!container.current) return;
 
     setChartLoading(true);
-    const containerId = `tv-advanced-${Math.random().toString(36).substring(7)}`;
+    const containerId = `tv_chart_${Math.random().toString(36).substring(7)}`;
     container.current.innerHTML = `<div id="${containerId}" style="height: 100%; width: 100%;"></div>`;
 
     const script = document.createElement("script");
@@ -92,11 +100,13 @@ export default function TerminalPage() {
           "gridColor": "rgba(42, 46, 57, 0.05)",
           "withdateranges": true,
           "hide_volume": false,
-          "container": container.current,
-          "studies": ["RSI@tv-basicstudies"],
+          "studies": [
+            "RSI@tv-basicstudies",
+            "StochasticRSI@tv-basicstudies"
+          ],
         });
         
-        setTimeout(() => setChartLoading(false), 800);
+        setTimeout(() => setChartLoading(false), 1200);
       }
     };
     document.head.appendChild(script);
@@ -111,35 +121,34 @@ export default function TerminalPage() {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="bg-black flex flex-col h-svh overflow-hidden border-l border-white/5">
+      <SidebarInset className="bg-black flex flex-col h-screen overflow-hidden border-l border-white/5">
+        {/* Sub-Header del Terminal */}
         <header className="flex h-14 shrink-0 items-center justify-between px-4 border-b border-white/5 bg-[#050505] z-50">
           <div className="flex items-center gap-3">
             <SidebarTrigger className="text-muted-foreground hover:text-white transition-colors" />
             <div className="h-4 w-px bg-white/10" />
             <div className="flex flex-col">
-              <h1 className="font-headline text-xs font-bold flex items-center gap-2 text-white uppercase tracking-tight">
+              <h1 className="font-headline text-[10px] md:text-xs font-bold flex items-center gap-2 text-white uppercase tracking-tight">
                 <Zap className="h-3 w-3 text-primary animate-pulse" />
-                Terminal V7
+                Terminal V7 Quantum
               </h1>
-              <span className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-1">
+              <span className="text-[7px] md:text-[8px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-1">
                 <div className="w-1 h-1 rounded-full bg-green-500 animate-ping" />
-                Real-Time Stream
+                Consenso Activo: {activeSymbol}
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="hidden xs:flex items-center gap-3 bg-white/5 px-3 py-1 rounded-full border border-white/10">
-              <div className="flex items-center gap-1.5">
-                <Wifi className="h-3 w-3 text-green-500" />
-                <span className="text-[9px] font-code text-green-500">{latency}ms</span>
-              </div>
+          <div className="flex items-center gap-2 md:gap-4">
+            <div className="hidden sm:flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/10">
+              <Wifi className="h-3 w-3 text-green-500" />
+              <span className="text-[9px] font-code text-green-500">{latency}ms</span>
             </div>
             {isConnected ? (
-              <Badge className="bg-green-500/10 text-green-500 border-green-500/30 py-0.5 text-[9px] font-bold">
-                WSS LIVE
+              <Badge className="bg-green-500/10 text-green-500 border-green-500/30 py-0.5 text-[8px] md:text-[9px] font-bold uppercase tracking-tighter">
+                BRIDGE LIVE
               </Badge>
             ) : (
-              <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/30 py-0.5 text-[9px] font-bold">
+              <Badge variant="outline" className="text-muted-foreground border-white/10 py-0.5 text-[8px] md:text-[9px] font-bold">
                 STANDBY
               </Badge>
             )}
@@ -147,41 +156,13 @@ export default function TerminalPage() {
         </header>
 
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
-          {/* Mobile Top Navigation */}
-          <div className="md:hidden flex items-center justify-between p-2 bg-[#050505] border-b border-white/5">
-             <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Asset:</span>
-             <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 text-[10px] gap-2 border border-white/10 bg-white/5 font-bold">
-                  {selectedPair} <ChevronDown className="h-3 w-3" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-48 p-1 bg-[#050505] border-white/10 backdrop-blur-2xl">
-                <div className="space-y-0.5">
-                  {configuredPairs.map((pair: string) => (
-                    <button
-                      key={pair}
-                      onClick={() => setSelectedPair(pair)}
-                      className={cn(
-                        "w-full text-left px-3 py-2 rounded-md text-[10px] font-bold transition-all",
-                        selectedPair === pair ? "bg-primary text-white" : "text-muted-foreground hover:bg-white/5"
-                      )}
-                    >
-                      {pair}
-                    </button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {/* Desktop Left Sidebar - Fixed Design */}
-          <aside className="hidden md:flex w-52 border-r border-white/5 bg-[#050505] flex-col shrink-0">
+          {/* Listado de Clústers Lateral - Diseño Fijo para evitar overlap */}
+          <aside className="hidden lg:flex w-48 border-r border-white/5 bg-[#050505] flex-col shrink-0">
             <div className="p-4 border-b border-white/5 flex items-center gap-2">
               <Layers className="h-3 w-3 text-muted-foreground" />
-              <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Clústers</span>
+              <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Clústers HFT</span>
             </div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1 bg-black/40">
               {configuredPairs.map((pair: string) => (
                 <button
                   key={pair}
@@ -200,26 +181,60 @@ export default function TerminalPage() {
             </div>
           </aside>
 
-          {/* Chart Core Container */}
-          <div className="flex-1 relative bg-black overflow-hidden flex flex-col">
-            <div className="flex-1" ref={container} />
-            
-            {/* Legend / Overlay info */}
-            <div className="absolute top-4 right-4 z-10 hidden sm:flex flex-col gap-2">
-               <div className="bg-black/60 backdrop-blur-md border border-white/10 p-2 rounded-lg flex items-center gap-3">
-                  <Activity className="h-3 w-3 text-primary animate-pulse" />
-                  <span className="text-[9px] font-bold text-white uppercase">Feed Sincronizado</span>
+          {/* Área Principal del Gráfico */}
+          <div className="flex-1 relative bg-black flex flex-col min-w-0">
+            {/* Control Flotante para Móviles */}
+            <div className="lg:hidden flex items-center justify-between p-2 bg-[#080808] border-b border-white/5">
+               <div className="flex items-center gap-2">
+                 <Search className="h-3 w-3 text-muted-foreground" />
+                 <span className="text-[9px] font-bold text-muted-foreground uppercase">Activo:</span>
                </div>
+               <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 text-[10px] gap-2 border border-white/10 bg-white/5 font-bold">
+                    {selectedPair} <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-48 p-1 bg-[#050505] border-white/10 backdrop-blur-3xl shadow-2xl">
+                  <div className="space-y-0.5">
+                    {configuredPairs.map((pair: string) => (
+                      <button
+                        key={pair}
+                        onClick={() => setSelectedPair(pair)}
+                        className={cn(
+                          "w-full text-left px-3 py-2.5 rounded-md text-[10px] font-bold transition-all",
+                          selectedPair === pair ? "bg-primary text-white" : "text-muted-foreground hover:bg-white/5"
+                        )}
+                      >
+                        {pair}
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
 
+            {/* Contenedor del Widget */}
+            <div className="flex-1" ref={container} id="tradingview_container" />
+            
+            {/* Capa de Carga */}
             {chartLoading && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 z-50">
-                <RefreshCw className="h-8 w-8 animate-spin text-primary mb-3" />
-                <p className="text-[9px] font-bold text-white tracking-[0.2em] uppercase animate-pulse">
-                  Conectando túnel {selectedPair}...
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-50">
+                <RefreshCw className="h-10 w-10 animate-spin text-primary mb-4" />
+                <p className="text-[10px] font-bold text-white tracking-[0.3em] uppercase animate-pulse">
+                  Estableciendo Túnel V7: {selectedPair}...
                 </p>
+                <p className="text-[8px] text-muted-foreground mt-2 font-code">Sincronizando feed de {activeSymbol}</p>
               </div>
             )}
+
+            {/* Leyenda de Estado */}
+            <div className="absolute bottom-4 right-4 z-10 hidden sm:flex">
+               <div className="bg-black/80 backdrop-blur-xl border border-white/10 px-3 py-1.5 rounded-full flex items-center gap-3 shadow-2xl">
+                  <Activity className="h-3 w-3 text-primary animate-pulse" />
+                  <span className="text-[9px] font-bold text-white/70 uppercase tracking-widest">Feed Sincronizado V7</span>
+               </div>
+            </div>
           </div>
         </div>
       </SidebarInset>
