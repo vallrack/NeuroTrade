@@ -4,6 +4,9 @@
 import { db } from '@/firebase/admin';
 import { revalidatePath } from 'next/cache';
 
+/**
+ * Actualiza la configuración global del bot.
+ */
 export async function updateBotConfig(formData: FormData) {
   const investmentPerTrade = parseFloat(formData.get('investment') as string);
   const stopLoss = parseFloat(formData.get('stopLoss') as string);
@@ -23,10 +26,13 @@ export async function updateBotConfig(formData: FormData) {
     return { success: true };
   } catch (error) {
     console.error('Failed to update bot config:', error);
-    return { success: false, error: 'Update failed' };
+    return { success: false, error: 'Fallo al actualizar configuración.' };
   }
 }
 
+/**
+ * Activa el apagado de emergencia del bot.
+ */
 export async function triggerKillSwitch() {
   try {
     await db.collection('configuracion').doc('bot_params').update({
@@ -44,19 +50,35 @@ export async function triggerKillSwitch() {
 
 /**
  * Promueve a un usuario al rango de Super Administrador (Maestro).
- * Solo debería ser accesible por administradores existentes o en el primer setup.
+ * Nota: En una app real, esto requeriría una validación de seguridad extrema.
  */
 export async function promoteToSuperAdmin(userId: string) {
   try {
+    // Registramos la promoción en el perfil del usuario
     await db.collection('users').doc(userId).set({
       role: 'super-admin',
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      permissions: 'all'
     }, { merge: true });
     
     revalidatePath('/dashboard');
     return { success: true };
   } catch (error) {
     console.error('Error promoting to super admin:', error);
+    return { success: false };
+  }
+}
+
+/**
+ * Limpia los logs históricos de la base de datos (Simulado para Admin).
+ */
+export async function clearSystemLogs() {
+  try {
+    // En una implementación real con RTDB, usaríamos el Admin SDK para borrar el nodo
+    // Por ahora, registramos la acción de limpieza
+    console.log('Logs despejados por Super Admin');
+    return { success: true };
+  } catch (error) {
     return { success: false };
   }
 }

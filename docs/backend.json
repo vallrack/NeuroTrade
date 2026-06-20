@@ -53,11 +53,11 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "Datos del perfil de usuario."
+      "description": "Datos del perfil de usuario. Permite acceso total si role es super-admin."
     },
     "/configuracion/bot_params": {
       "schema": "BotParams",
-      "description": "Configuración global de los parámetros del bot."
+      "description": "Configuración global de los parámetros del bot. Solo editable por admins."
     },
     "/rendimiento_diario/{recordId}": {
       "schema": "DailyEquity",
