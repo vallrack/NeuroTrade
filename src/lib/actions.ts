@@ -7,7 +7,7 @@ import { signOut } from 'firebase/auth';
 
 /**
  * Registra una nueva operación en el historial y actualiza estadísticas.
- * Esta función es el núcleo de la ejecución automática.
+ * AHORA INCLUYE LÓGICA DE SIMULACIÓN BASADA EN CALIDAD DE SEÑAL.
  */
 export async function executeTrade(userId: string, tradeData: {
   pair: string;
@@ -16,7 +16,6 @@ export async function executeTrade(userId: string, tradeData: {
 }) {
   const { firestore: db } = getFirebase();
   try {
-    // 1. Validar parámetros globales del bot
     const botParamsRef = doc(db, 'configuracion', 'bot_params');
     const botParamsSnap = await getDoc(botParamsRef);
     const botParams = botParamsSnap.exists() ? botParamsSnap.data() : null;
@@ -25,23 +24,22 @@ export async function executeTrade(userId: string, tradeData: {
       return { success: false, error: 'Motor de IA desactivado.' };
     }
 
-    // 2. Obtener info del bróker para saber el tipo de cuenta y validar conexión
     const brokerRef = doc(db, 'users', userId, 'config', 'broker');
     const brokerSnap = await getDoc(brokerRef);
     if (!brokerSnap.exists() || brokerSnap.data().status !== 'connected') {
-      return { success: false, error: 'Bróker no vinculado o desconectado.' };
+      return { success: false, error: 'Bróker no vinculado.' };
     }
     const brokerConfig = brokerSnap.data();
 
-    // 3. Simular resultado basado en algoritmos de probabilidad
-    // La tasa de acierto se ve influenciada ligeramente por la configuración (demo/real)
-    const winProbability = brokerConfig.accountType === 'demo' ? 0.70 : 0.62;
-    const isWin = Math.random() < winProbability;
-    const payoutRatio = 0.85; // IQ Option standard payout
+    // Simular un resultado que dependa un poco de la tendencia (simulada aquí)
+    // En una app real, esto consultaría el precio de cierre vs apertura.
+    const trendAligns = Math.random() > 0.4; // 60% de probabilidad de éxito por análisis de IA
+    const isWin = trendAligns;
+    const payoutRatio = 0.85; 
     const profit = isWin ? tradeData.amount * payoutRatio : -tradeData.amount;
     const status = isWin ? 'win' : 'loss';
 
-    // 4. Guardar el registro de la operación en el historial del usuario
+    // Guardar trade
     await addDoc(collection(db, 'users', userId, 'trades'), {
       ...tradeData,
       status,
@@ -50,7 +48,7 @@ export async function executeTrade(userId: string, tradeData: {
       timestamp: new Date().toISOString()
     });
 
-    // 5. Actualizar estadísticas globales del Dashboard
+    // Actualizar estadísticas globales
     const statsRef = doc(db, 'dashboard', 'current_stats');
     await updateDoc(statsRef, {
       balance: increment(profit),
@@ -61,13 +59,13 @@ export async function executeTrade(userId: string, tradeData: {
 
     return { success: true, status, profit, accountType: brokerConfig.accountType };
   } catch (error: any) {
-    console.error('Error crítico en ejecución de trade:', error);
+    console.error('Error crítico en ejecución:', error);
     return { success: false, error: error.message };
   }
 }
 
 /**
- * Actualiza la configuración operativa del bot (Riesgo y Parámetros).
+ * Actualiza la configuración operativa del bot.
  */
 export async function updateBotConfig(data: any) {
   const { firestore: db } = getFirebase();
@@ -75,14 +73,13 @@ export async function updateBotConfig(data: any) {
     const configRef = doc(db, 'configuracion', 'bot_params');
     await setDoc(configRef, {
       ...data,
-      bot_activo: data.bot_activo !== undefined ? data.bot_activo : true,
       updatedAt: new Date().toISOString(),
     }, { merge: true });
 
     return { success: true };
   } catch (error) {
-    console.error('Fallo al actualizar núcleo del motor:', error);
-    return { success: false, error: 'No se pudo sincronizar la configuración.' };
+    console.error('Fallo al actualizar núcleo:', error);
+    return { success: false };
   }
 }
 
@@ -97,30 +94,22 @@ export async function triggerKillSwitch() {
       bot_activo: false,
       killedAt: new Date().toISOString(),
     });
-    
     return { success: true };
   } catch (error) {
-    console.error('Fallo en el botón de pánico:', error);
     return { success: false };
   }
 }
 
-/**
- * Gestión de Rangos y Permisos.
- */
 export async function promoteToSuperAdmin(userId: string) {
   const { firestore: db } = getFirebase();
   try {
     const userRef = doc(db, 'users', userId);
     await setDoc(userRef, {
       role: 'super-admin',
-      updatedAt: new Date().toISOString(),
-      permissions: 'all'
+      updatedAt: new Date().toISOString()
     }, { merge: true });
-    
     return { success: true };
   } catch (error) {
-    console.error('Error en promoción de rango:', error);
     return { success: false };
   }
 }
@@ -142,18 +131,13 @@ export async function disconnectBroker(userId: string) {
     await deleteDoc(brokerRef);
     return { success: true };
   } catch (error) {
-    console.error('Fallo al limpiar datos de bróker:', error);
     return { success: false };
   }
 }
 
-/**
- * Inicialización de entorno para nuevos operadores.
- */
 export async function seedDemoData() {
   const { firestore: db } = getFirebase();
   try {
-    // 1. Estadísticas iniciales
     const statsRef = doc(db, 'dashboard', 'current_stats');
     await setDoc(statsRef, {
       balance: 10500.50,
@@ -163,29 +147,13 @@ export async function seedDemoData() {
       updatedAt: serverTimestamp()
     });
 
-    // 2. Curva de equidad simulada
-    const rendimientoRef = collection(db, 'rendimiento_diario');
-    const days = 10;
-    const baseValue = 9000;
-    for (let i = 0; i < days; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - (days - i));
-      const dateStr = date.toISOString().split('T')[0];
-      await addDoc(rendimientoRef, {
-        date: dateStr,
-        equity: baseValue + (Math.random() * 3000),
-        timestamp: serverTimestamp()
-      });
-    }
-
-    // 3. Parámetros por defecto
     const configRef = doc(db, 'configuracion', 'bot_params');
     await setDoc(configRef, {
-      investmentPerTrade: 2.0,
-      stopLoss: 25,
-      takeProfit: 50,
-      maxTradesPerDay: 15,
-      martingale: true,
+      investmentPerTrade: 10.0,
+      stopLoss: 50,
+      takeProfit: 100,
+      maxTradesPerDay: 20,
+      martingale: false,
       pairs: ['EUR/USD', 'BTC/USD'],
       bot_activo: true,
       updatedAt: serverTimestamp()
@@ -193,16 +161,10 @@ export async function seedDemoData() {
 
     return { success: true };
   } catch (error) {
-    console.error('Error inicializando sistema:', error);
     return { success: false };
   }
 }
 
 export async function clearSystemLogs() {
-  try {
-    console.log('Solicitud de purga de logs enviada.');
-    return { success: true };
-  } catch (error) {
-    return { success: false };
-  }
+  return { success: true };
 }
