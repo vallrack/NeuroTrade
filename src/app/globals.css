@@ -108,10 +108,14 @@
   overflow-x: hidden;
 }
 
-/* Hide potential double scrollbars on the main main layout */
+/* Hide potential double scrollbars on the main layout */
 main {
   scrollbar-width: none;
 }
 main::-webkit-scrollbar {
   display: none;
+}
+
+.tv-chart-container {
+  mask-image: linear-gradient(to bottom, black 95%, transparent 100%);
 }
