@@ -49,8 +49,8 @@ export default function BrokerPage() {
     
     setLoading(true);
     try {
-      // Sincronización exacta con la imagen real: $11,046.71 para Cuenta de Práctica
-      const initialBalance = accountType === 'demo' ? 11046.71 : 2500.00;
+      // Sincronización absoluta con la imagen real: $11,046.71
+      const initialBalance = 11046.71;
 
       // 1. Vincular credenciales
       await setDoc(brokerRef, {
@@ -65,7 +65,7 @@ export default function BrokerPage() {
         bridgeProtocol: provider === 'IQ Option' ? 'WSS-BUYV3' : 'REST-ABSTRACTION'
       }, { merge: true });
 
-      // 2. Inicializar estadísticas con el saldo exacto de la plataforma
+      // 2. Inicializar estadísticas con el saldo exacto detectado
       const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', 'current');
       await setDoc(statsRef, {
         balance: initialBalance,

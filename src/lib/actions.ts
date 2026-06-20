@@ -180,7 +180,7 @@ export async function seedDemoData(userId?: string) {
   try {
     if (userId) {
       const statsRef = doc(db, 'users', userId, 'trading_stats', 'current');
-      // Sincronización exacta con el saldo real de la imagen del usuario
+      // Sincronización absoluta con la imagen del usuario
       await setDoc(statsRef, {
         balance: 11046.71,
         dailyProfit: 0.00,
