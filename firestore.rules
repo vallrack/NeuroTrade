@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Funciones auxiliares de seguridad
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super-admin';
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Reglas para perfiles de usuario
+    match /users/{userId} {
+      allow read: if isSignedIn() && (isOwner(userId) || isSuperAdmin());
+      // Permitir creación inicial si es su propio perfil
+      allow create: if isOwner(userId);
+      // Permitir actualización si es el dueño o super administrador
+      allow update: if isOwner(userId) || isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // Reglas para parámetros del bot
+    match /configuracion/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    // Reglas para rendimiento diario (gráficos)
+    match /rendimiento_diario/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    // Reglas para estadísticas del dashboard
+    match /dashboard/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+  }
+}

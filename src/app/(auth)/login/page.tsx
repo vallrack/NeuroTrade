@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -12,6 +11,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Zap, Loader2, UserPlus, LogIn, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false);
@@ -33,34 +34,41 @@ export default function LoginPage() {
 
     try {
       if (isRegister) {
-        // Crear usuario en Auth
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        // Actualizar perfil de Auth si hay nombre
         if (displayName) {
           await updateProfile(user, { displayName });
         }
 
-        // CREAR PERFIL EN FIRESTORE (Solución al problema de "no hay perfil")
-        await setDoc(doc(firestore, 'users', user.uid), {
+        // Creación de perfil en Firestore (No bloqueante)
+        const userRef = doc(firestore, 'users', user.uid);
+        const userData = {
           email: user.email,
           displayName: displayName || user.email?.split('@')[0],
-          role: null, // Se asignará después con el botón de inicialización
+          role: null,
           createdAt: serverTimestamp(),
           lastActive: serverTimestamp(),
-        });
+        };
+
+        setDoc(userRef, userData, { merge: true })
+          .catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+              path: userRef.path,
+              operation: 'create',
+              requestResourceData: userData,
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
+          });
 
         toast({
           title: "CUENTA CREADA",
           description: "Bienvenido al sistema NeuroTrade. Inicializa tu rango en el dashboard.",
         });
       } else {
-        // Login normal
         await signInWithEmailAndPassword(auth, email, password);
       }
 
-      // Obtener token para la cookie de sesión (Middleware)
       const currentUser = auth.currentUser;
       if (currentUser) {
         const token = await currentUser.getIdToken();
@@ -70,12 +78,11 @@ export default function LoginPage() {
       router.push('/dashboard');
       router.refresh();
     } catch (err: any) {
-      console.error("Auth Error:", err.code, err.message);
       let message = 'Error de conexión con el núcleo central.';
       
       if (err.code === 'auth/user-not-found') message = 'Operador no registrado. Por favor, crea una cuenta.';
       if (err.code === 'auth/wrong-password') message = 'Contraseña incorrecta.';
-      if (err.code === 'auth/invalid-credential') message = 'Credenciales no válidas. Verifica tu ID y contraseña.';
+      if (err.code === 'auth/invalid-credential') message = 'Credenciales no válidas.';
       if (err.code === 'auth/email-already-in-use') message = 'Este ID de operador ya está activo.';
       if (err.code === 'auth/weak-password') message = 'La contraseña debe tener al menos 6 caracteres.';
       
@@ -128,9 +135,7 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <Label htmlFor="password">Protocolo de Seguridad (Contraseña)</Label>
-              </div>
+              <Label htmlFor="password">Protocolo de Seguridad</Label>
               <Input 
                 id="password" 
                 type="password" 
@@ -148,20 +153,20 @@ export default function LoginPage() {
             )}
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full h-12 font-headline text-lg group bg-primary hover:bg-primary/90" disabled={loading}>
+            <Button type="submit" className="w-full h-12 font-headline text-lg bg-primary hover:bg-primary/90" disabled={loading}>
               {loading ? (
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
               ) : isRegister ? (
-                <UserPlus className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform" />
+                <UserPlus className="h-5 w-5 mr-2" />
               ) : (
-                <LogIn className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform" />
+                <LogIn className="h-5 w-5 mr-2" />
               )}
               {isRegister ? 'CREAR OPERADOR' : 'ESTABLECER CONEXIÓN'}
             </Button>
             <Button 
               type="button" 
               variant="ghost" 
-              className="w-full text-xs text-muted-foreground hover:text-primary" 
+              className="w-full text-xs text-muted-foreground" 
               onClick={() => {
                 setIsRegister(!isRegister);
                 setError('');

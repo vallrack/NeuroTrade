@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -18,6 +17,8 @@ import { SuperAdminTools } from '@/components/dashboard/super-admin-tools';
 import { Badge } from '@/components/ui/badge';
 import { promoteToSuperAdmin } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useUser();
@@ -31,16 +32,25 @@ export default function DashboardPage() {
   const isSuperAdmin = profile?.role === 'super-admin';
   const hasNoRole = profile && !profile.role;
 
-  // Si el usuario existe pero no tiene documento de perfil, lo creamos
   useEffect(() => {
     if (user && !profileLoading && !profile && firestore) {
-      console.log("Creando perfil faltante para:", user.uid);
-      setDoc(doc(firestore, 'users', user.uid), {
+      const userRef = doc(firestore, 'users', user.uid);
+      const userData = {
         email: user.email,
         displayName: user.displayName || user.email?.split('@')[0],
         role: null,
         createdAt: serverTimestamp(),
-      }, { merge: true });
+      };
+
+      setDoc(userRef, userData, { merge: true })
+        .catch(async (serverError) => {
+          const permissionError = new FirestorePermissionError({
+            path: userRef.path,
+            operation: 'create',
+            requestResourceData: userData,
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        });
     }
   }, [user, profile, profileLoading, firestore]);
 
