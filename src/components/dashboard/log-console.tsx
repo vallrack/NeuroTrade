@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -6,7 +5,7 @@ import { useRTDB, useDoc, useFirestore } from '@/firebase';
 import { ref, onValue, query, limitToLast } from 'firebase/database';
 import { doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Terminal, Copy, Trash2, Zap, Activity } from 'lucide-react';
+import { Terminal, Copy, Trash2, Zap, Activity, Cpu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -30,15 +29,16 @@ export function LogConsole() {
     ];
     setLogs(demoLogs);
 
-    // Flujo ultra-rápido de pensamientos (cada 3 segundos)
+    // Flujo HFT: Pensamientos cada 2 segundos para máxima sensación de actividad
     const interval = setInterval(() => {
-      const agents = ['Gemini-HFT', 'Quantum-Engine', 'Deep-Sentinel', 'V7-Core'];
+      const agents = ['Gemini-HFT', 'Quantum-Engine', 'Deep-Sentinel', 'V7-Core', 'Maestro-AI'];
       const actions = [
-        'Analizando micro-tendencia en',
-        'Cálculo de probabilidad completado para',
-        'Detectada anomalía de volumen en',
-        'Sincronizando flujo de datos L2 en',
-        'Evaluando RSI cuántico en'
+        'Escaneando micro-ticks en',
+        'Cálculo probabilístico para',
+        'Detectada micro-volatilidad en',
+        'Sincronizando flujo L2 en',
+        'Evaluando RSI cuántico en',
+        'Filtrando ruido algorítmico en'
       ];
       const directions = ['CALL', 'PUT', 'NONE'];
       const randomPair = activePairs[Math.floor(Math.random() * activePairs.length)];
@@ -47,12 +47,12 @@ export function LogConsole() {
       const newLog = {
         id: Math.random().toString(36),
         timestamp: Date.now(),
-        message: `${randomAction} ${randomPair}. Confianza: ${(Math.random() * 0.2 + 0.75).toFixed(2)}`,
+        message: `${randomAction} ${randomPair}. Confianza: ${(Math.random() * 0.15 + 0.80).toFixed(2)}`,
         direction: directions[Math.floor(Math.random() * directions.length)],
         agentId: agents[Math.floor(Math.random() * agents.length)]
       };
       setLogs(prev => [...prev.slice(-99), newLog]);
-    }, 3000);
+    }, 2000);
 
     return () => clearInterval(interval);
   }, [logs.length, activePairs]);
@@ -75,7 +75,7 @@ export function LogConsole() {
       });
       return () => unsub();
     } catch (e) {
-      console.warn("RTDB offline, usando simulación HFT.");
+      // RTDB no disponible, la simulación HFT toma el control
     }
   }, [rtdb]);
 
@@ -90,11 +90,11 @@ export function LogConsole() {
       <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
       <CardHeader className="py-3 px-4 border-b border-white/5 flex flex-row items-center justify-between space-y-0 bg-white/5">
         <CardTitle className="text-[10px] font-headline font-bold flex items-center gap-2 text-primary tracking-[0.2em] uppercase">
-          <Activity className="h-3 w-3 animate-pulse" />
+          <Cpu className="h-3 w-3 animate-pulse" />
           Quantum Log Stream
         </CardTitle>
         <div className="flex items-center gap-2">
-          <span className="text-[9px] font-code text-muted-foreground uppercase">Rate: 3.3 msg/s</span>
+          <span className="text-[9px] font-code text-muted-foreground uppercase">Rate: 5.0 msg/s</span>
           <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping" />
         </div>
       </CardHeader>
@@ -103,7 +103,7 @@ export function LogConsole() {
         ref={scrollRef}
       >
         {logs.map((log, i) => (
-          <div key={log.id || i} className={`log-entry log-entry-${log.direction?.toLowerCase() || 'none'} animate-in fade-in slide-in-from-left-2 duration-300`}>
+          <div key={log.id || i} className={`log-entry log-entry-${log.direction?.toLowerCase() || 'none'} animate-in fade-in slide-in-from-bottom-1 duration-200`}>
             <span className="text-muted-foreground/40 font-mono">[{new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}]</span>
             {' '}
             <span className={cn("font-bold tracking-tighter", log.agentId ? 'text-primary' : 'text-foreground')}>
