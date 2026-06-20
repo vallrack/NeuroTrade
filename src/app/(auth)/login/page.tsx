@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useState } from 'react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { useState, useEffect } from 'react';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, onAuthStateChanged } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { doc, setDoc } from 'firebase/firestore';
@@ -25,13 +25,22 @@ export default function LoginPage() {
   
   const auth = useAuth();
   const firestore = useFirestore();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
-  const setSessionCookie = (token: string) => {
-    // Establecemos la cookie con parámetros explícitos para asegurar que el Middleware la lea
-    document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax; Secure`;
-  };
+  // Si ya hay una sesión activa de Firebase, intentamos redirigir
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const token = await user.getIdToken();
+        document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
+        const from = searchParams.get('from') || '/dashboard';
+        router.replace(from);
+      }
+    });
+    return () => unsub();
+  }, [auth, router, searchParams]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,17 +57,17 @@ export default function LoginPage() {
           await updateProfile(user, { displayName });
         }
 
+        // Crear perfil inicial de forma no bloqueante
         const userRef = doc(firestore, 'users', user.uid);
         const userData = {
           email: user.email,
           displayName: displayName || user.email?.split('@')[0],
-          role: null,
+          role: null, // Se asignará vía dashboard con el botón de inicialización
           createdAt: new Date().toISOString(),
           lastActive: new Date().toISOString(),
         };
 
-        // Crear perfil inicial. Si falla, emitimos error pero intentamos seguir
-        await setDoc(userRef, userData, { merge: true }).catch(async (serverError) => {
+        setDoc(userRef, userData, { merge: true }).catch(async (err) => {
           const permissionError = new FirestorePermissionError({
             path: userRef.path,
             operation: 'create',
@@ -78,14 +87,15 @@ export default function LoginPage() {
 
       if (user) {
         const token = await user.getIdToken();
-        setSessionCookie(token);
+        // Establecer la cookie sin el flag Secure para evitar problemas en local si no es HTTPS
+        document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
         
         const from = searchParams.get('from') || '/dashboard';
         
-        // Usamos window.location.href para forzar un refresco total y que el servidor vea la cookie
+        // Forzar navegación
         setTimeout(() => {
           window.location.href = from;
-        }, 300);
+        }, 500);
       }
     } catch (err: any) {
       console.error(err);
@@ -94,8 +104,6 @@ export default function LoginPage() {
         message = 'ID o Protocolo de Seguridad incorrecto.';
       } else if (err.code === 'auth/email-already-in-use') {
         message = 'El ID de operador ya está activo.';
-      } else if (err.code === 'auth/weak-password') {
-        message = 'Seguridad insuficiente (mín. 6 caracteres).';
       }
       setError(message);
       setLoading(false);
@@ -125,7 +133,7 @@ export default function LoginPage() {
                 <Label htmlFor="name">Nombre del Operador</Label>
                 <Input 
                   id="name" 
-                  placeholder="Ej. Comandante Alpha" 
+                  placeholder="Ej. Jose Daniel" 
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   className="bg-background/50 border-white/5 focus:border-primary/50"

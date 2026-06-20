@@ -6,7 +6,7 @@ export function middleware(request: NextRequest) {
   const session = request.cookies.get('session');
   const { pathname } = request.nextUrl;
 
-  // 1. Rutas públicas y recursos estáticos
+  // 1. Definir rutas públicas y recursos
   const isPublicPath = 
     pathname === '/login' || 
     pathname.startsWith('/_next') || 
@@ -18,8 +18,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  // 3. Protección de rutas privadas
-  if (!isPublicPath && !session) {
+  // 3. Protección de rutas privadas: Si no hay sesión y no es ruta pública, al login
+  if (!isPublicPath && !session && pathname.startsWith('/dashboard')) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('from', pathname);
     return NextResponse.redirect(loginUrl);

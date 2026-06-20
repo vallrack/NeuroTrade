@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { StatsGrid } from '@/components/dashboard/stats-grid';
 import { IACommitteeMonitor } from '@/components/dashboard/ia-committee-monitor';
 import { EquityChart } from '@/components/dashboard/equity-chart';
@@ -29,7 +29,6 @@ export default function DashboardPage() {
   const { data: profile, loading: profileLoading } = useDoc(profileRef);
 
   const isSuperAdmin = profile?.role === 'super-admin';
-  // El botón de inicialización aparece si el perfil existe pero no tiene rol asignado
   const hasNoRole = profile && !profile.role;
 
   const handleInitialSetup = async () => {
@@ -58,7 +57,16 @@ export default function DashboardPage() {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center gap-4 bg-background">
         <Loader2 className="h-10 w-10 text-primary animate-spin" />
-        <p className="text-muted-foreground font-headline animate-pulse">Sincronizando con la Red NeuroTrade...</p>
+        <p className="text-muted-foreground font-headline animate-pulse uppercase tracking-widest text-xs font-bold">Sincronizando con la Red NeuroTrade...</p>
+      </div>
+    );
+  }
+
+  // Si no hay usuario, el middleware debería habernos sacado, pero por si acaso:
+  if (!user) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-background">
+        <p className="text-muted-foreground font-headline">Redireccionando a Puerta de Acceso...</p>
       </div>
     );
   }
@@ -82,13 +90,13 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {hasNoRole && user && (
+            {hasNoRole && (
               <Button 
                 onClick={handleInitialSetup} 
                 variant="outline" 
                 size="sm" 
                 disabled={initLoading}
-                className="border-primary text-primary hover:bg-primary/10 gap-2 animate-bounce"
+                className="border-primary text-primary hover:bg-primary/10 gap-2 animate-bounce shadow-[0_0_15px_rgba(var(--primary),0.3)]"
               >
                 {initLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 INICIALIZAR SUPER ADMIN
@@ -130,15 +138,6 @@ export default function DashboardPage() {
                       Estado del Bot: OPERATIVO
                     </h3>
                     <p className="text-sm text-primary/80 mb-4 pr-12">El motor cuántico está procesando flujos de datos a través de la red neuronal activa.</p>
-                    <div className="flex flex-col gap-2">
-                      <div className="flex justify-between text-[10px] font-bold text-primary/60 uppercase">
-                        <span>Carga de Análisis</span>
-                        <span>84%</span>
-                      </div>
-                      <div className="h-1 w-full bg-primary/30 rounded-full overflow-hidden">
-                        <div className="h-full bg-primary w-[84%] shadow-[0_0_8px_rgba(var(--primary),0.8)]" />
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>
