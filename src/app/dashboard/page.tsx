@@ -9,7 +9,7 @@ import { LogConsole } from '@/components/dashboard/log-console';
 import { KillSwitch } from '@/components/dashboard/kill-switch';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
-import { Bell, Settings, ShieldCheck, Crown, Activity, RefreshCw, Loader2 } from 'lucide-react';
+import { Bell, Settings, ShieldCheck, Crown, Activity, RefreshCw, Loader2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useUser, useDoc, useFirestore } from '@/firebase';
@@ -35,6 +35,9 @@ export default function DashboardPage() {
   const profileRef = useMemo(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: profile } = useDoc(profileRef);
 
+  const botParamsRef = useMemo(() => doc(firestore, 'configuracion', 'bot_params'), [firestore]);
+  const { data: botParams } = useDoc(botParamsRef);
+
   useEffect(() => {
     if (mounted && !authLoading && !user) {
       router.push('/login');
@@ -43,8 +46,8 @@ export default function DashboardPage() {
 
   const isSuperAdmin = profile?.role === 'super-admin';
   const hasNoRole = mounted && user && profile && !profile.role;
+  const isBotActive = botParams?.bot_activo;
 
-  // Evitamos el bloqueo de carga infinita. Si ya está montado, mostramos el panel.
   if (!mounted) return null;
 
   return (
@@ -57,32 +60,20 @@ export default function DashboardPage() {
             <Separator orientation="vertical" className="mr-2 h-4" />
             <div className="flex items-center gap-2">
               <h1 className="font-headline text-xl font-bold tracking-tight text-foreground">Centro de Comando</h1>
-              {isSuperAdmin && (
-                <Badge variant="outline" className="border-primary/50 text-primary gap-1 animate-pulse bg-primary/5">
-                  <Crown className="h-3 w-3" />
-                  MAESTRO
+              {isBotActive && (
+                <Badge className="bg-primary/10 text-primary border-primary/20 gap-1.5 py-1 px-3 ml-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
+                  SISTEMA AUTÓNOMO
                 </Badge>
               )}
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {(hasNoRole || !profile) && user && (
-              <Button 
-                onClick={() => {
-                  setInitLoading(true);
-                  promoteToSuperAdmin(user.uid).then(res => {
-                    if (res.success) toast({ title: "ACCESO MAESTRO", description: "Privilegios activados." });
-                    setInitLoading(false);
-                  });
-                }} 
-                variant="outline" 
-                size="sm" 
-                disabled={initLoading}
-                className="border-primary text-primary hover:bg-primary/10 gap-2 animate-bounce shadow-[0_0_15px_rgba(var(--primary),0.3)]"
-              >
-                {initLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                INICIALIZAR SUPER ADMIN
-              </Button>
+            {isSuperAdmin && (
+              <Badge variant="outline" className="border-primary/50 text-primary gap-1 bg-primary/5 uppercase text-[10px] font-bold tracking-wider">
+                <Crown className="h-3 w-3" />
+                Acceso Maestro
+              </Badge>
             )}
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
@@ -95,6 +86,40 @@ export default function DashboardPage() {
         </header>
 
         <main className="p-6 space-y-6">
+          <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-primary/5 p-4 rounded-xl border border-primary/10 mb-2">
+             <div className="flex items-center gap-3">
+                <div className={`p-3 rounded-full ${isBotActive ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
+                  <Activity className={`h-6 w-6 ${isBotActive ? 'animate-pulse' : ''}`} />
+                </div>
+                <div>
+                   <h2 className="font-headline font-bold text-lg">Estado del Motor Cuántico</h2>
+                   <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">
+                     {isBotActive ? 'Operando con Autonomía Total' : 'Motor en Standby - Requiere Activación'}
+                   </p>
+                </div>
+             </div>
+             <div className="flex gap-3">
+                {hasNoRole && user && (
+                  <Button 
+                    onClick={() => {
+                      setInitLoading(true);
+                      promoteToSuperAdmin(user.uid).then(res => {
+                        if (res.success) toast({ title: "ACCESO MAESTRO", description: "Privilegios activados." });
+                        setInitLoading(false);
+                      });
+                    }} 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={initLoading}
+                    className="border-primary text-primary hover:bg-primary/10 gap-2"
+                  >
+                    {initLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    SINCRONIZAR RANGO
+                  </Button>
+                )}
+             </div>
+          </div>
+
           <StatsGrid />
           
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -110,16 +135,6 @@ export default function DashboardPage() {
                       Protocolos de Emergencia
                     </h3>
                     <KillSwitch />
-                  </div>
-                  <div className="p-6 bg-primary/10 border border-primary/20 rounded-xl relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-                      <Activity className="h-12 w-12 text-primary" />
-                    </div>
-                    <h3 className="font-headline font-bold text-primary mb-2 flex items-center gap-2">
-                      <span className="flex h-2 w-2 rounded-full bg-primary animate-ping" />
-                      Estado del Bot: OPERATIVO
-                    </h3>
-                    <p className="text-sm text-primary/80 mb-4 pr-12">El motor cuántico está procesando flujos de datos en tiempo real.</p>
                   </div>
                 </div>
               </div>
