@@ -19,7 +19,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const firestore = useFirestore();
-  const isEditing = useRef(false);
+  const [isEditing, setIsEditing] = useState(false);
   
   const botParamsRef = doc(firestore, 'configuracion', 'bot_params');
   const { data: botParams, loading: paramsLoading } = useDoc(botParamsRef);
@@ -27,18 +27,17 @@ export default function SettingsPage() {
   const [pairs, setPairs] = useState('');
   const [botActive, setBotActive] = useState(true);
 
-  // Sincronizar solo cuando no estemos editando activamente
+  // Sincronizar solo cuando no estemos editando
   useEffect(() => {
-    if (botParams && !isEditing.current) {
+    if (botParams && !isEditing) {
       setPairs(botParams.pairs?.join(', ') || 'EUR/USD');
       setBotActive(botParams.bot_activo !== undefined ? botParams.bot_activo : true);
     }
-  }, [botParams]);
+  }, [botParams, isEditing]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    isEditing.current = false;
     
     const pairsArray = pairs
       .split(',')
@@ -62,6 +61,7 @@ export default function SettingsPage() {
 
     const result = await updateBotConfig(config);
     setLoading(false);
+    setIsEditing(false);
 
     if (result.success) {
       toast({
@@ -117,7 +117,10 @@ export default function SettingsPage() {
                       </div>
                       <Switch 
                         checked={botActive}
-                        onCheckedChange={setBotActive}
+                        onCheckedChange={(val) => {
+                          setIsEditing(true);
+                          setBotActive(val);
+                        }}
                         className="scale-125"
                       />
                     </div>
@@ -136,10 +139,9 @@ export default function SettingsPage() {
                         id="pairs" 
                         value={pairs}
                         onChange={(e) => {
-                          isEditing.current = true;
+                          setIsEditing(true);
                           setPairs(e.target.value);
                         }}
-                        onBlur={() => { isEditing.current = false; }}
                         placeholder="EUR/USD, BTC/USD, GBP/JPY" 
                         className="bg-background/50 border-white/5 h-12 font-code" 
                       />

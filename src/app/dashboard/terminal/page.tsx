@@ -25,27 +25,39 @@ export default function TerminalPage() {
 
   const [selectedPair, setSelectedPair] = useState('EUR/USD');
   const [activeSymbol, setActiveSymbol] = useState('FX:EURUSD');
+  const [chartLoading, setChartLoading] = useState(true);
 
+  // Sincronizar par seleccionado con los configurados
   useEffect(() => {
     if (botParams?.pairs && botParams.pairs.length > 0) {
       if (!botParams.pairs.includes(selectedPair)) {
         setSelectedPair(botParams.pairs[0]);
       }
     }
-  }, [botParams]);
+  }, [botParams, selectedPair]);
 
+  // Convertir par a formato TradingView
   useEffect(() => {
     const cleanPair = selectedPair.replace('/', '');
-    // Mapeo básico para TradingView
     let symbol = `FX:${cleanPair}`;
     if (selectedPair.includes('BTC') || selectedPair.includes('ETH')) {
       symbol = `BINANCE:${cleanPair}T`;
     }
     setActiveSymbol(symbol);
+    setChartLoading(true);
   }, [selectedPair]);
 
+  // Inyectar Widget de TradingView
   useEffect(() => {
     if (!container.current) return;
+
+    // Limpiar contenedor anterior
+    container.current.innerHTML = '';
+    const widgetContainer = document.createElement('div');
+    widgetContainer.id = `tv-widget-${activeSymbol}`;
+    widgetContainer.style.height = '100%';
+    widgetContainer.style.width = '100%';
+    container.current.appendChild(widgetContainer);
 
     const script = document.createElement("script");
     script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
@@ -60,15 +72,18 @@ export default function TerminalPage() {
       "style": "1",
       "locale": "es",
       "enable_publishing": false,
-      "allow_symbol_change": true,
+      "allow_symbol_change": false,
       "calendar": false,
       "hide_volume": true,
       "support_host": "https://www.tradingview.com",
-      "container_id": "tradingview_terminal_widget"
+      "container_id": widgetContainer.id
     });
     
-    container.current.innerHTML = '<div id="tradingview_terminal_widget" style="height: 100%; width: 100%;"></div>';
-    container.current.appendChild(script);
+    widgetContainer.appendChild(script);
+
+    // Pequeño delay para quitar el estado de carga
+    const timer = setTimeout(() => setChartLoading(false), 1500);
+    return () => clearTimeout(timer);
   }, [activeSymbol]);
 
   const configuredPairs = botParams?.pairs || ['EUR/USD'];
@@ -105,8 +120,8 @@ export default function TerminalPage() {
         </header>
 
         <main className="flex-1 flex overflow-hidden bg-black">
-          {/* Selector Lateral de Activos (Estilo Plataforma) */}
-          <aside className="w-48 border-r border-white/5 bg-card/30 backdrop-blur-sm flex flex-col">
+          {/* Selector Lateral de Activos */}
+          <aside className="w-48 border-r border-white/5 bg-card/30 backdrop-blur-sm flex flex-col shrink-0">
             <div className="p-4 border-b border-white/5 flex items-center gap-2 text-muted-foreground">
               <Layers className="h-4 w-4" />
               <span className="text-[10px] font-bold uppercase tracking-widest">Activos</span>
@@ -133,13 +148,17 @@ export default function TerminalPage() {
           </aside>
 
           {/* Área de Gráfico */}
-          <div className="flex-1 flex flex-col relative">
+          <div className="flex-1 flex flex-col relative min-w-0">
             <div className="flex-1 w-full relative" ref={container}>
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-4 bg-black">
+              {/* Este div será el host del widget */}
+            </div>
+            
+            {chartLoading && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-4 bg-black z-20">
                 <RefreshCw className="h-8 w-8 animate-spin text-primary" />
                 <p className="animate-pulse font-headline">Sincronizando flujo de {selectedPair}...</p>
               </div>
-            </div>
+            )}
             
             <div className="h-10 border-t border-white/5 bg-card/80 backdrop-blur-md flex items-center px-6 justify-between shrink-0">
               <div className="flex gap-6 items-center">
