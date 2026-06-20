@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Settings,
   History,
-  TrendingUp,
   ShieldCheck,
   UserCircle,
   LogOut,
@@ -108,23 +107,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   };
 
   return (
-    <Sidebar collapsible="icon" {...props} className="border-r border-white/5 bg-sidebar/80 backdrop-blur-3xl">
-      <SidebarHeader className="p-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary shadow-xl shadow-primary/30">
-            <Zap className="h-5 w-5 text-white" />
-          </div>
-          <div className="flex flex-col group-data-[collapsible=icon]:hidden overflow-hidden">
-            <span className="font-headline font-bold text-base leading-none tracking-tighter text-foreground truncate">NeuroTrade</span>
-            <span className="text-[9px] text-primary font-bold uppercase tracking-[0.2em] mt-1">Quantum V7</span>
-          </div>
+    <Sidebar collapsible="icon" {...props} className="border-r border-white/5 bg-sidebar/50 backdrop-blur-3xl">
+      <SidebarHeader className="p-4 flex flex-row items-center gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20">
+          <Zap className="h-5 w-5 text-white" />
+        </div>
+        <div className="flex flex-col group-data-[collapsible=icon]:hidden overflow-hidden">
+          <span className="font-headline font-bold text-sm tracking-tighter text-white truncate">NeuroTrade</span>
+          <span className="text-[8px] text-primary font-bold uppercase tracking-widest leading-none mt-1">Quantum V7</span>
         </div>
       </SidebarHeader>
       
-      <SidebarContent className="px-3 custom-scrollbar overflow-x-hidden">
+      <SidebarContent className="px-2 overflow-x-hidden custom-scrollbar">
         {data.navMain.map((group) => (
           <SidebarGroup key={group.title} className="py-2">
-            <SidebarGroupLabel className="text-[9px] text-muted-foreground/50 px-3 font-bold tracking-[0.2em] uppercase group-data-[collapsible=icon]:hidden">
+            <SidebarGroupLabel className="text-[8px] text-muted-foreground/40 px-3 font-bold tracking-[0.2em] uppercase group-data-[collapsible=icon]:hidden">
               {group.title}
             </SidebarGroupLabel>
             <SidebarGroupContent>
@@ -134,11 +131,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <SidebarMenuButton
                       asChild
                       tooltip={item.title}
-                      className="px-3 py-5 rounded-xl transition-all duration-300 hover:bg-white/5 active:scale-95 group/btn"
+                      className="px-3 py-5 rounded-lg transition-all hover:bg-white/5 active:scale-95 group/btn"
                     >
-                      <a href={item.url}>
+                      <a href={item.url} className="flex items-center gap-3">
                         <item.icon className="text-muted-foreground group-hover/btn:text-primary transition-colors w-4 h-4" />
-                        <span className="font-bold text-xs uppercase tracking-tight">{item.title}</span>
+                        <span className="font-bold text-[10px] uppercase tracking-wide group-data-[collapsible=icon]:hidden">{item.title}</span>
                       </a>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -149,15 +146,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         ))}
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t border-white/5 bg-white/5">
+      <SidebarFooter className="p-3 border-t border-white/5">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton 
               onClick={handleLogout}
-              className="px-3 py-5 rounded-xl text-red-500 hover:text-red-400 hover:bg-red-500/10 transition-all font-bold text-xs uppercase"
+              className="px-3 py-5 rounded-lg text-red-500 hover:text-red-400 hover:bg-red-500/10 transition-all font-bold text-[10px] uppercase flex items-center gap-3"
             >
               <LogOut className="w-4 h-4" />
-              <span>Cerrar Sesión</span>
+              <span className="group-data-[collapsible=icon]:hidden">Cerrar Sesión</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

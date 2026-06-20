@@ -5,35 +5,34 @@
 
 @layer base {
   :root {
-    --background: 222 47% 7%;
+    --background: 222 47% 4%;
     --foreground: 210 40% 98%;
-    --card: 222 47% 10%;
+    --card: 222 47% 6%;
     --card-foreground: 210 40% 98%;
-    --popover: 222 47% 7%;
+    --popover: 222 47% 5%;
     --popover-foreground: 210 40% 98%;
     --primary: 221 83% 53%;
     --primary-foreground: 210 40% 98%;
     --secondary: 199 89% 48%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 222 47% 14%;
+    --muted: 222 47% 10%;
     --muted-foreground: 215 20.2% 65.1%;
     --accent: 199 89% 48%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 222 47% 15%;
-    --input: 222 47% 15%;
+    --border: 222 47% 12%;
+    --input: 222 47% 12%;
     --ring: 221 83% 53%;
-    --radius: 1rem;
+    --radius: 0.75rem;
     
-    /* Sidebar specific variables */
-    --sidebar-background: 222 47% 8%;
+    --sidebar-background: 222 47% 5%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 221 83% 53%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 47% 12%;
+    --sidebar-accent: 222 47% 10%;
     --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 222 47% 15%;
+    --sidebar-border: 222 47% 10%;
     --sidebar-ring: 221 83% 53%;
   }
 }
@@ -43,77 +42,62 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-body overflow-x-hidden antialiased;
+    @apply bg-background text-foreground font-body overflow-hidden antialiased;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-headline tracking-tight;
   }
 }
 
-/* Cleanup: Remove default scrollbars and use techy ones */
-html, body {
-  scrollbar-width: thin;
-  scrollbar-color: hsl(var(--primary) / 0.2) transparent;
-}
-
+/* Custom Scrollbars - Clean & Minimal */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-transparent;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   @apply bg-primary/20 rounded-full hover:bg-primary/40 transition-colors;
 }
 
-/* Techy scrollbar for containers */
 .custom-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--primary) / 0.2) transparent;
-  overflow-y: auto;
-}
-
-.custom-scrollbar::-webkit-scrollbar {
-  width: 3px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  @apply bg-primary/30 rounded-full hover:bg-primary/50;
 }
 
 /* Dashboard Effects */
 .log-entry {
   font-family: var(--font-code);
-  font-size: 0.75rem;
-  line-height: 1.5;
+  font-size: 0.7rem;
+  line-height: 1.4;
   border-left: 2px solid transparent;
-  padding-left: 0.75rem;
-  margin-bottom: 0.35rem;
+  padding-left: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 
-.log-entry-call { border-left-color: #22c55e; @apply bg-green-500/5; }
-.log-entry-put { border-left-color: #ef4444; @apply bg-red-500/5; }
-.log-entry-none { border-left-color: #3b82f6; @apply bg-blue-500/5; }
+.log-entry-call { border-left-color: #22c55e; background: rgba(34, 197, 94, 0.05); }
+.log-entry-put { border-left-color: #ef4444; background: rgba(239, 68, 68, 0.05); }
+.log-entry-none { border-left-color: #3b82f6; background: rgba(59, 130, 246, 0.05); }
 
 @keyframes pulse-subtle {
   0% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(0.95); }
+  50% { opacity: 0.7; transform: scale(0.98); }
   100% { opacity: 1; transform: scale(1); }
 }
 
 .live-indicator {
-  animation: pulse-subtle 3s infinite ease-in-out;
+  animation: pulse-subtle 2s infinite ease-in-out;
 }
 
-/* Glassmorphism effects */
-.glass-panel {
-  @apply bg-white/5 backdrop-blur-xl border border-white/10;
+/* Glassmorphism */
+.glass-sidebar {
+  @apply bg-sidebar/80 backdrop-blur-2xl border-r border-white/5;
 }
 
-/* Hide Sidebar Overflow properly */
+/* Fix for overlapping sidebar */
 [data-sidebar="sidebar"] {
-  @apply overflow-hidden;
+  @apply border-r border-white/5;
 }
