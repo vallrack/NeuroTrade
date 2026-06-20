@@ -27,7 +27,7 @@ export default function SettingsPage() {
   const [pairs, setPairs] = useState('');
   const [botActive, setBotActive] = useState(true);
 
-  // Sincronizar solo cuando no estemos editando activamente
+  // Sincronizar solo cuando no estemos editando activamente para no clavar el input
   useEffect(() => {
     if (botParams && !isEditing) {
       setPairs(botParams.pairs?.join(', ') || 'EUR/USD');
@@ -61,7 +61,7 @@ export default function SettingsPage() {
 
     const result = await updateBotConfig(config);
     setLoading(false);
-    setIsEditing(false); // Liberar bloqueo tras guardar
+    setIsEditing(false);
 
     if (result.success) {
       toast({
@@ -139,13 +139,9 @@ export default function SettingsPage() {
                         id="pairs" 
                         value={pairs}
                         onFocus={() => setIsEditing(true)}
-                        onBlur={() => {
-                          if (pairs === botParams?.pairs?.join(', ')) {
-                             setIsEditing(false);
-                          }
-                        }}
                         onChange={(e) => {
                           setPairs(e.target.value);
+                          setIsEditing(true);
                         }}
                         placeholder="EUR/USD, BTC/USD, GBP/JPY" 
                         className="bg-background/50 border-white/5 h-12 font-code" 

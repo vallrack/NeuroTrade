@@ -47,11 +47,11 @@ export default function TerminalPage() {
     setChartLoading(true);
   }, [selectedPair]);
 
-  // Inyectar Widget de TradingView
+  // Inyectar Widget de TradingView de forma estable
   useEffect(() => {
     if (!container.current) return;
 
-    // Limpiar contenedor anterior
+    // Limpiar contenedor anterior para evitar duplicados
     container.current.innerHTML = '';
     const widgetContainer = document.createElement('div');
     widgetContainer.id = `tv-widget-${activeSymbol}`;
@@ -81,7 +81,6 @@ export default function TerminalPage() {
     
     widgetContainer.appendChild(script);
 
-    // Pequeño delay para quitar el estado de carga
     const timer = setTimeout(() => setChartLoading(false), 1500);
     return () => clearTimeout(timer);
   }, [activeSymbol]);
@@ -150,7 +149,7 @@ export default function TerminalPage() {
           {/* Área de Gráfico */}
           <div className="flex-1 flex flex-col relative min-w-0">
             <div className="flex-1 w-full relative" ref={container}>
-              {/* Este div será el host del widget */}
+              {/* Host del widget */}
             </div>
             
             {chartLoading && (
