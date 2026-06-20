@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -6,25 +5,22 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/s
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
 import { Zap, Wifi, Layers, ArrowRight, RefreshCw, ChevronDown, Activity, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { useUser, useDoc, useFirestore } from '@/firebase';
+import { useUser, useDoc, useFirestore, useRTDB } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import { ref, onValue } from 'firebase/database';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-
-declare global {
-  interface Window {
-    TradingView: any;
-  }
-}
+import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
 
 export default function TerminalPage() {
-  const container = useRef<HTMLDivElement>(null);
-  const widgetRef = useRef<any>(null);
-  const [isScriptReady, setIsScriptReady] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   
   const { user } = useUser();
   const firestore = useFirestore();
+  const rtdb = useRTDB();
   
   const brokerRef = user ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
   const { data: brokerConfig } = useDoc(brokerRef);
@@ -34,25 +30,115 @@ export default function TerminalPage() {
   const { data: botParams } = useDoc(botParamsRef);
 
   const [selectedPair, setSelectedPair] = useState('EUR/USD');
-  const [activeSymbol, setActiveSymbol] = useState('FX:EURUSD');
   const [chartLoading, setChartLoading] = useState(true);
   const [latency, setLatency] = useState(8);
 
-  // 1. Carga del script de TradingView UNA SOLA VEZ
-  useEffect(() => {
-    if (window.TradingView) {
-      setIsScriptReady(true);
-      return;
+  // Generar datos históricos simulados para el arranque
+  const generateInitialData = () => {
+    const data = [];
+    const now = Math.floor(Date.now() / 1000);
+    let lastPrice = 1.1200;
+    
+    for (let i = 100; i >= 0; i--) {
+      const open = lastPrice;
+      const close = open + (Math.random() - 0.5) * 0.001;
+      const high = Math.max(open, close) + Math.random() * 0.0005;
+      const low = Math.min(open, close) - Math.random() * 0.0005;
+      
+      data.push({
+        time: (now - (i * 60)) as any,
+        open,
+        high,
+        low,
+        close,
+      });
+      lastPrice = close;
     }
+    return data;
+  };
 
-    const script = document.createElement('script');
-    script.src = 'https://s3.tradingview.com/tv.js';
-    script.async = true;
-    script.onload = () => setIsScriptReady(true);
-    document.head.appendChild(script);
+  // Inicialización del gráfico Lightweight
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const chart = createChart(containerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: '#000000' },
+        textColor: '#9B9B9B',
+      },
+      grid: {
+        vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
+        horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
+      },
+      width: containerRef.current.clientWidth,
+      height: containerRef.current.clientHeight,
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: true,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+      },
+      rightPriceScale: {
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+      },
+    });
+
+    const series = chart.addCandlestickSeries({
+      upColor: '#22c55e',
+      downColor: '#ef4444',
+      borderVisible: false,
+      wickUpColor: '#22c55e',
+      wickDownColor: '#ef4444',
+    });
+
+    series.setData(generateInitialData());
+    
+    chartRef.current = chart;
+    seriesRef.current = series;
+    setChartLoading(false);
+
+    const handleResize = () => {
+      if (containerRef.current) {
+        chart.applyOptions({
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight,
+        });
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
+    };
   }, []);
 
-  // 2. Efecto para simular latencia de red HFT
+  // Escuchar Ticks Reales de Firebase RTDB (Inyectados por el bot de Python)
+  useEffect(() => {
+    if (!rtdb || !seriesRef.current || !selectedPair) return;
+
+    const tickPath = `market/ticks/${selectedPair.replace('/', '').replace('-', '').trim()}`;
+    const tickRef = ref(rtdb, tickPath);
+
+    const unsub = onValue(tickRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val && val.price) {
+        const now = Math.floor(Date.now() / 1000);
+        // Ajustamos la vela actual
+        seriesRef.current?.update({
+          time: (Math.floor(now / 60) * 60) as any,
+          open: val.price - 0.0001, // Simplificación para demo
+          high: val.price + 0.0001,
+          low: val.price - 0.0001,
+          close: val.price,
+        });
+      }
+    });
+
+    return () => unsub();
+  }, [rtdb, selectedPair]);
+
+  // Simulación de latencia
   useEffect(() => {
     const interval = setInterval(() => {
       setLatency(Math.floor(Math.random() * 5) + 3);
@@ -60,100 +146,12 @@ export default function TerminalPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // 3. Limpieza y mapeo de símbolos
-  useEffect(() => {
-    let cleanPair = selectedPair.toUpperCase()
-      .replace('/', '')
-      .replace('-', '')
-      .replace('OTC', '')
-      .trim();
-    
-    let symbol = `FX:EURUSD`; 
-    
-    if (cleanPair === 'EURUSD') symbol = 'FX:EURUSD';
-    else if (cleanPair === 'GBPUSD') symbol = 'FX:GBPUSD';
-    else if (cleanPair === 'USDJPY') symbol = 'FX:USDJPY';
-    else if (cleanPair === 'AUDUSD') symbol = 'FX:AUDUSD';
-    else if (cleanPair.includes('BTC')) symbol = 'BINANCE:BTCUSDT';
-    else if (cleanPair.includes('ETH')) symbol = 'BINANCE:ETHUSDT';
-    else if (cleanPair.includes('SOL')) symbol = 'BINANCE:SOLUSDT';
-    else {
-      symbol = `FX:${cleanPair}`;
-    }
-
-    setActiveSymbol(symbol);
-  }, [selectedPair]);
-
-  // 4. Inicialización o actualización del Widget
-  useEffect(() => {
-    if (!isScriptReady || !container.current || !window.TradingView) return;
-
-    // Si ya existe un widget, solo cambiamos el símbolo
-    if (widgetRef.current) {
-      try {
-        setChartLoading(true);
-        widgetRef.current.setSymbol(activeSymbol, '1', () => {
-          setChartLoading(false);
-        });
-        return;
-      } catch (e) {
-        widgetRef.current = null;
-      }
-    }
-
-    // Primera vez: crear el widget desde cero
-    setChartLoading(true);
-    const containerId = 'tv_chart_container_v7';
-    container.current.innerHTML = `<div id="${containerId}" style="height:100%;width:100%;"></div>`;
-
-    widgetRef.current = new window.TradingView.widget({
-      autosize: true,
-      symbol: activeSymbol,
-      interval: '1',
-      timezone: 'Etc/UTC',
-      theme: 'dark',
-      style: '1',
-      locale: 'es',
-      toolbar_bg: '#050505',
-      enable_publishing: false,
-      hide_side_toolbar: false,
-      allow_symbol_change: true,
-      container_id: containerId,
-      backgroundColor: '#000000',
-      gridColor: 'rgba(42, 46, 57, 0.05)',
-      withdateranges: true,
-      hide_volume: false,
-      studies: ['RSI@tv-basicstudies', 'StochasticRSI@tv-basicstudies'],
-    });
-
-    // Callback cuando el gráfico está listo
-    if (widgetRef.current.onChartReady) {
-      widgetRef.current.onChartReady(() => {
-        setChartLoading(false);
-      });
-    } else {
-      // Fallback si la versión de la librería no tiene onChartReady
-      setTimeout(() => setChartLoading(false), 1500);
-    }
-
-  }, [isScriptReady, activeSymbol]);
-
-  // 5. Limpieza al desmontar
-  useEffect(() => {
-    return () => {
-      if (widgetRef.current) {
-        try { widgetRef.current.remove(); } catch (_) {}
-        widgetRef.current = null;
-      }
-    };
-  }, []);
-
   const configuredPairs = botParams?.pairs || ['EURUSD-OTC', 'GBPUSD-OTC', 'BTCUSD'];
 
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="bg-black flex flex-col h-svh overflow-hidden border-l border-white/5">
+      <SidebarInset className="bg-black flex flex-col h-svh overflow-hidden">
         <header className="flex h-14 shrink-0 items-center justify-between px-4 border-b border-white/5 bg-[#050505] z-50">
           <div className="flex items-center gap-3">
             <SidebarTrigger className="text-muted-foreground hover:text-white transition-colors" />
@@ -165,7 +163,7 @@ export default function TerminalPage() {
               </h1>
               <span className="text-[7px] md:text-[8px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-1.5">
                 <div className="w-1 h-1 rounded-full bg-green-500 animate-ping" />
-                Feed Activo: {activeSymbol}
+                Real-Time Data: {selectedPair}
               </span>
             </div>
           </div>
@@ -187,6 +185,7 @@ export default function TerminalPage() {
         </header>
 
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+          {/* Sidebar de Activos */}
           <aside className="hidden lg:flex w-48 border-r border-white/5 bg-[#050505] flex-col shrink-0">
             <div className="p-4 border-b border-white/5 flex items-center gap-2">
               <Layers className="h-3 w-3 text-muted-foreground" />
@@ -211,6 +210,7 @@ export default function TerminalPage() {
             </div>
           </aside>
 
+          {/* Área del Gráfico */}
           <div className="flex-1 relative bg-black flex flex-col min-w-0">
             <div className="lg:hidden flex items-center justify-between p-2 bg-[#080808] border-b border-white/5">
                <div className="flex items-center gap-2">
@@ -240,13 +240,12 @@ export default function TerminalPage() {
               </Popover>
             </div>
 
-            <div className="flex-1" ref={container} id="tradingview_container_v7" />
+            <div className="flex-1 w-full h-full" ref={containerRef} />
             
             {chartLoading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-40">
                 <RefreshCw className="h-8 w-8 animate-spin text-primary mb-3" />
-                <p className="text-[9px] font-bold text-white tracking-[0.2em] uppercase">Sincronizando Túnel V7...</p>
-                <p className="text-[7px] text-muted-foreground mt-1 font-code">{activeSymbol}</p>
+                <p className="text-[9px] font-bold text-white tracking-[0.2em] uppercase">Sincronizando Feed IQ Option...</p>
               </div>
             )}
 
