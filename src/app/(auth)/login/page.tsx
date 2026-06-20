@@ -33,15 +33,16 @@ export default function LoginPage() {
     setError('');
 
     try {
+      let user;
       if (isRegister) {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
+        user = userCredential.user;
 
         if (displayName) {
           await updateProfile(user, { displayName });
         }
 
-        // Creación de perfil en Firestore (No bloqueante)
+        // Registro de perfil inicial en Firestore (No bloqueante)
         const userRef = doc(firestore, 'users', user.uid);
         const userData = {
           email: user.email,
@@ -66,25 +67,31 @@ export default function LoginPage() {
           description: "Bienvenido al sistema NeuroTrade. Inicializa tu rango en el dashboard.",
         });
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        user = userCredential.user;
       }
 
-      const currentUser = auth.currentUser;
-      if (currentUser) {
-        const token = await currentUser.getIdToken();
-        document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Strict`;
+      // Establecer cookie de sesión para el middleware
+      if (user) {
+        const token = await user.getIdToken();
+        document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
+        
+        // Pequeña espera para asegurar que la cookie se procese
+        setTimeout(() => {
+          router.push('/dashboard');
+          router.refresh();
+        }, 100);
       }
-      
-      router.push('/dashboard');
-      router.refresh();
     } catch (err: any) {
       let message = 'Error de conexión con el núcleo central.';
       
-      if (err.code === 'auth/user-not-found') message = 'Operador no registrado. Por favor, crea una cuenta.';
-      if (err.code === 'auth/wrong-password') message = 'Contraseña incorrecta.';
-      if (err.code === 'auth/invalid-credential') message = 'Credenciales no válidas.';
-      if (err.code === 'auth/email-already-in-use') message = 'Este ID de operador ya está activo.';
-      if (err.code === 'auth/weak-password') message = 'La contraseña debe tener al menos 6 caracteres.';
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+        message = 'Credenciales inválidas. Por favor, verifica tu ID y protocolo.';
+      } else if (err.code === 'auth/email-already-in-use') {
+        message = 'Este ID de operador ya está activo en el sistema.';
+      } else if (err.code === 'auth/weak-password') {
+        message = 'El protocolo de seguridad es demasiado débil (mín. 6 caracteres).';
+      }
       
       setError(message);
     } finally {

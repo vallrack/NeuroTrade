@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { StatsGrid } from '@/components/dashboard/stats-grid';
 import { IACommitteeMonitor } from '@/components/dashboard/ia-committee-monitor';
 import { EquityChart } from '@/components/dashboard/equity-chart';
@@ -12,13 +12,11 @@ import { Bell, Settings, ShieldCheck, Crown, Activity, RefreshCw, Loader2 } from
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useUser, useDoc, useFirestore } from '@/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 import { SuperAdminTools } from '@/components/dashboard/super-admin-tools';
 import { Badge } from '@/components/ui/badge';
 import { promoteToSuperAdmin } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useUser();
@@ -31,28 +29,6 @@ export default function DashboardPage() {
 
   const isSuperAdmin = profile?.role === 'super-admin';
   const hasNoRole = profile && !profile.role;
-
-  useEffect(() => {
-    if (user && !profileLoading && !profile && firestore) {
-      const userRef = doc(firestore, 'users', user.uid);
-      const userData = {
-        email: user.email,
-        displayName: user.displayName || user.email?.split('@')[0],
-        role: null,
-        createdAt: serverTimestamp(),
-      };
-
-      setDoc(userRef, userData, { merge: true })
-        .catch(async (serverError) => {
-          const permissionError = new FirestorePermissionError({
-            path: userRef.path,
-            operation: 'create',
-            requestResourceData: userData,
-          } satisfies SecurityRuleContext);
-          errorEmitter.emit('permission-error', permissionError);
-        });
-    }
-  }, [user, profile, profileLoading, firestore]);
 
   const handleInitialSetup = async () => {
     if (!user) return;
