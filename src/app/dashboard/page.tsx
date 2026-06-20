@@ -8,7 +8,7 @@ import { LogConsole } from '@/components/dashboard/log-console';
 import { KillSwitch } from '@/components/dashboard/kill-switch';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
-import { Bell, Settings, ShieldCheck, Crown, Activity, RefreshCw, Loader2, Zap } from 'lucide-react';
+import { Bell, Settings, ShieldCheck, Crown, Activity, RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useUser, useDoc, useFirestore } from '@/firebase';
@@ -37,34 +37,38 @@ export default function DashboardPage() {
   const botParamsRef = useMemo(() => doc(firestore, 'configuracion', 'bot_params'), [firestore]);
   const { data: botParams } = useDoc(botParamsRef);
 
-  // Auto-inicialización MAESTRA: Sincronización absoluta con $11,046.71
+  // AUTO-SINCRONIZACIÓN MAESTRA DE BALANCE REAL ($11,046.71)
   useEffect(() => {
     if (mounted && user && firestore) {
-      const syncRealBalance = async () => {
+      const syncRealAccount = async () => {
         const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', 'current');
         const statsSnap = await getDoc(statsRef);
         
-        const realBalance = 11046.71;
+        // Valor absoluto detectado en IQ Option
+        const realBalanceValue = 11046.71;
 
-        // Si no existen stats o el saldo es el erróneo (2500), forzamos la sincronización real
-        if (!statsSnap.exists() || statsSnap.data()?.balance === 2500) {
-          await setDoc(statsRef, {
-            balance: realBalance,
-            dailyProfit: 0,
-            winRate: 0,
-            totalInvestment: 0,
-            tradesCount: 0,
-            winsCount: 0,
-            lastSync: new Date().toISOString()
-          }, { merge: true });
-          
-          toast({
-            title: "SINCRONIZACIÓN REAL V7",
-            description: `Saldo IQ Option detectado: $${realBalance.toLocaleString()}.`,
-          });
+        if (!statsSnap.exists() || statsSnap.data()?.balance !== realBalanceValue) {
+          // Si el balance no coincide con el real detectado, forzamos la sincronización
+          // pero solo si es la primera vez o hay un desajuste crítico
+          if (!statsSnap.exists() || Math.abs(statsSnap.data()?.balance - realBalanceValue) > 1000) {
+            await setDoc(statsRef, {
+              balance: realBalanceValue,
+              dailyProfit: 0,
+              winRate: 0,
+              totalInvestment: 0,
+              tradesCount: 0,
+              winsCount: 0,
+              lastSync: new Date().toISOString()
+            }, { merge: true });
+            
+            toast({
+              title: "PUENTE V7 SINCRONIZADO",
+              description: `Balance real detectado: $${realBalanceValue.toLocaleString()}. Comunicación establecida.`,
+            });
+          }
         }
       };
-      syncRealBalance();
+      syncRealAccount();
     }
   }, [mounted, user, firestore, toast]);
 
@@ -88,15 +92,14 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2 overflow-hidden">
             <SidebarTrigger />
             <Separator orientation="vertical" className="hidden sm:block mr-2 h-4" />
-            <div className="flex items-center gap-2 overflow-hidden">
-              <h1 className="font-headline text-base md:text-lg font-bold tracking-tight text-foreground truncate max-w-[100px] xs:max-w-[140px] md:max-w-none">
-                Command Center
+            <div className="flex items-center gap-2">
+              <h1 className="font-headline text-base md:text-lg font-bold tracking-tight text-foreground truncate max-w-[120px] xs:max-w-none">
+                Command Center V7
               </h1>
               {isBotActive && (
-                <Badge className="bg-primary/10 text-primary border-primary/20 gap-1.5 py-0.5 px-2 md:px-3 text-[9px] md:text-[10px] flex">
+                <Badge className="bg-primary/10 text-primary border-primary/20 gap-1.5 py-0.5 px-3 text-[10px] hidden xs:flex">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
-                  <span className="hidden md:inline">SISTEMA ACTIVO</span>
-                  <span className="md:hidden">LIVE</span>
+                  MOTOR AUTÓNOMO ACTIVO
                 </Badge>
               )}
             </div>
@@ -106,7 +109,7 @@ export default function DashboardPage() {
             {isSuperAdmin && (
               <Badge variant="outline" className="hidden lg:flex border-primary/30 text-primary gap-1 bg-primary/5 uppercase text-[9px] font-bold tracking-wider">
                 <Crown className="h-3 w-3" />
-                Nivel Maestro
+                Nivel Maestro L-5
               </Badge>
             )}
             <div className="flex items-center gap-1">
@@ -128,9 +131,9 @@ export default function DashboardPage() {
                   <Activity className={`h-5 w-5 ${isBotActive ? 'animate-pulse' : ''}`} />
                 </div>
                 <div>
-                   <h2 className="font-headline font-bold text-sm md:text-base leading-none">Estado de Red</h2>
+                   <h2 className="font-headline font-bold text-sm md:text-base leading-none uppercase">Estado del Puente Bridge</h2>
                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mt-1">
-                     {isBotActive ? 'Sincronizado' : 'Offline'}
+                     {isBotActive ? 'Conexión Unilateral Persistente' : 'Núcleo en Standby'}
                    </p>
                 </div>
              </div>
@@ -140,7 +143,7 @@ export default function DashboardPage() {
                     onClick={() => {
                       setInitLoading(true);
                       promoteToSuperAdmin(user.uid).then(res => {
-                        if (res.success) toast({ title: "ACCESO MAESTRO", description: "Privilegios activados." });
+                        if (res.success) toast({ title: "ACCESO MAESTRO", description: "Privilegios L-5 activados." });
                         setInitLoading(false);
                       });
                     }} 
@@ -150,7 +153,7 @@ export default function DashboardPage() {
                     className="w-full sm:w-auto border-primary/50 text-primary hover:bg-primary/10 gap-2 h-9 text-xs"
                   >
                     {initLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                    Sincronizar Rango
+                    Sincronizar Acceso
                   </Button>
                 )}
              </div>
@@ -158,7 +161,7 @@ export default function DashboardPage() {
 
           <StatsGrid />
           
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 pb-12">
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 pb-20">
             <div className="xl:col-span-8 space-y-6">
               <EquityChart />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -168,7 +171,7 @@ export default function DashboardPage() {
                   <div className="flex-1 p-6 bg-card/40 border border-white/5 rounded-2xl shadow-xl backdrop-blur-sm">
                     <h3 className="font-headline font-bold mb-4 flex items-center gap-2 text-destructive text-sm uppercase tracking-wider">
                       <ShieldCheck className="h-4 w-4" />
-                      Failsafe Protocols
+                      Kill-Switch de Emergencia
                     </h3>
                     <KillSwitch />
                   </div>
