@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -6,7 +5,7 @@ import { aiConsensusMonitor, type AiConsensusMonitorOutput } from '@/ai/flows/ai
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Brain, ArrowUpCircle, ArrowDownCircle, Activity, Zap, ShieldCheck, Loader2, Info, Cpu, TrendingUp, BarChart3, RefreshCw } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, Cpu, TrendingUp, BarChart3, RefreshCw, Zap } from 'lucide-react';
 import { useUser, useFirestore, useDoc } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { executeTrade } from '@/lib/actions';
@@ -36,14 +35,16 @@ export function IACommitteeMonitor() {
       setData(result);
       setLoading(false);
       
-      const canTrade = botParams?.bot_activo && brokerConfig?.status === 'connected';
+      const botIsActive = botParams?.bot_activo;
+      const brokerIsConnected = brokerConfig?.status === 'connected';
       const hasStrongConsensus = result.overallConsensus !== 'NEUTRAL' && result.consensusPercentage >= 80;
 
-      if (user && canTrade && hasStrongConsensus && !executionCooldown.current && !isExecuting) {
+      // Lógica de Ejecución Autónoma V7
+      if (user && botIsActive && brokerIsConnected && hasStrongConsensus && !executionCooldown.current && !isExecuting) {
         handleAutoTrade(result.overallConsensus as 'CALL' | 'PUT');
       }
     } catch (err: any) {
-      console.error('Fallo en el monitor de IA:', err);
+      console.error('Error en monitor HFT:', err);
     }
   };
 
@@ -67,17 +68,18 @@ export function IACommitteeMonitor() {
         setLastExecution(new Date().toLocaleTimeString());
         toast({
           title: `EJECUCIÓN V7: ${result.status === 'win' ? 'PROFIT' : 'LOSS'}`,
-          description: `Orden de $${amount} enviada al túnel IQ.`,
+          description: `Orden de $${amount} procesada en túnel ${result.latency}.`,
           variant: result.status === 'win' ? 'default' : 'destructive'
         });
       }
     } catch (err) {
-      console.error('Error en auto-trade:', err);
+      console.error('Fallo en auto-trade:', err);
     } finally {
       setIsExecuting(false);
+      // Cooldown de seguridad entre señales HFT
       setTimeout(() => {
         executionCooldown.current = false;
-      }, 5000);
+      }, 10000); 
     }
   };
 
