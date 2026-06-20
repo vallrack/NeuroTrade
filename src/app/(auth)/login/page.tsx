@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Zap, ShieldCheck, Loader2, UserPlus, LogIn } from 'lucide-react';
+import { Zap, ShieldCheck, Loader2, UserPlus, LogIn, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false);
@@ -36,16 +36,18 @@ export default function LoginPage() {
       
       router.push('/dashboard');
     } catch (err: any) {
-      console.error(err);
-      let message = 'Error de autenticación.';
+      console.error("Auth Error:", err.code, err.message);
+      let message = 'Error de conexión con el núcleo central.';
       
-      if (err.code === 'auth/user-not-found') message = 'El usuario no existe. ¿Has intentado registrarte?';
-      if (err.code === 'auth/wrong-password') message = 'Contraseña incorrecta.';
-      if (err.code === 'auth/email-already-in-use') message = 'Este correo ya está registrado.';
+      if (err.code === 'auth/user-not-found') message = 'Operador no registrado. Por favor, crea una cuenta.';
+      if (err.code === 'auth/wrong-password') message = 'Protocolo de seguridad fallido: Contraseña incorrecta.';
+      if (err.code === 'auth/email-already-in-use') message = 'Este ID de operador ya está activo en el sistema.';
+      if (err.code === 'auth/invalid-email') message = 'Formato de ID de operador no válido.';
+      if (err.code === 'auth/weak-password') message = 'La seguridad de la contraseña es insuficiente (min. 6 caracteres).';
       if (err.code === 'auth/operation-not-allowed') message = 'El registro por email no está habilitado en Firebase Console.';
-      if (err.code === 'auth/weak-password') message = 'La contraseña es muy débil.';
+      if (err.code === 'auth/invalid-api-key') message = 'Error crítico: Llave de sistema no configurada correctamente.';
       
-      setError(message || err.message);
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -96,8 +98,9 @@ export default function LoginPage() {
               />
             </div>
             {error && (
-              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-[11px] text-center font-bold uppercase animate-shake">
-                {error}
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-[11px] flex items-center gap-2 font-bold uppercase animate-shake">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{error}</span>
               </div>
             )}
           </CardContent>
