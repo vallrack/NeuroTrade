@@ -29,7 +29,7 @@ export function IACommitteeMonitor() {
   const brokerRef = user ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
   const { data: brokerConfig } = useDoc(brokerRef);
 
-  // Determinar el par activo
+  // Determinar el par activo para el monitoreo visual
   const activePair = botParams?.pairs?.[0] || 'EUR/USD';
 
   const fetchConsensus = async () => {
@@ -104,8 +104,8 @@ export function IACommitteeMonitor() {
         <div className="flex flex-col items-center gap-4">
           <Brain className="h-10 w-10 text-primary animate-pulse" />
           <div className="space-y-1 text-center">
-            <p className="text-sm font-bold text-foreground">ANALIZANDO CLÚSTER {activePair}</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em]">Ejército IA procesando velas...</p>
+            <p className="text-sm font-bold text-foreground uppercase tracking-widest">Analizando Clúster {activePair}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] animate-pulse">Procesando velas cuánticas...</p>
           </div>
         </div>
       </Card>

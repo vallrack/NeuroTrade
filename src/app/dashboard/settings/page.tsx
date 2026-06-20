@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
 import { updateBotConfig } from '@/lib/actions';
@@ -27,7 +27,7 @@ export default function SettingsPage() {
   const [pairs, setPairs] = useState('');
   const [botActive, setBotActive] = useState(true);
 
-  // Sincronizar solo cuando no estemos editando
+  // Sincronizar solo cuando no estemos editando activamente
   useEffect(() => {
     if (botParams && !isEditing) {
       setPairs(botParams.pairs?.join(', ') || 'EUR/USD');
@@ -61,7 +61,7 @@ export default function SettingsPage() {
 
     const result = await updateBotConfig(config);
     setLoading(false);
-    setIsEditing(false);
+    setIsEditing(false); // Liberar bloqueo tras guardar
 
     if (result.success) {
       toast({
@@ -138,8 +138,13 @@ export default function SettingsPage() {
                       <Input 
                         id="pairs" 
                         value={pairs}
+                        onFocus={() => setIsEditing(true)}
+                        onBlur={() => {
+                          if (pairs === botParams?.pairs?.join(', ')) {
+                             setIsEditing(false);
+                          }
+                        }}
                         onChange={(e) => {
-                          setIsEditing(true);
                           setPairs(e.target.value);
                         }}
                         placeholder="EUR/USD, BTC/USD, GBP/JPY" 
