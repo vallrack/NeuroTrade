@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useDoc, useFirestore } from '@/firebase';
-import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { syncBrokerProfile, disconnectBroker } from '@/lib/actions';
 import { Globe, Zap, Loader2, ShieldAlert, ArrowRight, Trash2, Beaker, Landmark } from 'lucide-react';
 
@@ -57,26 +57,42 @@ export default function BrokerPage() {
         connectedAt: new Date().toISOString(),
       };
 
-      // 1. Guardar credenciales
+      // 1. Persistencia del Vínculo en Firestore
       await setDoc(brokerRef, brokerData, { merge: true });
 
-      // 2. Sincronización Automática con la API de IQ Option
+      // 2. Sincronización Unilateral con la API Real
       const syncResult = await syncBrokerProfile(user.uid, brokerData);
       
       if (syncResult.success) {
         toast({
-          title: "PUENTE ESTABLECIDO CON ÉXITO",
-          description: `Se ha identificado la cuenta ${accountType.toUpperCase()} con balance real de la API.`,
+          title: "PUENTE V7: CONEXIÓN ESTABLECIDA",
+          description: `Identificada cuenta ${accountType.toUpperCase()} con balance real de la API.`,
         });
         router.push('/dashboard');
       } else {
         throw new Error(syncResult.error);
       }
     } catch (err: any) {
-      toast({ title: "FALLO DE VÍNCULO", description: err.message, variant: "destructive" });
+      toast({ title: "FALLO EN EL PUENTE", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleChannelSwitch = async (type: 'demo' | 'real') => {
+    if (!user || !brokerRef) return;
+    setAccountType(type);
+    
+    // Cambio atómico de canal para sincronización total de la plataforma
+    await setDoc(brokerRef, { accountType: type }, { merge: true });
+    
+    // Re-sincronizar estadísticas del canal seleccionado
+    await syncBrokerProfile(user.uid, { ...brokerConfig, accountType: type });
+    
+    toast({
+      title: "CONMUTACIÓN DE CANAL",
+      description: `El Command Center ahora opera en modo ${type.toUpperCase()}.`,
+    });
   };
 
   const isConnected = brokerConfig?.status === 'connected';
@@ -96,7 +112,7 @@ export default function BrokerPage() {
         <main className="p-6 max-w-4xl mx-auto space-y-8">
           <div className="flex flex-col gap-2">
             <h2 className="text-3xl font-headline font-bold text-foreground">Gestión de Conectividad</h2>
-            <p className="text-muted-foreground italic">Identificación automática de cuentas mediante el puente oficial.</p>
+            <p className="text-muted-foreground italic">Identificación dinámica de múltiples cuentas mediante el puente oficial.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -105,11 +121,11 @@ export default function BrokerPage() {
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
                     <CardTitle>Configuración de Puente</CardTitle>
-                    <CardDescription>Conecte su cuenta para sincronización de API.</CardDescription>
+                    <CardDescription>Conexión persistente para intercambio de datos unilateral.</CardDescription>
                   </div>
                   {isConnected && (
                     <Badge className="bg-green-500/20 text-green-500 border-green-500/50 uppercase">
-                      Sincronizado
+                      Puente Activo
                     </Badge>
                   )}
                 </div>
@@ -118,7 +134,7 @@ export default function BrokerPage() {
                 <CardContent className="space-y-6">
                   <div className="space-y-2">
                     <Label>Proveedor del Mercado</Label>
-                    <Select value={provider} onValueChange={setProvider} disabled={isConnected}>
+                    <Select value={provider} onValueChange={setProvider}>
                       <SelectTrigger className="bg-background/50 border-white/5 h-12">
                         <SelectValue placeholder="Seleccione bróker" />
                       </SelectTrigger>
@@ -131,84 +147,74 @@ export default function BrokerPage() {
                   </div>
 
                   <div className="space-y-3">
-                    <Label className="text-sm font-bold uppercase text-muted-foreground">Tipo de Cuenta a Vincular</Label>
+                    <Label className="text-sm font-bold uppercase text-muted-foreground">Entorno de Operación</Label>
                     <div className="grid grid-cols-2 gap-4">
                       <button
                         type="button"
-                        disabled={isConnected}
-                        onClick={() => setAccountType('demo')}
-                        className={`flex items-center justify-between p-4 rounded-xl border transition-all ${accountType === 'demo' ? 'bg-primary/10 border-primary ring-2 ring-primary/20 opacity-100' : 'bg-background/50 border-white/5 opacity-50 hover:opacity-80'}`}
+                        onClick={() => handleChannelSwitch('demo')}
+                        className={`flex items-center justify-between p-4 rounded-xl border transition-all ${accountType === 'demo' ? 'bg-primary/10 border-primary ring-2 ring-primary/20' : 'bg-background/50 border-white/5 opacity-50 hover:opacity-100'}`}
                       >
                         <div className="flex items-center gap-3">
-                          <Label className="font-bold cursor-pointer uppercase">Demo</Label>
+                          <Label className="font-bold cursor-pointer uppercase">Paper / Demo</Label>
                         </div>
                         <Beaker className="h-5 w-5 opacity-50" />
                       </button>
 
                       <button
                         type="button"
-                        disabled={isConnected}
-                        onClick={() => setAccountType('real')}
-                        className={`flex items-center justify-between p-4 rounded-xl border transition-all ${accountType === 'real' ? 'bg-secondary/10 border-secondary ring-2 ring-secondary/20 opacity-100' : 'bg-background/50 border-white/5 opacity-50 hover:opacity-80'}`}
+                        onClick={() => handleChannelSwitch('real')}
+                        className={`flex items-center justify-between p-4 rounded-xl border transition-all ${accountType === 'real' ? 'bg-secondary/10 border-secondary ring-2 ring-secondary/20' : 'bg-background/50 border-white/5 opacity-50 hover:opacity-100'}`}
                       >
                         <div className="flex items-center gap-3">
-                          <Label className="font-bold cursor-pointer uppercase">Real</Label>
+                          <Label className="font-bold cursor-pointer uppercase">Real Account</Label>
                         </div>
                         <Landmark className="h-5 w-5 opacity-50" />
                       </button>
                     </div>
                   </div>
 
-                  {!isConnected && (
-                    <div className="space-y-4 animate-in fade-in duration-300">
-                      {provider === 'IQ Option' ? (
-                        <>
-                          <div className="space-y-2">
-                            <Label>Email IQ Option</Label>
-                            <Input 
-                              type="email" 
-                              value={email}
-                              onChange={(e) => setEmail(e.target.value)}
-                              className="bg-background/50 border-white/5 h-12"
-                              required
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Clave de Acceso</Label>
-                            <Input 
-                              type="password" 
-                              value={password} 
-                              onChange={(e) => setPassword(e.target.value)}
-                              className="bg-background/50 border-white/5 h-12"
-                              required
-                            />
-                          </div>
-                        </>
-                      ) : (
+                  <div className="space-y-4 animate-in fade-in duration-300">
+                    {provider === 'IQ Option' ? (
+                      <>
                         <div className="space-y-2">
-                          <Label>API Key</Label>
+                          <Label>Email Corporativo</Label>
                           <Input 
-                            value={apiKey}
-                            onChange={(e) => setApiKey(e.target.value)}
+                            type="email" 
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
                             className="bg-background/50 border-white/5 h-12"
                             required
                           />
                         </div>
-                      )}
-                    </div>
-                  )}
+                        <div className="space-y-2">
+                          <Label>Clave de Acceso</Label>
+                          <Input 
+                            type="password" 
+                            value={password} 
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="bg-background/50 border-white/5 h-12"
+                            required
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label>API Key</Label>
+                        <Input 
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          className="bg-background/50 border-white/5 h-12"
+                          required
+                        />
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
                 <CardFooter className="flex justify-between border-t border-white/5 pt-6 bg-white/5 p-6">
-                   {!isConnected ? (
-                     <Button type="submit" disabled={loading} className="w-full gap-2 h-12 font-headline shadow-xl shadow-primary/20">
-                       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-                       ABRIR PUENTE CON API
-                     </Button>
-                   ) : (
-                     <Button type="button" variant="outline" onClick={() => router.push('/dashboard')} className="w-full gap-2">
-                       IR AL CENTRO DE MANDO <ArrowRight className="h-4 w-4" />
-                     </Button>
-                   )}
+                   <Button type="submit" disabled={loading} className="w-full gap-2 h-12 font-headline shadow-xl shadow-primary/20">
+                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+                     SINCRONIZAR CUENTA CON API
+                   </Button>
                 </CardFooter>
               </form>
             </Card>
@@ -238,7 +244,7 @@ export default function BrokerPage() {
                       className="w-full text-red-500 hover:bg-red-500/10 h-10 text-[10px] gap-2 border border-red-500/20 font-bold uppercase"
                     >
                       {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                      DESVINCULAR CUENTA
+                      DESVINCULAR BROKER
                     </Button>
                   </CardContent>
                 </Card>
