@@ -28,7 +28,6 @@ export default function TerminalPage() {
   const [chartLoading, setChartLoading] = useState(true);
   const [latency, setLatency] = useState(12);
 
-  // Simulación de latencia de red HFT (Microsegundos/Milisegundos)
   useEffect(() => {
     const interval = setInterval(() => {
       setLatency(Math.floor(Math.random() * 15) + 5);
@@ -45,11 +44,22 @@ export default function TerminalPage() {
   }, [botParams, selectedPair]);
 
   useEffect(() => {
-    const cleanPair = selectedPair.replace('/', '').replace('-', '');
+    // Mapeo inteligente de símbolos para TradingView
+    let cleanPair = selectedPair.toUpperCase()
+      .replace('/', '')
+      .replace('-', '')
+      .replace('OTC', '')
+      .trim();
+    
     let symbol = `FX:${cleanPair}`;
-    if (selectedPair.includes('BTC') || selectedPair.includes('ETH')) {
-      symbol = `BINANCE:${cleanPair}T`;
+    
+    if (selectedPair.includes('BTC') || selectedPair.includes('ETH') || selectedPair.includes('LTC')) {
+      symbol = `BINANCE:${cleanPair}USDT`;
+    } else if (cleanPair.length === 6) {
+      // Forex estándar
+      symbol = `FX:${cleanPair}`;
     }
+
     setActiveSymbol(symbol);
     setChartLoading(true);
   }, [selectedPair]);
@@ -57,10 +67,9 @@ export default function TerminalPage() {
   useEffect(() => {
     if (!container.current) return;
 
-    // Limpieza agresiva del contenedor para evitar duplicados o errores de script
     container.current.innerHTML = '';
     const widgetContainer = document.createElement('div');
-    widgetContainer.id = `tv-widget-${activeSymbol}-${Math.random().toString(36).substr(2, 9)}`;
+    widgetContainer.id = `tv-widget-${activeSymbol.replace(':', '-')}`;
     widgetContainer.style.height = '100%';
     widgetContainer.style.width = '100%';
     container.current.appendChild(widgetContainer);
@@ -87,7 +96,7 @@ export default function TerminalPage() {
     
     widgetContainer.appendChild(script);
 
-    const timer = setTimeout(() => setChartLoading(false), 800);
+    const timer = setTimeout(() => setChartLoading(false), 1200);
     return () => clearTimeout(timer);
   }, [activeSymbol]);
 
@@ -157,7 +166,7 @@ export default function TerminalPage() {
                     <div className="flex flex-col relative z-10">
                       <span className="tracking-tight">{pair}</span>
                       <span className={cn("text-[9px] font-medium uppercase opacity-60", selectedPair === pair ? "text-white" : "text-primary")}>
-                        OTC / Real-Time
+                        {pair.includes('OTC') ? 'OTC Market' : 'Standard Feed'}
                       </span>
                     </div>
                     {selectedPair === pair && (
@@ -172,7 +181,7 @@ export default function TerminalPage() {
 
           <div className="flex-1 flex flex-col relative min-w-0">
             <div className="flex-1 w-full relative" ref={container}>
-              {/* Host del widget */}
+              {/* TradingView Widget Host */}
             </div>
             
             {chartLoading && (
@@ -195,7 +204,7 @@ export default function TerminalPage() {
                 <div className="flex items-center gap-3">
                   <div className="flex flex-col">
                     <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter">Instrumento</span>
-                    <span className="text-xs font-code font-bold text-primary">{selectedPair}</span>
+                    <span className="text-xs font-code font-bold text-primary">{selectedPair} (Mapped: {activeSymbol})</span>
                   </div>
                 </div>
                 <div className="hidden sm:flex items-center gap-3 border-l border-white/10 pl-6">
