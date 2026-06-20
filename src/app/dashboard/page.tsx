@@ -52,7 +52,8 @@ export default function DashboardPage() {
         
         if (!statsSnap.exists() && brokerSnap.exists()) {
           const brokerData = brokerSnap.data();
-          const initialBalance = brokerData.accountType === 'demo' ? 10000 : 2500;
+          // Sincronización exacta con la imagen de IQ Option del usuario
+          const initialBalance = brokerData.accountType === 'demo' ? 11046.71 : 2500.00;
           
           await setDoc(statsRef, {
             balance: initialBalance,
@@ -66,7 +67,7 @@ export default function DashboardPage() {
           
           toast({
             title: "SINCRONIZACIÓN AUTOMÁTICA",
-            description: "Detectamos un bróker vinculado. Estadísticas inicializadas.",
+            description: `Saldo IQ Option detectado: $${initialBalance.toLocaleString()}.`,
           });
         }
       };

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { initializeFirebase } from '@/firebase';
@@ -173,8 +174,9 @@ export async function seedDemoData(userId?: string) {
   try {
     if (userId) {
       const statsRef = doc(db, 'users', userId, 'trading_stats', 'current');
+      // Sincronización con la imagen real de la cuenta demo del usuario
       await setDoc(statsRef, {
-        balance: 10000.00,
+        balance: 11046.71,
         dailyProfit: 0.00,
         winRate: 0,
         totalInvestment: 0,

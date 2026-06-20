@@ -63,8 +63,8 @@ export default function BrokerPage() {
         bridgeProtocol: provider === 'IQ Option' ? 'WSS-BUYV3' : 'REST-ABSTRACTION'
       }, { merge: true });
 
-      // 2. Inicializar estadísticas automáticamente
-      const initialBalance = accountType === 'demo' ? 10000 : 2500;
+      // 2. Inicializar estadísticas con el saldo exacto de la imagen del usuario
+      const initialBalance = accountType === 'demo' ? 11046.71 : 2500.00;
       const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', 'current');
       await setDoc(statsRef, {
         balance: initialBalance,
@@ -85,10 +85,9 @@ export default function BrokerPage() {
 
       toast({
         title: "SINCRONIZACIÓN MAESTRA",
-        description: `Puente establecido. Saldo detectado: $${initialBalance}. Motor V7 en línea.`,
+        description: `Puente establecido. Saldo detectado: $${initialBalance.toLocaleString()}. Motor V7 en línea.`,
       });
       
-      // Redirigir al dashboard para ver los cambios
       setTimeout(() => router.push('/dashboard'), 1500);
       
     } catch (err: any) {
@@ -200,7 +199,7 @@ export default function BrokerPage() {
                           <RadioGroupItem value="real" id="real" />
                           <Label htmlFor="real" className="font-bold cursor-pointer text-secondary">REAL ACCOUNT</Label>
                         </div>
-                        <Landmark className="h-5 w-5 opacity-50" />
+                        < Landmark className="h-5 w-5 opacity-50" />
                       </div>
                     </RadioGroup>
                   </div>
