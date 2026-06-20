@@ -1,0 +1,138 @@
+'use client';
+
+import * as React from "react"
+import {
+  LayoutDashboard,
+  Settings,
+  History,
+  TrendingUp,
+  ShieldCheck,
+  UserCircle,
+  LogOut,
+  Zap
+} from "lucide-react"
+
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarSeparator,
+} from "@/components/ui/sidebar"
+
+const data = {
+  navMain: [
+    {
+      title: "Navigation",
+      items: [
+        {
+          title: "Dashboard",
+          url: "/dashboard",
+          icon: LayoutDashboard,
+          isActive: true,
+        },
+        {
+          title: "Execution History",
+          url: "/dashboard/history",
+          icon: History,
+        },
+        {
+          title: "Analytics",
+          url: "/dashboard/analytics",
+          icon: TrendingUp,
+        },
+      ],
+    },
+    {
+      title: "Intelligence",
+      items: [
+        {
+          title: "AI Strategy Lab",
+          url: "/dashboard/lab",
+          icon: Zap,
+        },
+        {
+          title: "Risk Control",
+          url: "/dashboard/risk",
+          icon: ShieldCheck,
+        },
+      ],
+    },
+    {
+      title: "System",
+      items: [
+        {
+          title: "Engine Config",
+          url: "/dashboard/settings",
+          icon: Settings,
+        },
+        {
+          title: "Profile",
+          url: "/dashboard/profile",
+          icon: UserCircle,
+        },
+      ],
+    },
+  ],
+}
+
+export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  return (
+    <Sidebar collapsible="icon" {...props} className="border-r border-white/5 bg-card/80 backdrop-blur-xl">
+      <SidebarHeader className="p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary shadow-lg shadow-primary/20">
+            <Zap className="h-6 w-6 text-white" />
+          </div>
+          <div className="flex flex-col group-data-[collapsible=icon]:hidden">
+            <span className="font-headline font-bold text-lg leading-none tracking-tight">NeuroTrade</span>
+            <span className="text-[10px] text-primary font-bold uppercase tracking-widest mt-0.5">Quantum Engine</span>
+          </div>
+        </div>
+      </SidebarHeader>
+      <SidebarContent>
+        {data.navMain.map((group) => (
+          <SidebarGroup key={group.title}>
+            <SidebarGroupLabel className="text-muted-foreground/50 px-4 group-data-[collapsible=icon]:hidden">{group.title}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={item.isActive}
+                      tooltip={item.title}
+                      className="px-4 py-6 hover:bg-white/5"
+                    >
+                      <a href={item.url}>
+                        <item.icon className={item.isActive ? "text-primary" : "text-muted-foreground"} />
+                        <span className="font-medium">{item.title}</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
+      <SidebarFooter className="p-4">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton className="px-4 py-6 text-red-400 hover:text-red-300 hover:bg-red-500/10">
+              <LogOut />
+              <span>Sign Out</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+      <SidebarSeparator className="opacity-10" />
+    </Sidebar>
+  )
+}

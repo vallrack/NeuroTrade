@@ -1,0 +1,71 @@
+
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores basic information about the trading platform operators.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["operator", "admin"] },
+        "lastActive": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email"]
+    },
+    "BotParams": {
+      "title": "Bot Parameters",
+      "description": "Operational configuration for the AI trading bot.",
+      "type": "object",
+      "properties": {
+        "investmentPerTrade": { "type": "number" },
+        "stopLoss": { "type": "number" },
+        "martingale": { "type": "boolean" },
+        "pairs": { "type": "array", "items": { "type": "string" } },
+        "bot_activo": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "DailyEquity": {
+      "title": "Daily Equity",
+      "description": "Daily performance tracking record.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date" },
+        "equity": { "type": "number" }
+      }
+    },
+    "DashboardStats": {
+      "title": "Dashboard Stats",
+      "description": "Snapshot of current trading statistics.",
+      "type": "object",
+      "properties": {
+        "balance": { "type": "number" },
+        "dailyProfit": { "type": "number" },
+        "winRate": { "type": "number" },
+        "totalInvestment": { "type": "number" }
+      }
+    }
+  },
+  "auth": {
+    "providers": ["email"]
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile data."
+    },
+    "/configuracion/bot_params": {
+      "schema": "BotParams",
+      "description": "Global bot configuration parameters."
+    },
+    "/rendimiento_diario/{recordId}": {
+      "schema": "DailyEquity",
+      "description": "Time-series data for equity chart."
+    },
+    "/dashboard/current_stats": {
+      "schema": "DashboardStats",
+      "description": "Real-time summary stats for the dashboard."
+    }
+  }
+}
