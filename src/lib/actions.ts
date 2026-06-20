@@ -7,6 +7,7 @@ import { signOut } from 'firebase/auth';
 
 /**
  * Registra una nueva operación en el historial y actualiza estadísticas.
+ * Esta función es el núcleo de la ejecución automática.
  */
 export async function executeTrade(userId: string, tradeData: {
   pair: string;
@@ -15,50 +16,58 @@ export async function executeTrade(userId: string, tradeData: {
 }) {
   const { firestore: db } = getFirebase();
   try {
-    // Verificar límites de riesgo antes de operar
+    // 1. Validar parámetros globales del bot
     const botParamsRef = doc(db, 'configuracion', 'bot_params');
     const botParamsSnap = await getDoc(botParamsRef);
     const botParams = botParamsSnap.exists() ? botParamsSnap.data() : null;
 
     if (botParams && !botParams.bot_activo) {
-      return { success: false, error: 'Motor desactivado' };
+      return { success: false, error: 'Motor de IA desactivado.' };
     }
 
-    const isWin = Math.random() > 0.35; // Simulación de tasa de acierto del 65%
-    const profit = isWin ? tradeData.amount * 0.85 : -tradeData.amount;
-    const status = isWin ? 'win' : 'loss';
-
-    // Obtener info del bróker para saber el tipo de cuenta
+    // 2. Obtener info del bróker para saber el tipo de cuenta y validar conexión
     const brokerRef = doc(db, 'users', userId, 'config', 'broker');
     const brokerSnap = await getDoc(brokerRef);
-    const accountType = brokerSnap.exists() ? brokerSnap.data().accountType : 'unknown';
+    if (!brokerSnap.exists() || brokerSnap.data().status !== 'connected') {
+      return { success: false, error: 'Bróker no vinculado o desconectado.' };
+    }
+    const brokerConfig = brokerSnap.data();
 
-    // 1. Guardar el trade
+    // 3. Simular resultado basado en algoritmos de probabilidad
+    // La tasa de acierto se ve influenciada ligeramente por la configuración (demo/real)
+    const winProbability = brokerConfig.accountType === 'demo' ? 0.70 : 0.62;
+    const isWin = Math.random() < winProbability;
+    const payoutRatio = 0.85; // IQ Option standard payout
+    const profit = isWin ? tradeData.amount * payoutRatio : -tradeData.amount;
+    const status = isWin ? 'win' : 'loss';
+
+    // 4. Guardar el registro de la operación en el historial del usuario
     await addDoc(collection(db, 'users', userId, 'trades'), {
       ...tradeData,
       status,
       profit,
-      accountType,
+      accountType: brokerConfig.accountType,
       timestamp: new Date().toISOString()
     });
 
-    // 2. Actualizar estadísticas globales
+    // 5. Actualizar estadísticas globales del Dashboard
     const statsRef = doc(db, 'dashboard', 'current_stats');
     await updateDoc(statsRef, {
       balance: increment(profit),
       dailyProfit: increment(profit),
-      totalInvestment: increment(tradeData.amount)
+      totalInvestment: increment(tradeData.amount),
+      updatedAt: serverTimestamp()
     });
 
-    return { success: true, status, profit };
-  } catch (error) {
-    console.error('Error executing trade:', error);
-    return { success: false };
+    return { success: true, status, profit, accountType: brokerConfig.accountType };
+  } catch (error: any) {
+    console.error('Error crítico en ejecución de trade:', error);
+    return { success: false, error: error.message };
   }
 }
 
 /**
- * Actualiza la configuración global del bot.
+ * Actualiza la configuración operativa del bot (Riesgo y Parámetros).
  */
 export async function updateBotConfig(data: any) {
   const { firestore: db } = getFirebase();
@@ -66,19 +75,19 @@ export async function updateBotConfig(data: any) {
     const configRef = doc(db, 'configuracion', 'bot_params');
     await setDoc(configRef, {
       ...data,
-      bot_activo: true,
+      bot_activo: data.bot_activo !== undefined ? data.bot_activo : true,
       updatedAt: new Date().toISOString(),
     }, { merge: true });
 
     return { success: true };
   } catch (error) {
-    console.error('Failed to update bot config:', error);
-    return { success: false, error: 'Fallo al actualizar configuración.' };
+    console.error('Fallo al actualizar núcleo del motor:', error);
+    return { success: false, error: 'No se pudo sincronizar la configuración.' };
   }
 }
 
 /**
- * Activa el apagado de emergencia del bot.
+ * Protocolo de Apagado de Emergencia.
  */
 export async function triggerKillSwitch() {
   const { firestore: db } = getFirebase();
@@ -91,13 +100,13 @@ export async function triggerKillSwitch() {
     
     return { success: true };
   } catch (error) {
-    console.error('Panic button failed:', error);
+    console.error('Fallo en el botón de pánico:', error);
     return { success: false };
   }
 }
 
 /**
- * Promueve a un usuario al rango de Super Administrador (Maestro).
+ * Gestión de Rangos y Permisos.
  */
 export async function promoteToSuperAdmin(userId: string) {
   const { firestore: db } = getFirebase();
@@ -111,14 +120,11 @@ export async function promoteToSuperAdmin(userId: string) {
     
     return { success: true };
   } catch (error) {
-    console.error('Error promoting to super admin:', error);
+    console.error('Error en promoción de rango:', error);
     return { success: false };
   }
 }
 
-/**
- * Cierra la sesión del usuario.
- */
 export async function signOutUser() {
   const { auth } = getFirebase();
   try {
@@ -129,9 +135,6 @@ export async function signOutUser() {
   }
 }
 
-/**
- * Desvincula la cuenta del bróker y ELIMINA físicamente los datos de conexión.
- */
 export async function disconnectBroker(userId: string) {
   const { firestore: db } = getFirebase();
   try {
@@ -139,64 +142,65 @@ export async function disconnectBroker(userId: string) {
     await deleteDoc(brokerRef);
     return { success: true };
   } catch (error) {
-    console.error('Error disconnecting broker:', error);
+    console.error('Fallo al limpiar datos de bróker:', error);
     return { success: false };
   }
 }
 
 /**
- * Inicializa datos demo para el Dashboard.
+ * Inicialización de entorno para nuevos operadores.
  */
 export async function seedDemoData() {
   const { firestore: db } = getFirebase();
   try {
+    // 1. Estadísticas iniciales
     const statsRef = doc(db, 'dashboard', 'current_stats');
     await setDoc(statsRef, {
-      balance: 12450.75,
-      dailyProfit: 342.12,
-      winRate: 72,
-      totalInvestment: 85400,
+      balance: 10500.50,
+      dailyProfit: 125.40,
+      winRate: 68,
+      totalInvestment: 45200,
       updatedAt: serverTimestamp()
     });
 
+    // 2. Curva de equidad simulada
     const rendimientoRef = collection(db, 'rendimiento_diario');
-    const days = 7;
-    const baseValue = 10000;
-    
+    const days = 10;
+    const baseValue = 9000;
     for (let i = 0; i < days; i++) {
       const date = new Date();
       date.setDate(date.getDate() - (days - i));
       const dateStr = date.toISOString().split('T')[0];
-      
       await addDoc(rendimientoRef, {
         date: dateStr,
-        equity: baseValue + (Math.random() * 2000),
+        equity: baseValue + (Math.random() * 3000),
         timestamp: serverTimestamp()
       });
     }
 
+    // 3. Parámetros por defecto
     const configRef = doc(db, 'configuracion', 'bot_params');
     await setDoc(configRef, {
-      investmentPerTrade: 10,
-      stopLoss: 50,
-      takeProfit: 100,
-      maxTradesPerDay: 20,
-      martingale: false,
-      pairs: ['EUR/USD', 'BTC/USD', 'GBP/JPY'],
+      investmentPerTrade: 2.0,
+      stopLoss: 25,
+      takeProfit: 50,
+      maxTradesPerDay: 15,
+      martingale: true,
+      pairs: ['EUR/USD', 'BTC/USD'],
       bot_activo: true,
       updatedAt: serverTimestamp()
     });
 
     return { success: true };
   } catch (error) {
-    console.error('Error seeding data:', error);
+    console.error('Error inicializando sistema:', error);
     return { success: false };
   }
 }
 
 export async function clearSystemLogs() {
   try {
-    console.log('Solicitud de limpieza de memoria enviada al núcleo.');
+    console.log('Solicitud de purga de logs enviada.');
     return { success: true };
   } catch (error) {
     return { success: false };
