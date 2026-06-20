@@ -6,21 +6,18 @@ export function middleware(request: NextRequest) {
   const session = request.cookies.get('session');
   const { pathname } = request.nextUrl;
 
-  // Rutas que siempre deben ser accesibles
-  if (
-    pathname === '/login' || 
-    pathname.startsWith('/_next') || 
-    pathname.startsWith('/api/') ||
-    pathname.includes('.')
-  ) {
-    return NextResponse.next();
+  // Solo protegemos las rutas que empiezan con /dashboard
+  if (pathname.startsWith('/dashboard')) {
+    if (!session) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('from', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
   }
 
-  // Si no hay sesión y trata de acceder a una ruta protegida (como /dashboard)
-  if (!session && pathname !== '/') {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('from', pathname);
-    return NextResponse.redirect(loginUrl);
+  // Si el usuario ya tiene sesión y trata de ir al login, lo mandamos al dashboard
+  if (pathname === '/login' && session) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   return NextResponse.next();
