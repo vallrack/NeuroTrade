@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -12,7 +13,7 @@ import { Bell, Settings, ShieldCheck, Crown, Activity, RefreshCw, Loader2, Zap }
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useUser, useDoc, useFirestore } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { SuperAdminTools } from '@/components/dashboard/super-admin-tools';
 import { Badge } from '@/components/ui/badge';
 import { promoteToSuperAdmin } from '@/lib/actions';
@@ -36,6 +37,42 @@ export default function DashboardPage() {
 
   const botParamsRef = useMemo(() => doc(firestore, 'configuracion', 'bot_params'), [firestore]);
   const { data: botParams } = useDoc(botParamsRef);
+
+  // Auto-inicialización de estadísticas si falta el perfil pero hay bróker
+  useEffect(() => {
+    if (mounted && user && firestore) {
+      const checkStats = async () => {
+        const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', 'current');
+        const brokerRef = doc(firestore, 'users', user.uid, 'config', 'broker');
+        
+        const [statsSnap, brokerSnap] = await Promise.all([
+          getDoc(statsRef),
+          getDoc(brokerRef)
+        ]);
+        
+        if (!statsSnap.exists() && brokerSnap.exists()) {
+          const brokerData = brokerSnap.data();
+          const initialBalance = brokerData.accountType === 'demo' ? 10000 : 2500;
+          
+          await setDoc(statsRef, {
+            balance: initialBalance,
+            dailyProfit: 0,
+            winRate: 0,
+            totalInvestment: 0,
+            tradesCount: 0,
+            winsCount: 0,
+            lastSync: new Date().toISOString()
+          }, { merge: true });
+          
+          toast({
+            title: "SINCRONIZACIÓN AUTOMÁTICA",
+            description: "Detectamos un bróker vinculado. Estadísticas inicializadas.",
+          });
+        }
+      };
+      checkStats();
+    }
+  }, [mounted, user, firestore, toast]);
 
   useEffect(() => {
     if (mounted && !authLoading && !user) {

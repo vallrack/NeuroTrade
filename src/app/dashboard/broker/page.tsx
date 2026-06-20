@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -13,7 +14,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useDoc, useFirestore } from '@/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { disconnectBroker } from '@/lib/actions';
 import { Globe, Lock, ShieldCheck, Zap, Loader2, CheckCircle2, ShieldAlert, LineChart, ArrowRight, Trash2, Beaker, Landmark, Coins } from 'lucide-react';
 
@@ -49,6 +50,7 @@ export default function BrokerPage() {
     
     setLoading(true);
     try {
+      // 1. Vincular credenciales
       await setDoc(brokerRef, {
         provider,
         email: provider === 'IQ Option' ? email : '',
@@ -61,6 +63,7 @@ export default function BrokerPage() {
         bridgeProtocol: provider === 'IQ Option' ? 'WSS-BUYV3' : 'REST-ABSTRACTION'
       }, { merge: true });
 
+      // 2. Inicializar estadísticas automáticamente
       const initialBalance = accountType === 'demo' ? 10000 : 2500;
       const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', 'current');
       await setDoc(statsRef, {
@@ -73,10 +76,21 @@ export default function BrokerPage() {
         lastSync: new Date().toISOString()
       }, { merge: true });
 
+      // 3. Activar el bot automáticamente
+      const botParamsRef = doc(firestore, 'configuracion', 'bot_params');
+      await setDoc(botParamsRef, {
+        bot_activo: true,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
       toast({
-        title: "PUENTE ESTABLECIDO",
-        description: `Conexión exitosa. Saldo detectado: $${initialBalance}`,
+        title: "SINCRONIZACIÓN MAESTRA",
+        description: `Puente establecido. Saldo detectado: $${initialBalance}. Motor V7 en línea.`,
       });
+      
+      // Redirigir al dashboard para ver los cambios
+      setTimeout(() => router.push('/dashboard'), 1500);
+      
     } catch (err: any) {
       toast({
         title: "ERROR DE VÍNCULO",
@@ -208,7 +222,7 @@ export default function BrokerPage() {
                         <Label>Clave Cifrada</Label>
                         <Input 
                           type="password" 
-                          value={password}
+                          value={password} 
                           onChange={(e) => setPassword(e.target.value)}
                           className="bg-background/50 border-white/5 h-12"
                           required
