@@ -6,6 +6,8 @@ import { useFirestore } from '@/firebase';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export function EquityChart() {
   const firestore = useFirestore();
@@ -15,16 +17,27 @@ export function EquityChart() {
     if (!firestore) return;
 
     const q = query(collection(firestore, 'rendimiento_diario'), orderBy('date', 'asc'), limit(30));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const records = snapshot.docs.map(docSnapshot => {
-        const docData = docSnapshot.data();
-        return {
-          date: new Date(docData.date).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }),
-          equity: docData.equity
-        };
-      });
-      setData(records);
-    });
+    
+    const unsub = onSnapshot(
+      q, 
+      (snapshot) => {
+        const records = snapshot.docs.map(docSnapshot => {
+          const docData = docSnapshot.data();
+          return {
+            date: new Date(docData.date).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }),
+            equity: docData.equity
+          };
+        });
+        setData(records);
+      },
+      async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'rendimiento_diario',
+          operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      }
+    );
     return () => unsub();
   }, [firestore]);
 

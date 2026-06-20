@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,6 +7,8 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Wallet, Target, Activity, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export function StatsGrid() {
   const { user } = useUser();
@@ -21,21 +24,32 @@ export function StatsGrid() {
     if (!firestore || !user) return;
     
     const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', 'current');
-    const unsub = onSnapshot(statsRef, (docSnapshot) => {
-      if (docSnapshot.exists()) {
-        const data = docSnapshot.data();
-        const trades = data.tradesCount || 0;
-        const wins = data.winsCount || 0;
-        const winRate = trades > 0 ? Math.round((wins / trades) * 100) : 0;
-        
-        setStats({
-          balance: data.balance || 0,
-          dailyProfit: data.dailyProfit || 0,
-          totalInvestment: data.totalInvestment || 0,
-          winRate: winRate
+    
+    const unsub = onSnapshot(
+      statsRef, 
+      (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const data = docSnapshot.data();
+          const trades = data.tradesCount || 0;
+          const wins = data.winsCount || 0;
+          const winRate = trades > 0 ? Math.round((wins / trades) * 100) : 0;
+          
+          setStats({
+            balance: data.balance || 0,
+            dailyProfit: data.dailyProfit || 0,
+            totalInvestment: data.totalInvestment || 0,
+            winRate: winRate
+          });
+        }
+      },
+      async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: statsRef.path,
+          operation: 'get',
         });
+        errorEmitter.emit('permission-error', permissionError);
       }
-    });
+    );
     return () => unsub();
   }, [firestore, user]);
 
