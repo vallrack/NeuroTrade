@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { disconnectBroker } from '@/lib/actions';
-import { Globe, Lock, ShieldCheck, Zap, Loader2, CheckCircle2, ShieldAlert, LineChart, ArrowRight, Trash2, Beaker, Landmark, Coins } from 'lucide-center';
+import { Globe, Lock, ShieldCheck, Zap, Loader2, CheckCircle2, ShieldAlert, LineChart, ArrowRight, Trash2, Beaker, Landmark, Coins } from 'lucide-react';
 
 export default function BrokerPage() {
   const { user } = useUser();
