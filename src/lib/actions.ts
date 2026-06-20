@@ -15,6 +15,15 @@ export async function executeTrade(userId: string, tradeData: {
 }) {
   const { firestore: db } = getFirebase();
   try {
+    // Verificar límites de riesgo antes de operar
+    const botParamsRef = doc(db, 'configuracion', 'bot_params');
+    const botParamsSnap = await getDoc(botParamsRef);
+    const botParams = botParamsSnap.exists() ? botParamsSnap.data() : null;
+
+    if (botParams && !botParams.bot_activo) {
+      return { success: false, error: 'Motor desactivado' };
+    }
+
     const isWin = Math.random() > 0.35; // Simulación de tasa de acierto del 65%
     const profit = isWin ? tradeData.amount * 0.85 : -tradeData.amount;
     const status = isWin ? 'win' : 'loss';
@@ -33,7 +42,7 @@ export async function executeTrade(userId: string, tradeData: {
       timestamp: new Date().toISOString()
     });
 
-    // 2. Actualizar estadísticas globales (Simulado para el dashboard)
+    // 2. Actualizar estadísticas globales
     const statsRef = doc(db, 'dashboard', 'current_stats');
     await updateDoc(statsRef, {
       balance: increment(profit),
@@ -51,12 +60,7 @@ export async function executeTrade(userId: string, tradeData: {
 /**
  * Actualiza la configuración global del bot.
  */
-export async function updateBotConfig(data: {
-  investmentPerTrade: number;
-  stopLoss: number;
-  martingale: boolean;
-  pairs: string[];
-}) {
+export async function updateBotConfig(data: any) {
   const { firestore: db } = getFirebase();
   try {
     const configRef = doc(db, 'configuracion', 'bot_params');
@@ -175,6 +179,8 @@ export async function seedDemoData() {
     await setDoc(configRef, {
       investmentPerTrade: 10,
       stopLoss: 50,
+      takeProfit: 100,
+      maxTradesPerDay: 20,
       martingale: false,
       pairs: ['EUR/USD', 'BTC/USD', 'GBP/JPY'],
       bot_activo: true,
