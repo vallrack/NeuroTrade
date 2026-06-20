@@ -13,9 +13,9 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useDoc, useFirestore } from '@/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { disconnectBroker } from '@/lib/actions';
-import { Globe, Lock, ShieldCheck, Zap, Loader2, CheckCircle2, ShieldAlert, LineChart, ArrowRight, Trash2, Beaker, Landmark, Coins } from 'lucide-react';
+import { Globe, Lock, ShieldCheck, Zap, Loader2, ShieldAlert, ArrowRight, Trash2, Beaker, Landmark, Coins } from 'lucide-react';
 
 export default function BrokerPage() {
   const { user } = useUser();
@@ -25,7 +25,7 @@ export default function BrokerPage() {
   const [loading, setLoading] = useState(false);
   
   const brokerRef = user ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
-  const { data: brokerConfig, loading: configLoading } = useDoc(brokerRef);
+  const { data: brokerConfig } = useDoc(brokerRef);
 
   const [provider, setProvider] = useState<string>('IQ Option');
   const [email, setEmail] = useState('');
@@ -43,14 +43,47 @@ export default function BrokerPage() {
     }
   }, [brokerConfig]);
 
+  // CAMBIO DINÁMICO INSTANTÁNEO
+  const handleAccountTypeChange = async (type: 'demo' | 'real') => {
+    setAccountType(type);
+    if (user && brokerRef && brokerConfig?.status === 'connected') {
+      try {
+        await updateDoc(brokerRef, { accountType: type });
+        
+        // Inicializar estadísticas si no existen para el nuevo canal
+        const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', type);
+        const statsSnap = await getDoc(statsRef);
+        
+        if (!statsSnap.exists()) {
+          const initialBalance = type === 'demo' ? 11046.71 : 0;
+          await setDoc(statsRef, {
+            balance: initialBalance,
+            dailyProfit: 0,
+            winRate: 0,
+            totalInvestment: 0,
+            tradesCount: 0,
+            winsCount: 0,
+            lastSync: new Date().toISOString()
+          });
+        }
+
+        toast({
+          title: "CAMBIO DE CANAL",
+          description: `Bot ahora operando en modo ${type.toUpperCase()}.`,
+        });
+      } catch (err) {
+        console.error("Error switching account:", err);
+      }
+    }
+  };
+
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !brokerRef) return;
     
     setLoading(true);
     try {
-      // Sincronización absoluta con la imagen real: $11,046.71
-      const initialBalance = 11046.71;
+      const demoBalance = 11046.71;
 
       // 1. Vincular credenciales
       await setDoc(brokerRef, {
@@ -65,10 +98,10 @@ export default function BrokerPage() {
         bridgeProtocol: provider === 'IQ Option' ? 'WSS-BUYV3' : 'REST-ABSTRACTION'
       }, { merge: true });
 
-      // 2. Inicializar estadísticas con el saldo exacto detectado
-      const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', 'current');
+      // 2. Inicializar estadísticas del canal activo
+      const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', accountType);
       await setDoc(statsRef, {
-        balance: initialBalance,
+        balance: accountType === 'demo' ? demoBalance : 0,
         dailyProfit: 0,
         winRate: 0,
         totalInvestment: 0,
@@ -86,10 +119,10 @@ export default function BrokerPage() {
 
       toast({
         title: "SINCRONIZACIÓN MAESTRA",
-        description: `Saldo IQ Option detectado: $${initialBalance.toLocaleString()}. Puente establecido.`,
+        description: `Canal ${accountType.toUpperCase()} establecido con éxito.`,
       });
       
-      setTimeout(() => router.push('/dashboard'), 1500);
+      setTimeout(() => router.push('/dashboard'), 1000);
       
     } catch (err: any) {
       toast({
@@ -114,7 +147,7 @@ export default function BrokerPage() {
         setApiSecret('');
         toast({
           title: "PUENTE CERRADO",
-          description: "Las credenciales y el saldo han sido desvinculados.",
+          description: "La sesión ha sido finalizada por el usuario.",
         });
       }
     } catch (err: any) {
@@ -145,7 +178,7 @@ export default function BrokerPage() {
         <main className="p-6 max-w-4xl mx-auto space-y-8">
           <div className="flex flex-col gap-2">
             <h2 className="text-3xl font-headline font-bold text-foreground">Gestión de Conectividad V7</h2>
-            <p className="text-muted-foreground italic">Arquitectura multi-puente para ejecución en IQ Option, Alpaca o Exchanges Crypto.</p>
+            <p className="text-muted-foreground italic">Cambio dinámico entre Demo y Real con persistencia absoluta.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -184,18 +217,17 @@ export default function BrokerPage() {
                     <Label className="text-sm font-bold uppercase text-muted-foreground">Entorno de Operación</Label>
                     <RadioGroup 
                       value={accountType} 
-                      onValueChange={(v: any) => setAccountType(v)}
+                      onValueChange={(v: any) => handleAccountTypeChange(v)}
                       className="grid grid-cols-2 gap-4"
-                      disabled={isConnected}
                     >
-                      <div className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${accountType === 'demo' ? 'bg-primary/10 border-primary' : 'bg-background/50 border-white/5 hover:border-white/10'}`} onClick={() => !isConnected && setAccountType('demo')}>
+                      <div className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${accountType === 'demo' ? 'bg-primary/10 border-primary' : 'bg-background/50 border-white/5 hover:border-white/10'}`} onClick={() => handleAccountTypeChange('demo')}>
                         <div className="flex items-center gap-3">
                           <RadioGroupItem value="demo" id="demo" />
                           <Label htmlFor="demo" className="font-bold cursor-pointer">PAPER / DEMO</Label>
                         </div>
                         <Beaker className="h-5 w-5 opacity-50" />
                       </div>
-                      <div className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${accountType === 'real' ? 'bg-secondary/10 border-secondary' : 'bg-background/50 border-white/5 hover:border-white/10'}`} onClick={() => !isConnected && setAccountType('real')}>
+                      <div className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${accountType === 'real' ? 'bg-secondary/10 border-secondary' : 'bg-background/50 border-white/5 hover:border-white/10'}`} onClick={() => handleAccountTypeChange('real')}>
                         <div className="flex items-center gap-3">
                           <RadioGroupItem value="real" id="real" />
                           <Label htmlFor="real" className="font-bold cursor-pointer text-secondary">REAL ACCOUNT</Label>
@@ -205,54 +237,61 @@ export default function BrokerPage() {
                     </RadioGroup>
                   </div>
 
-                  {provider === 'IQ Option' ? (
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label>Email IQ Option</Label>
-                        <Input 
-                          type="email" 
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="bg-background/50 border-white/5 h-12"
-                          required
-                          disabled={isConnected}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Clave Cifrada</Label>
-                        <Input 
-                          type="password" 
-                          value={password} 
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="bg-background/50 border-white/5 h-12"
-                          required
-                          disabled={isConnected}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label>API Key (Pública)</Label>
-                        <Input 
-                          value={apiKey}
-                          onChange={(e) => setApiKey(e.target.value)}
-                          className="bg-background/50 border-white/5 h-12"
-                          required
-                          disabled={isConnected}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>API Secret (Privada)</Label>
-                        <Input 
-                          type="password" 
-                          value={apiSecret}
-                          onChange={(e) => setApiSecret(e.target.value)}
-                          className="bg-background/50 border-white/5 h-12"
-                          required
-                          disabled={isConnected}
-                        />
-                      </div>
+                  {!isConnected && (
+                    <>
+                      {provider === 'IQ Option' ? (
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label>Email IQ Option</Label>
+                            <Input 
+                              type="email" 
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                              className="bg-background/50 border-white/5 h-12"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Clave Cifrada</Label>
+                            <Input 
+                              type="password" 
+                              value={password} 
+                              onChange={(e) => setPassword(e.target.value)}
+                              className="bg-background/50 border-white/5 h-12"
+                              required
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label>API Key (Pública)</Label>
+                            <Input 
+                              value={apiKey}
+                              onChange={(e) => setApiKey(e.target.value)}
+                              className="bg-background/50 border-white/5 h-12"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>API Secret (Privada)</Label>
+                            <Input 
+                              type="password" 
+                              value={apiSecret}
+                              onChange={(e) => setApiSecret(e.target.value)}
+                              className="bg-background/50 border-white/5 h-12"
+                              required
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {isConnected && (
+                    <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-2">
+                       <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Credenciales Activas</p>
+                       <p className="text-sm font-code">{email || apiKey || 'Sincronizado vía Bridge'}</p>
                     </div>
                   )}
                 </CardContent>
@@ -266,8 +305,8 @@ export default function BrokerPage() {
                        VINCULAR NÚCLEO {provider.toUpperCase()}
                      </Button>
                    ) : (
-                     <Button type="button" variant="outline" onClick={() => router.push('/dashboard/terminal')} className="gap-2">
-                       ENTRAR AL TERMINAL <ArrowRight className="h-4 w-4" />
+                     <Button type="button" variant="outline" onClick={() => router.push('/dashboard')} className="gap-2">
+                       VOLVER AL DASHBOARD <ArrowRight className="h-4 w-4" />
                      </Button>
                    )}
                 </CardFooter>
@@ -307,8 +346,8 @@ export default function BrokerPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <p className="text-[10px] text-red-500/70 italic leading-tight">
-                      Desvincular eliminará permanentemente los tokens de sesión del Bridge.
+                    <p className="text-[10px] text-red-500/70 italic leading-tight uppercase font-bold">
+                      Desvincular cerrará el túnel de datos y detendrá el bot.
                     </p>
                     <Button 
                       variant="ghost" 
