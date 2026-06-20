@@ -13,7 +13,8 @@ import {
   LogOut,
   Zap,
   Globe,
-  LineChart
+  LineChart,
+  BookOpen
 } from "lucide-react"
 
 import {
@@ -77,6 +78,11 @@ const data = {
           title: "Configuración Motor",
           url: "/dashboard/settings",
           icon: Settings,
+        },
+        {
+          title: "Manual de Operación",
+          url: "/dashboard/manual",
+          icon: BookOpen,
         },
         {
           title: "Perfil de Operador",

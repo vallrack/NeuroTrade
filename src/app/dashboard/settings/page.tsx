@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
 import { updateBotConfig } from '@/lib/actions';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -13,8 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { 
   Settings2, Save, Cpu, Loader2, RefreshCw, Zap, Clock, ShieldAlert, 
-  TrendingUp, Target, Plus, Trash2, Sliders, Globe, Activity, ChevronDown, 
-  Landmark, ShieldCheck, Wallet, Gauge, BarChart3
+  Target, Plus, Trash2, Sliders, Globe, Activity, Landmark, ShieldCheck, 
+  Wallet, Gauge, BarChart3, Info
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -37,16 +37,16 @@ export default function SettingsV7Page() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [takeProfit, setTakeProfit] = useState('60000');
-  const [stopLoss, setStopLoss] = useState('8000');
-  const [minBalance, setMinBalance] = useState('2000');
-  const [investment, setInvestment] = useState('4000');
+  const [stopLoss, setStopLoss] = useState('13000');
+  const [minBalance, setMinBalance] = useState('20000');
+  const [investment, setInvestment] = useState('2300');
   const [maxTrades, setMaxTrades] = useState('1');
   const [maxLosses, setMaxLosses] = useState('2');
   const [minRsi, setMinRsi] = useState('20');
   const [midRsi, setMidRsi] = useState('38');
   const [maxRsi, setMaxRsi] = useState('62');
   const [martingale, setMartingale] = useState(false);
-  const [pairs, setPairs] = useState<string[]>(['EURUSD-OTC', 'GBPUSD-OTC']);
+  const [pairs, setPairs] = useState<string[]>(['EURUSD-OTC', 'GBPUSD-OTC', 'BTCUSD', 'ETHUSD', 'LTCUSD']);
   const [newPair, setNewPair] = useState('');
   const [schedules, setSchedules] = useState<{start: string, end: string}[]>([]);
 
@@ -54,9 +54,9 @@ export default function SettingsV7Page() {
     if (botParams && !isEditing) {
       setBotActive(botParams.bot_activo !== undefined ? botParams.bot_activo : true);
       setTakeProfit(botParams.takeProfit?.toString() || '60000');
-      setStopLoss(botParams.stopLoss?.toString() || '8000');
-      setMinBalance(botParams.minBalance?.toString() || '2000');
-      setInvestment(botParams.investmentPerTrade?.toString() || '4000');
+      setStopLoss(botParams.stopLoss?.toString() || '13000');
+      setMinBalance(botParams.minBalance?.toString() || '20000');
+      setInvestment(botParams.investmentPerTrade?.toString() || '2300');
       setMaxTrades(botParams.maxTradesPerDay?.toString() || '1');
       setMaxLosses(botParams.maxLosses?.toString() || '2');
       setMinRsi(botParams.minRsi?.toString() || '20');
@@ -145,12 +145,6 @@ export default function SettingsV7Page() {
               <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Protocolo Operativo Maestro</span>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-             <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full border border-primary/20">
-                <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
-                <span className="text-[10px] font-bold text-primary uppercase">Sincronizado</span>
-             </div>
-          </div>
         </header>
         
         <main className="p-8 space-y-8 max-w-[1400px] mx-auto">
@@ -160,11 +154,11 @@ export default function SettingsV7Page() {
                <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Desencriptando parámetros V7...</p>
              </div>
           ) : (
-            <form onSubmit={handleSave} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <form onSubmit={handleSave} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-32">
               
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
-                {/* COLUMNA 1: ACCESO Y FINANZAS */}
+                {/* COLUMNA 1: ACCESO Y GESTIÓN DE CAPITAL */}
                 <div className="space-y-6">
                   <Card className="bg-card/30 border-white/5 backdrop-blur-md overflow-hidden hover:border-primary/20 transition-all duration-300">
                     <CardHeader className="bg-primary/5 pb-4">
@@ -172,11 +166,11 @@ export default function SettingsV7Page() {
                         <Globe className="h-4 w-4 text-primary" />
                         TERMINAL DE ACCESO
                       </CardTitle>
-                      <CardDescription className="text-[10px] uppercase">Credenciales IQ Option</CardDescription>
+                      <CardDescription className="text-[10px] uppercase">Bróker IQ Option</CardDescription>
                     </CardHeader>
                     <CardContent className="pt-6 space-y-4">
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Email de Operador</Label>
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Email IQ Option</Label>
                         <Input 
                           placeholder="email@dominio.com" 
                           value={email} 
@@ -185,7 +179,7 @@ export default function SettingsV7Page() {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Llave de Cifrado</Label>
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Contraseña Cifrada</Label>
                         <Input 
                           type="password" 
                           placeholder="**********" 
@@ -201,40 +195,47 @@ export default function SettingsV7Page() {
                     <CardHeader className="bg-primary/5 pb-4">
                       <CardTitle className="text-sm font-headline flex items-center gap-2">
                         <Wallet className="h-4 w-4 text-primary" />
-                        GESTIÓN DE PATRIMONIO
+                        GESTIÓN DE CAPITAL
                       </CardTitle>
-                      <CardDescription className="text-[10px] uppercase">Límites de Seguridad V7</CardDescription>
                     </CardHeader>
                     <CardContent className="pt-6 space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-4">
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Meta (Take Profit)</Label>
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Take Profit ($)</Label>
                           <Input 
                             type="number" 
                             value={takeProfit} 
                             onChange={e => {setTakeProfit(e.target.value); setIsEditing(true);}} 
                             className="bg-zinc-900/50 border-white/10 h-11 text-green-500 font-bold"
                           />
+                          <p className="text-[9px] text-muted-foreground italic flex items-center gap-1">
+                            <Info className="h-3 w-3" /> Ganancia meta: hasta donde quiere ganar hoy.
+                          </p>
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Límite (Stop Loss)</Label>
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Stop Loss ($)</Label>
                           <Input 
                             type="number" 
                             value={stopLoss} 
                             onChange={e => {setStopLoss(e.target.value); setIsEditing(true);}} 
                             className="bg-zinc-900/50 border-white/10 h-11 text-red-500 font-bold"
                           />
+                          <p className="text-[9px] text-muted-foreground italic flex items-center gap-1">
+                            <Info className="h-3 w-3" /> Pérdida máxima permitida antes del apagado.
+                          </p>
                         </div>
-                      </div>
-                      <div className="space-y-1.5 pt-2">
-                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Saldo Mínimo Operativo</Label>
-                        <Input 
-                          type="number" 
-                          value={minBalance} 
-                          onChange={e => {setMinBalance(e.target.value); setIsEditing(true);}} 
-                          className="bg-zinc-900/50 border-white/10 h-11"
-                        />
-                        <p className="text-[9px] text-muted-foreground italic">El bot se detendrá si el balance cae por debajo de este valor.</p>
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Mantener Mínimo ($)</Label>
+                          <Input 
+                            type="number" 
+                            value={minBalance} 
+                            onChange={e => {setMinBalance(e.target.value); setIsEditing(true);}} 
+                            className="bg-zinc-900/50 border-white/10 h-11 font-bold"
+                          />
+                          <p className="text-[9px] text-muted-foreground italic flex items-center gap-1">
+                            <Info className="h-3 w-3" /> Si el saldo baja de este monto, el bot para.
+                          </p>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -248,37 +249,40 @@ export default function SettingsV7Page() {
                         <Sliders className="h-4 w-4 text-primary" />
                         REGLAS DE EJECUCIÓN
                       </CardTitle>
-                      <CardDescription className="text-[10px] uppercase">Parámetros Algorítmicos</CardDescription>
                     </CardHeader>
                     <CardContent className="pt-6 space-y-6">
                       <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl space-y-2">
-                        <Label className="text-[11px] uppercase text-primary font-black tracking-widest">Inversión por Operación</Label>
+                        <Label className="text-[11px] uppercase text-primary font-black tracking-widest">Monto a Invertir ($)</Label>
                         <Input 
                           type="number" 
                           value={investment} 
                           onChange={e => {setInvestment(e.target.value); setIsEditing(true);}} 
                           className="bg-zinc-900/60 border-primary/30 h-14 text-2xl text-center text-primary font-headline font-bold"
                         />
+                        <p className="text-[10px] text-primary/70 text-center font-bold uppercase tracking-wider">
+                          Inversión por trade (Monto fijo)
+                        </p>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4">
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Max Trades / Día</Label>
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Tiempo de Ejecución</Label>
                           <Input 
-                            type="number" 
-                            value={maxTrades} 
-                            onChange={e => {setMaxTrades(e.target.value); setIsEditing(true);}} 
-                            className="bg-zinc-900/50 border-white/10 h-11 text-center"
+                            value="1 minuto" 
+                            readOnly 
+                            className="bg-zinc-900/30 border-white/5 h-11 text-center font-bold opacity-70"
                           />
+                          <p className="text-[9px] text-muted-foreground text-center">Protocolo HFT optimizado para 60 segundos.</p>
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Límite Pérdidas</Label>
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Cantidad de Pérdidas Permitidas</Label>
                           <Input 
                             type="number" 
                             value={maxLosses} 
                             onChange={e => {setMaxLosses(e.target.value); setIsEditing(true);}} 
-                            className="bg-zinc-900/50 border-white/10 h-11 text-center"
+                            className="bg-zinc-900/50 border-white/10 h-11 text-center font-bold text-red-500"
                           />
+                          <p className="text-[9px] text-muted-foreground text-center italic">Detiene el bot tras esta cantidad de pérdidas seguidas.</p>
                         </div>
                       </div>
 
@@ -289,15 +293,15 @@ export default function SettingsV7Page() {
                         </div>
                         <div className="grid grid-cols-3 gap-3">
                           <div className="space-y-1 text-center">
-                            <span className="text-[9px] uppercase font-bold text-muted-foreground">Mínimo</span>
+                            <span className="text-[9px] uppercase font-bold text-muted-foreground">Mínimo (20)</span>
                             <Input type="number" value={minRsi} onChange={e => {setMinRsi(e.target.value); setIsEditing(true);}} className="bg-zinc-900/50 border-white/10 h-10 text-center font-bold" />
                           </div>
                           <div className="space-y-1 text-center">
-                            <span className="text-[9px] uppercase font-bold text-muted-foreground">Medio</span>
+                            <span className="text-[9px] uppercase font-bold text-muted-foreground">Medio (38)</span>
                             <Input type="number" value={midRsi} onChange={e => {setMidRsi(e.target.value); setIsEditing(true);}} className="bg-zinc-900/50 border-white/10 h-10 text-center font-bold text-primary" />
                           </div>
                           <div className="space-y-1 text-center">
-                            <span className="text-[9px] uppercase font-bold text-muted-foreground">Máximo</span>
+                            <span className="text-[9px] uppercase font-bold text-muted-foreground">Máximo (62)</span>
                             <Input type="number" value={maxRsi} onChange={e => {setMaxRsi(e.target.value); setIsEditing(true);}} className="bg-zinc-900/50 border-white/10 h-10 text-center font-bold" />
                           </div>
                         </div>
@@ -312,14 +316,13 @@ export default function SettingsV7Page() {
                     <CardHeader className="bg-primary/5 pb-4">
                       <CardTitle className="text-sm font-headline flex items-center gap-2">
                         <BarChart3 className="h-4 w-4 text-primary" />
-                        CLÚSTERS DE ACTIVOS
+                        SELECCIONAR DIVISAS
                       </CardTitle>
-                      <CardDescription className="text-[10px] uppercase">Divisas en Vigilancia</CardDescription>
                     </CardHeader>
                     <CardContent className="pt-6 space-y-4">
                       <div className="flex gap-2">
                         <Input 
-                          placeholder="Nuevo par (Ej: EURUSD)" 
+                          placeholder="Agregar Divisa (Ej: BTCUSD)" 
                           value={newPair} 
                           onChange={e => setNewPair(e.target.value)}
                           className="bg-zinc-900/50 border-white/10 h-10 flex-1"
@@ -330,14 +333,14 @@ export default function SettingsV7Page() {
                         </Button>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-2 mt-4 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
+                      <div className="grid grid-cols-1 gap-2 mt-4 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
                         {pairs.map(p => (
                           <div key={p} className="flex items-center justify-between p-3 bg-zinc-900/40 rounded-xl border border-white/5 group hover:border-primary/40 transition-all">
                             <div className="flex items-center gap-3">
                               <Checkbox checked className="data-[state=checked]:bg-primary" />
                               <span className="text-xs font-bold uppercase tracking-widest text-white/90">{p}</span>
                             </div>
-                            <button type="button" onClick={() => removePair(p)} className="opacity-0 group-hover:opacity-100 bg-red-500/10 hover:bg-red-500 p-2 rounded-lg transition-all">
+                            <button type="button" onClick={() => removePair(p)} className="bg-red-500/10 hover:bg-red-500 p-2 rounded-lg transition-all">
                               <Trash2 className="h-3.5 w-3.5 text-red-500 group-hover:text-white" />
                             </button>
                           </div>
@@ -352,31 +355,40 @@ export default function SettingsV7Page() {
                         <Clock className="h-4 w-4 text-primary" />
                         PROGRAMACIÓN OPERATIVA
                       </CardTitle>
-                      <CardDescription className="text-[10px] uppercase">Ventanas de Ejecución</CardDescription>
                     </CardHeader>
                     <CardContent className="pt-6 space-y-4">
                       <div className="flex justify-between items-center mb-4">
-                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Horarios Configurados</span>
+                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Ventanas de Ejecución</span>
                         <Button type="button" variant="outline" size="sm" onClick={addSchedule} className="h-7 text-[10px] border-primary/30 text-primary hover:bg-primary/10">
                           + Añadir Ventana
                         </Button>
                       </div>
-                      <div className="space-y-3 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
+                      <div className="space-y-3">
                         {schedules.map((s, idx) => (
                           <div key={idx} className="flex items-center gap-3 p-3 bg-zinc-900/40 rounded-xl border border-white/5">
-                            <div className="flex items-center gap-2 flex-1">
-                              <Input 
-                                type="text" 
-                                value={s.start.substring(0, 5)} 
-                                className="bg-zinc-900/50 border-white/10 h-9 w-20 text-center text-xs font-bold" 
-                              />
-                              <span className="text-xs text-muted-foreground font-bold">A</span>
-                              <Input 
-                                type="text" 
-                                value={s.end.substring(0, 5)} 
-                                className="bg-zinc-900/50 border-white/10 h-9 w-20 text-center text-xs font-bold" 
-                              />
-                            </div>
+                            <Input 
+                              type="text" 
+                              value={s.start} 
+                              onChange={e => {
+                                const newScheds = [...schedules];
+                                newScheds[idx].start = e.target.value;
+                                setSchedules(newScheds);
+                                setIsEditing(true);
+                              }}
+                              className="bg-zinc-900/50 border-white/10 h-9 text-center text-xs font-bold" 
+                            />
+                            <span className="text-xs text-muted-foreground font-bold">A</span>
+                            <Input 
+                              type="text" 
+                              value={s.end} 
+                              onChange={e => {
+                                const newScheds = [...schedules];
+                                newScheds[idx].end = e.target.value;
+                                setSchedules(newScheds);
+                                setIsEditing(true);
+                              }}
+                              className="bg-zinc-900/50 border-white/10 h-9 text-center text-xs font-bold" 
+                            />
                             <button type="button" onClick={() => setSchedules(schedules.filter((_, i) => i !== idx))} className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-all">
                               <Trash2 className="h-4 w-4" />
                             </button>
