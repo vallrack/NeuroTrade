@@ -42,7 +42,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-body overflow-hidden antialiased;
+    @apply bg-background text-foreground font-body overflow-x-hidden antialiased;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-headline tracking-tight;
@@ -51,8 +51,8 @@
 
 /* Custom Scrollbars - Clean & Minimal */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -108,12 +108,9 @@
   overflow-x: hidden;
 }
 
-/* Hide potential double scrollbars on the main layout */
+/* Permitir scroll controlado */
 main {
-  scrollbar-width: none;
-}
-main::-webkit-scrollbar {
-  display: none;
+  @apply overflow-y-auto;
 }
 
 .tv-chart-container {

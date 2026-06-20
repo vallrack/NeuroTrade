@@ -89,7 +89,7 @@ export default function DashboardPage() {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="bg-background overflow-x-hidden">
+      <SidebarInset className="bg-background">
         <header className="flex h-14 md:h-16 shrink-0 items-center justify-between gap-2 px-4 md:px-6 border-b border-white/5 sticky top-0 bg-background/95 backdrop-blur-xl z-50">
           <div className="flex items-center gap-2 overflow-hidden">
             <SidebarTrigger />
@@ -99,7 +99,7 @@ export default function DashboardPage() {
                 Command Center
               </h1>
               {isBotActive && (
-                <Badge className="bg-primary/10 text-primary border-primary/20 gap-1.5 py-0.5 px-2 md:px-3 text-[9px] md:text-[10px] hidden xs:flex">
+                <Badge className="bg-primary/10 text-primary border-primary/20 gap-1.5 py-0.5 px-2 md:px-3 text-[9px] md:text-[10px] flex">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
                   <span className="hidden md:inline">SISTEMA ACTIVO</span>
                   <span className="md:hidden">LIVE</span>
@@ -127,11 +127,11 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        <main className="p-4 md:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto w-full">
+        <main className="flex-1 p-4 md:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto w-full overflow-y-auto">
           {/* Status Bar */}
           <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-primary/5 p-4 rounded-2xl border border-white/5">
              <div className="flex items-center gap-3 w-full sm:w-auto">
-                <div className={`p-2.5 rounded-xl ${isBotActive ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
+                <div className={`p-2.5 rounded-xl ${isBotActive ? 'bg-green-500/20 text-green-500' : 'bg-destructive/20 text-destructive'}`}>
                   <Activity className={`h-5 w-5 ${isBotActive ? 'animate-pulse' : ''}`} />
                 </div>
                 <div>
@@ -165,7 +165,7 @@ export default function DashboardPage() {
 
           <StatsGrid />
           
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 pb-12">
             <div className="xl:col-span-8 space-y-6">
               <EquityChart />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -183,7 +183,7 @@ export default function DashboardPage() {
               </div>
             </div>
             
-            <div className="xl:col-span-4 h-full">
+            <div className="xl:col-span-4 h-full min-h-[500px]">
               <LogConsole />
             </div>
           </div>
