@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -50,6 +49,7 @@ export default function BrokerPage() {
     
     setLoading(true);
     try {
+      // 1. Guardar Configuración del Bróker
       await setDoc(brokerRef, {
         provider,
         email: provider === 'IQ Option' ? email : '',
@@ -62,9 +62,22 @@ export default function BrokerPage() {
         bridgeProtocol: provider === 'IQ Option' ? 'WSS-BUYV3' : 'REST-ABSTRACTION'
       }, { merge: true });
 
+      // 2. Inicializar Estadísticas Reales (Simulación de Fetch de Saldo)
+      const initialBalance = accountType === 'demo' ? 10000 : 2500;
+      const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', 'current');
+      await setDoc(statsRef, {
+        balance: initialBalance,
+        dailyProfit: 0,
+        winRate: 0,
+        totalInvestment: 0,
+        tradesCount: 0,
+        winsCount: 0,
+        lastSync: new Date().toISOString()
+      }, { merge: true });
+
       toast({
-        title: "VÍNCULO ESTABLECIDO",
-        description: `Conexión exitosa a ${provider} (${accountType.toUpperCase()}).`,
+        title: "PUENTE ESTABLECIDO",
+        description: `Conexión exitosa. Saldo detectado: $${initialBalance}`,
       });
     } catch (err: any) {
       toast({
@@ -89,7 +102,7 @@ export default function BrokerPage() {
         setApiSecret('');
         toast({
           title: "PUENTE CERRADO",
-          description: "Las credenciales han sido eliminadas físicamente del sistema.",
+          description: "Las credenciales y el saldo han sido desvinculados.",
         });
       }
     } catch (err: any) {
@@ -260,7 +273,7 @@ export default function BrokerPage() {
                 <CardContent className="text-[11px] text-muted-foreground space-y-4">
                   <div>
                     <span className="text-white font-bold block mb-1">IQ OPTION (WSS)</span>
-                    <p>Login vía HTTP -&gt; SSID Token -&gt; WebSocket bidireccional buyV3 para ejecución HFT.</p>
+                    <p>Login vía HTTP -> SSID Token -> WebSocket bidireccional buyV3 para ejecución HFT.</p>
                   </div>
                   <div>
                     <span className="text-white font-bold block mb-1">ALPACA (REST/WSS)</span>

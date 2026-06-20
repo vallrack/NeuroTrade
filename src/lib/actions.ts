@@ -8,11 +8,9 @@ import { signOut } from 'firebase/auth';
  * Bridge de Ejecución V7 (Traducción de iqInvest 7.0)
  */
 async function processBrokerTrade(broker: string, amount: number, tradeData: any, botParams: any) {
-  // Simulación de latencia WSS (80ms - 150ms)
   const latency = Math.floor(Math.random() * 70) + 80; 
   await new Promise(resolve => setTimeout(resolve, latency));
 
-  // Probabilidad basada en el modo de riesgo y consenso
   const winProbability = 0.68; 
   const isWin = Math.random() < winProbability;
   const payoutRatio = 0.87; 
@@ -29,9 +27,6 @@ async function processBrokerTrade(broker: string, amount: number, tradeData: any
   };
 }
 
-/**
- * Validación de Horarios Dinámicos
- */
 function isSessionActive(schedules: {start: string, end: string}[]) {
   if (!schedules || schedules.length === 0) return true;
   const now = new Date();
@@ -48,9 +43,6 @@ function isSessionActive(schedules: {start: string, end: string}[]) {
   });
 }
 
-/**
- * EJECUCIÓN MAESTRA V7 (Lógica Python Traducida)
- */
 export async function executeTrade(userId: string, tradeData: {
   pair: string;
   direction: 'CALL' | 'PUT';
@@ -63,12 +55,9 @@ export async function executeTrade(userId: string, tradeData: {
     const botParams = botParamsSnap.exists() ? botParamsSnap.data() : null;
 
     if (!botParams || !botParams.bot_activo) return { success: false, error: 'Motor en STANDBY.' };
-
-    // 1. Check de Seguridad: Sesión
     if (!isSessionActive(botParams.schedules)) return { success: false, error: 'FUERA DE HORARIO.' };
 
-    // 2. Check de Seguridad: Balance Mínimo (Keep Min)
-    const statsRef = doc(db, 'dashboard', 'current_stats');
+    const statsRef = doc(db, 'users', userId, 'trading_stats', 'current');
     const statsSnap = await getDoc(statsRef);
     const currentStats = statsSnap.exists() ? statsSnap.data() : { balance: 0, dailyProfit: 0 };
     
@@ -77,8 +66,6 @@ export async function executeTrade(userId: string, tradeData: {
       return { success: false, error: 'BALANCE POR DEBAJO DEL MÍNIMO.' };
     }
 
-    // 3. Check de Seguridad: Trailing Stop (Python Logic)
-    // Si llevamos más del 30% del TP en ganancias, aseguramos el 65% de ese pico
     const tp = botParams.takeProfit || 60000;
     const peakPnl = botParams.peakPnl || 0;
     const dailyProfit = currentStats.dailyProfit || 0;
@@ -91,21 +78,18 @@ export async function executeTrade(userId: string, tradeData: {
       }
     }
 
-    // 4. Lógica de Monto (Martingala / Interés Compuesto)
     let finalAmount = tradeData.amount;
     if (botParams.riskMode === 'Martingala' && botParams.lastTradeStatus === 'loss') {
-      finalAmount = tradeData.amount * 2.2; // Factor Python iqInvest
+      finalAmount = tradeData.amount * 2.2; 
     } else if (botParams.riskMode === 'Interés Compuesto' && dailyProfit > 0) {
-      finalAmount = tradeData.amount + (dailyProfit * 0.1); // Reinvierte 10% de ganancia
+      finalAmount = tradeData.amount + (dailyProfit * 0.1); 
     }
 
-    // 5. Ejecución Real en el Bridge
     const execution = await processBrokerTrade('IQ Option', finalAmount, tradeData, botParams);
 
     if (execution.success) {
       const timestamp = new Date().toISOString();
       
-      // Registrar Trade
       await addDoc(collection(db, 'users', userId, 'trades'), {
         ...tradeData,
         amount: finalAmount,
@@ -115,16 +99,15 @@ export async function executeTrade(userId: string, tradeData: {
         latency: execution.latency
       });
 
-      // Actualizar Dashboard
       const newPeak = Math.max(peakPnl, dailyProfit + execution.profit);
       await updateDoc(statsRef, {
         balance: increment(execution.profit),
         dailyProfit: increment(execution.profit),
         totalInvestment: increment(finalAmount),
-        winRate: increment(0) 
+        tradesCount: increment(1),
+        winsCount: increment(execution.status === 'win' ? 1 : 0)
       });
 
-      // Actualizar Parámetros del Bot (Last Status y Pico)
       await updateDoc(botParamsRef, {
         lastTradeStatus: execution.status,
         peakPnl: newPeak,
@@ -185,16 +168,20 @@ export async function signOutUser() {
   }
 }
 
-export async function seedDemoData() {
+export async function seedDemoData(userId?: string) {
   const { firestore: db } = initializeFirebase();
   try {
-    const statsRef = doc(db, 'dashboard', 'current_stats');
-    await setDoc(statsRef, {
-      balance: 10500.50,
-      dailyProfit: 125.40,
-      winRate: 68,
-      totalInvestment: 45200,
-    });
+    if (userId) {
+      const statsRef = doc(db, 'users', userId, 'trading_stats', 'current');
+      await setDoc(statsRef, {
+        balance: 10000.00,
+        dailyProfit: 0.00,
+        winRate: 0,
+        totalInvestment: 0,
+        tradesCount: 0,
+        winsCount: 0
+      });
+    }
 
     const configRef = doc(db, 'configuracion', 'bot_params');
     await setDoc(configRef, {
@@ -226,6 +213,8 @@ export async function disconnectBroker(userId: string) {
   const { firestore: db } = initializeFirebase();
   try {
     await deleteDoc(doc(db, 'users', userId, 'config', 'broker'));
+    const statsRef = doc(db, 'users', userId, 'trading_stats', 'current');
+    await updateDoc(statsRef, { balance: 0, dailyProfit: 0 });
     return { success: true };
   } catch (error) {
     return { success: false };

@@ -30,14 +30,15 @@ export function SuperAdminTools() {
   };
 
   const handleSeedData = async () => {
+    if (!user) return;
     setSeeding(true);
-    const result = await seedDemoData();
+    const result = await seedDemoData(user.uid);
     setSeeding(false);
     
     if (result.success) {
       toast({
         title: "NÚCLEO V7 SINCRONIZADO",
-        description: "Los valores maestros de la imagen V7 han sido cargados en el sistema.",
+        description: "Los valores maestros de la imagen V7 han sido cargados en tu perfil.",
       });
     }
   };

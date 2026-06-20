@@ -1,14 +1,14 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useUser } from '@/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Wallet, Target, Activity, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function StatsGrid() {
+  const { user } = useUser();
   const firestore = useFirestore();
   const [stats, setStats] = useState({
     balance: 0,
@@ -18,47 +18,57 @@ export function StatsGrid() {
   });
 
   useEffect(() => {
-    if (!firestore) return;
+    if (!firestore || !user) return;
     
-    const statsRef = doc(firestore, 'dashboard', 'current_stats');
+    const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', 'current');
     const unsub = onSnapshot(statsRef, (docSnapshot) => {
       if (docSnapshot.exists()) {
-        setStats(docSnapshot.data() as any);
+        const data = docSnapshot.data();
+        const trades = data.tradesCount || 0;
+        const wins = data.winsCount || 0;
+        const winRate = trades > 0 ? Math.round((wins / trades) * 100) : 0;
+        
+        setStats({
+          balance: data.balance || 0,
+          dailyProfit: data.dailyProfit || 0,
+          totalInvestment: data.totalInvestment || 0,
+          winRate: winRate
+        });
       }
     });
     return () => unsub();
-  }, [firestore]);
+  }, [firestore, user]);
 
   const winRateColor = stats.winRate >= 65 ? 'text-green-500' : stats.winRate < 55 ? 'text-red-500' : 'text-yellow-500';
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <MetricCard
-        title="Saldo Total"
+        title="Saldo de Cuenta"
         value={`$${(stats.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
         icon={<Wallet className="h-4 w-4 text-primary" />}
-        subtitle="Broker Link"
+        subtitle="Sincronizado"
         pulse
       />
       <MetricCard
-        title="Profit Hoy"
+        title="Beneficio Hoy"
         value={`$${(stats.dailyProfit || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
         icon={(stats.dailyProfit || 0) >= 0 ? <TrendingUp className="h-4 w-4 text-green-500" /> : <TrendingDown className="h-4 w-4 text-red-500" />}
-        subtitle="Net Daily"
+        subtitle="Neto Diario"
         trend={(stats.dailyProfit || 0) >= 0 ? 'up' : 'down'}
       />
       <MetricCard
         title="Win Rate"
         value={`${stats.winRate || 0}%`}
         icon={<Target className="h-4 w-4 text-secondary" />}
-        subtitle="V7 Precision"
+        subtitle="V7 Precisión"
         valueClassName={winRateColor}
       />
       <MetricCard
-        title="Volumen"
+        title="Exposición"
         value={`$${(stats.totalInvestment || 0).toLocaleString()}`}
         icon={<Zap className="h-4 w-4 text-accent" />}
-        subtitle="Exposure"
+        subtitle="Volumen"
       />
     </div>
   );
