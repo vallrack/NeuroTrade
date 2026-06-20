@@ -21,6 +21,7 @@
         "provider": { "type": "string" },
         "email": { "type": "string" },
         "password": { "type": "string" },
+        "accountType": { "type": "string", "enum": ["demo", "real"] },
         "status": { "type": "string", "enum": ["connected", "pending", "disconnected"] },
         "connectedAt": { "type": "string", "format": "date-time" }
       }
@@ -48,7 +49,8 @@
         "amount": { "type": "number" },
         "status": { "type": "string", "enum": ["win", "loss", "pending"] },
         "timestamp": { "type": "string", "format": "date-time" },
-        "profit": { "type": "number" }
+        "profit": { "type": "number" },
+        "accountType": { "type": "string" }
       }
     },
     "DailyEquity": {

@@ -19,11 +19,17 @@ export async function executeTrade(userId: string, tradeData: {
     const profit = isWin ? tradeData.amount * 0.85 : -tradeData.amount;
     const status = isWin ? 'win' : 'loss';
 
+    // Obtener info del bróker para saber el tipo de cuenta
+    const brokerRef = doc(db, 'users', userId, 'config', 'broker');
+    const brokerSnap = await getDoc(brokerRef);
+    const accountType = brokerSnap.exists() ? brokerSnap.data().accountType : 'unknown';
+
     // 1. Guardar el trade
     await addDoc(collection(db, 'users', userId, 'trades'), {
       ...tradeData,
       status,
       profit,
+      accountType,
       timestamp: new Date().toISOString()
     });
 
@@ -126,7 +132,6 @@ export async function disconnectBroker(userId: string) {
   const { firestore: db } = getFirebase();
   try {
     const brokerRef = doc(db, 'users', userId, 'config', 'broker');
-    // Usamos deleteDoc para asegurar que no queden residuos en la base de datos
     await deleteDoc(brokerRef);
     return { success: true };
   } catch (error) {
