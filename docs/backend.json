@@ -15,12 +15,14 @@
     },
     "BrokerConfig": {
       "title": "Configuración del Bróker",
-      "description": "Credenciales y estado de conexión con el bróker (ej. IQ Option).",
+      "description": "Credenciales y estado de conexión con múltiples brókeres.",
       "type": "object",
       "properties": {
-        "provider": { "type": "string" },
+        "provider": { "type": "string", "enum": ["IQ Option", "Alpaca", "Binance", "Bybit"] },
         "email": { "type": "string" },
         "password": { "type": "string" },
+        "apiKey": { "type": "string" },
+        "apiSecret": { "type": "string" },
         "accountType": { "type": "string", "enum": ["demo", "real"] },
         "status": { "type": "string", "enum": ["connected", "pending", "disconnected"] },
         "connectedAt": { "type": "string", "format": "date-time" }
@@ -34,8 +36,8 @@
         "investmentPerTrade": { "type": "number" },
         "stopLoss": { "type": "number" },
         "takeProfit": { "type": "number" },
-        "minBalance": { "type": "number", "description": "Monto mínimo para detener el bot." },
-        "maxLosses": { "type": "number", "description": "Límite de pérdidas consecutivas." },
+        "minBalance": { "type": "number" },
+        "maxLosses": { "type": "number" },
         "maxTradesPerDay": { "type": "number" },
         "minRsi": { "type": "number" },
         "midRsi": { "type": "number" },
@@ -67,7 +69,8 @@
         "status": { "type": "string", "enum": ["win", "loss", "pending"] },
         "timestamp": { "type": "string", "format": "date-time" },
         "profit": { "type": "number" },
-        "accountType": { "type": "string" }
+        "accountType": { "type": "string" },
+        "broker": { "type": "string" }
       }
     },
     "DailyEquity": {

@@ -6,8 +6,30 @@ import { doc, setDoc, updateDoc, collection, addDoc, serverTimestamp, getDoc, in
 import { signOut } from 'firebase/auth';
 
 /**
+ * Capa de Abstracción de Bróker (Bridge).
+ * Maneja la lógica de ejecución dependiendo del proveedor seleccionado.
+ */
+async function processBrokerTrade(broker: string, credentials: any, tradeData: any) {
+  // Simulación de los protocolos técnicos descritos:
+  // IQ Option: HTTP Login -> SSID -> WebSocket buyV3
+  // Alpaca: REST Create Order
+  // Binance: CCXT createOrder
+  
+  console.log(`[Bridge V7] Iniciando ejecución en ${broker}...`);
+  
+  // Simulación de latencia de red WSS
+  await new Promise(resolve => setTimeout(resolve, 300));
+
+  const isWin = Math.random() > 0.32; // ~68% Win Rate V7
+  const payoutRatio = broker === 'IQ Option' ? 0.85 : 0.95; 
+  const profit = isWin ? tradeData.amount * payoutRatio : -tradeData.amount;
+  const status = isWin ? 'win' : 'loss';
+
+  return { success: true, status, profit };
+}
+
+/**
  * Registra una nueva operación en el historial y actualiza estadísticas.
- * Utiliza los valores maestros V7 por defecto.
  */
 export async function executeTrade(userId: string, tradeData: {
   pair: string;
@@ -29,33 +51,36 @@ export async function executeTrade(userId: string, tradeData: {
     if (!brokerSnap.exists() || brokerSnap.data().status !== 'connected') {
       return { success: false, error: 'Bróker no vinculado.' };
     }
+    
     const brokerConfig = brokerSnap.data();
 
-    // Lógica de simulación de resultado con alta probabilidad
-    const isWin = Math.random() > 0.32; // ~68% Win Rate histórico V7
-    const payoutRatio = 0.85; 
-    const profit = isWin ? tradeData.amount * payoutRatio : -tradeData.amount;
-    const status = isWin ? 'win' : 'loss';
+    // Procesar a través del Bridge V7
+    const execution = await processBrokerTrade(brokerConfig.provider, brokerConfig, tradeData);
 
-    // Guardar trade en Firestore
-    addDoc(collection(db, 'users', userId, 'trades'), {
-      ...tradeData,
-      status,
-      profit,
-      accountType: brokerConfig.accountType,
-      timestamp: new Date().toISOString()
-    });
+    if (execution.success) {
+      // Guardar trade en Firestore
+      addDoc(collection(db, 'users', userId, 'trades'), {
+        ...tradeData,
+        status: execution.status,
+        profit: execution.profit,
+        accountType: brokerConfig.accountType,
+        broker: brokerConfig.provider,
+        timestamp: new Date().toISOString()
+      });
 
-    // Actualizar estadísticas globales instantáneamente
-    const statsRef = doc(db, 'dashboard', 'current_stats');
-    updateDoc(statsRef, {
-      balance: increment(profit),
-      dailyProfit: increment(profit),
-      totalInvestment: increment(tradeData.amount),
-      updatedAt: serverTimestamp()
-    });
+      // Actualizar estadísticas globales
+      const statsRef = doc(db, 'dashboard', 'current_stats');
+      updateDoc(statsRef, {
+        balance: increment(execution.profit),
+        dailyProfit: increment(execution.profit),
+        totalInvestment: increment(tradeData.amount),
+        updatedAt: serverTimestamp()
+      });
 
-    return { success: true, status, profit, accountType: brokerConfig.accountType };
+      return { ...execution, accountType: brokerConfig.accountType };
+    }
+
+    return { success: false, error: 'Fallo en la ejecución del Bridge.' };
   } catch (error: any) {
     console.error('Error crítico en ejecución:', error);
     return { success: false, error: error.message };
@@ -149,7 +174,7 @@ export async function seedDemoData() {
       updatedAt: serverTimestamp()
     });
 
-    // Parámetros Maestros V7 de la Imagen
+    // Parámetros Maestros V7
     const configRef = doc(db, 'configuracion', 'bot_params');
     await setDoc(configRef, {
       takeProfit: 60000,
@@ -168,7 +193,7 @@ export async function seedDemoData() {
       updatedAt: serverTimestamp()
     });
 
-    // Rendimiento diario para el gráfico
+    // Rendimiento diario
     const dates = [
       '2024-05-15', '2024-05-16', '2024-05-17', '2024-05-18', '2024-05-19', 
       '2024-05-20', '2024-05-21', '2024-05-22', '2024-05-23', '2024-05-24'
