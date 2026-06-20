@@ -44,7 +44,7 @@ export default function LoginPage() {
           await updateProfile(user, { displayName });
         }
 
-        // Registro de perfil inicial en Firestore (No bloqueante)
+        // Crear perfil inicial
         const userRef = doc(firestore, 'users', user.uid);
         const userData = {
           email: user.email,
@@ -54,15 +54,14 @@ export default function LoginPage() {
           lastActive: serverTimestamp(),
         };
 
-        setDoc(userRef, userData, { merge: true })
-          .catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
-              path: userRef.path,
-              operation: 'create',
-              requestResourceData: userData,
-            } satisfies SecurityRuleContext);
-            errorEmitter.emit('permission-error', permissionError);
-          });
+        await setDoc(userRef, userData, { merge: true }).catch(async (serverError) => {
+          const permissionError = new FirestorePermissionError({
+            path: userRef.path,
+            operation: 'create',
+            requestResourceData: userData,
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        });
 
         toast({
           title: "OPERADOR REGISTRADO",
@@ -73,29 +72,27 @@ export default function LoginPage() {
         user = userCredential.user;
       }
 
-      // Establecer cookie de sesión de forma segura
       if (user) {
         const token = await user.getIdToken();
-        // Cookie caduca en 1 hora
-        document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax; Secure`;
+        // Establecer cookie con parámetros compatibles para desarrollo
+        document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
         
-        // Redirección forzada para asegurar que el middleware vea la cookie
-        const from = searchParams.get('from') || '/dashboard';
-        window.location.href = from;
+        // Pequeña pausa para asegurar que la cookie se guarde
+        setTimeout(() => {
+          const from = searchParams.get('from') || '/dashboard';
+          window.location.href = from;
+        }, 100);
       }
     } catch (err: any) {
+      console.error(err);
       let message = 'Fallo en el protocolo de autenticación.';
-      
       if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
         message = 'ID o Protocolo de Seguridad incorrecto.';
       } else if (err.code === 'auth/email-already-in-use') {
         message = 'El ID de operador ya está activo.';
       } else if (err.code === 'auth/weak-password') {
         message = 'Seguridad insuficiente (mín. 6 caracteres).';
-      } else if (err.code === 'auth/too-many-requests') {
-        message = 'Demasiados intentos. Terminal bloqueada temporalmente.';
       }
-      
       setError(message);
     } finally {
       setLoading(false);
