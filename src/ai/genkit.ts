@@ -4,5 +4,5 @@ import { googleAI } from '@genkit-ai/google-genai';
 
 export const ai = genkit({
   plugins: [googleAI()],
-  model: 'googleai/gemini-1.5-flash', // Identificador estable garantizado para la API de Google AI
+  model: 'googleai/gemini-1.5-flash-002', // Identificador estable actualizado para evitar errores 404
 });
