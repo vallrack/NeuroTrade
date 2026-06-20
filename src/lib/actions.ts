@@ -1,3 +1,4 @@
+
 'use client';
 
 import { initializeFirebase } from '@/firebase';
@@ -7,19 +8,25 @@ import { signOut } from 'firebase/auth';
 /**
  * Capa de Abstracción de Bróker (Bridge V7).
  * Simula la respuesta de ejecución HFT tras el login v2 y apertura de WebSocket.
- * Aquí es donde traduciremos tu lógica de conexión de Python.
+ * Implementa lógica de Martingala y Gestión de Riesgo.
  */
-async function processBrokerTrade(broker: string, credentials: any, tradeData: any) {
+async function processBrokerTrade(broker: string, credentials: any, tradeData: any, riskConfig: any) {
   // Simulación de latencia de red WSS real (80ms - 150ms)
   const latency = Math.floor(Math.random() * 70) + 80; 
   await new Promise(resolve => setTimeout(resolve, latency));
 
-  // Algoritmo de probabilidad V7: En un bot real, esto vendría del resultado del broker
+  // Algoritmo de probabilidad V7
   const winProbability = 0.65; 
   const isWin = Math.random() < winProbability;
   const payoutRatio = 0.87; 
+  
   const profit = isWin ? tradeData.amount * payoutRatio : -tradeData.amount;
   const status = isWin ? 'win' : 'loss';
+
+  // Si Telegram está configurado, podríamos disparar una notificación aquí
+  if (riskConfig.tgToken && riskConfig.tgChatId) {
+    console.log(`[BOT] Enviando señal a Telegram: ${tradeData.pair} ${tradeData.direction}`);
+  }
 
   return { 
     success: true, 
@@ -28,6 +35,21 @@ async function processBrokerTrade(broker: string, credentials: any, tradeData: a
     latency: `${latency}ms`,
     executionTime: new Date().toISOString()
   };
+}
+
+/**
+ * Verifica si estamos en horario de operación permitido.
+ */
+function isSessionActive(schedules: {start: string, end: string}[]) {
+  if (!schedules || schedules.length === 0) return true;
+  const now = new Date();
+  const currentHour = now.getHours();
+  
+  return schedules.some(s => {
+    const start = parseInt(s.start);
+    const end = parseInt(s.end);
+    return currentHour >= start && currentHour < end;
+  });
 }
 
 /**
@@ -48,6 +70,11 @@ export async function executeTrade(userId: string, tradeData: {
       return { success: false, error: 'Motor de IA en STANDBY.' };
     }
 
+    // Validación de Horarios (Parte 2 de Python)
+    if (botParams?.schedules && !isSessionActive(botParams.schedules)) {
+      return { success: false, error: 'FUERA DE VENTANA OPERATIVA.' };
+    }
+
     const brokerRef = doc(db, 'users', userId, 'config', 'broker');
     const brokerSnap = await getDoc(brokerRef);
     if (!brokerSnap.exists() || brokerSnap.data().status !== 'connected') {
@@ -56,16 +83,32 @@ export async function executeTrade(userId: string, tradeData: {
     
     const brokerConfig = brokerSnap.data();
 
+    // 1. Verificar Balance Mínimo de Seguridad (Parte 2)
+    const statsRef = doc(db, 'dashboard', 'current_stats');
+    const statsSnap = await getDoc(statsRef);
+    const currentStats = statsSnap.exists() ? statsSnap.data() : { balance: 10000 };
+    
+    if (botParams?.minBalance && currentStats.balance < botParams.minBalance) {
+      return { success: false, error: 'SALDO POR DEBAJO DEL MÍNIMO DE SEGURIDAD.' };
+    }
+
+    // 2. Lógica de Monto Dinámico (Martingala / Compuesto)
+    let finalAmount = tradeData.amount;
+    if (botParams?.riskMode === 'Martingala' && botParams.lastTradeStatus === 'loss') {
+      finalAmount = tradeData.amount * 2.2; // Multiplicador estándar Martingala
+    }
+
     // Ejecución a través del Bridge Cuántico
-    const execution = await processBrokerTrade(brokerConfig.provider, brokerConfig, tradeData);
+    const execution = await processBrokerTrade(brokerConfig.provider, brokerConfig, { ...tradeData, amount: finalAmount }, botParams);
 
     if (execution.success) {
       const timestamp = new Date().toISOString();
       const dateId = timestamp.split('T')[0].replace(/-/g, '');
 
-      // 1. Guardar trade en historial de usuario
+      // Guardar trade
       await addDoc(collection(db, 'users', userId, 'trades'), {
         ...tradeData,
+        amount: finalAmount,
         status: execution.status,
         profit: execution.profit,
         accountType: brokerConfig.accountType,
@@ -74,11 +117,7 @@ export async function executeTrade(userId: string, tradeData: {
         timestamp
       });
 
-      // 2. Actualizar estadísticas globales del Dashboard
-      const statsRef = doc(db, 'dashboard', 'current_stats');
-      const statsSnap = await getDoc(statsRef);
-      const currentStats = statsSnap.exists() ? statsSnap.data() : { winRate: 0, totalTrades: 0, wins: 0, balance: 10000 };
-      
+      // Actualizar estadísticas globales
       const newTotalTrades = (currentStats.totalTrades || 0) + 1;
       const newWins = (currentStats.wins || 0) + (execution.status === 'win' ? 1 : 0);
       const newWinRate = Math.round((newWins / newTotalTrades) * 100);
@@ -86,22 +125,18 @@ export async function executeTrade(userId: string, tradeData: {
       await updateDoc(statsRef, {
         balance: increment(execution.profit),
         dailyProfit: increment(execution.profit),
-        totalInvestment: increment(tradeData.amount),
+        totalInvestment: increment(finalAmount),
         totalTrades: newTotalTrades,
         wins: newWins,
         winRate: newWinRate,
         updatedAt: serverTimestamp()
       });
 
-      // 3. Actualizar registro de equidad diaria
-      const equityRef = doc(db, 'rendimiento_diario', dateId);
-      const equitySnap = await getDoc(equityRef);
-      if (equitySnap.exists()) {
-        await updateDoc(equityRef, { equity: increment(execution.profit) });
-      } else {
-        const currentBalance = currentStats.balance || 10000;
-        await setDoc(equityRef, { date: timestamp.split('T')[0], equity: currentBalance + execution.profit });
-      }
+      // Actualizar estado para la próxima Martingala
+      await updateDoc(botParamsRef, {
+        lastTradeStatus: execution.status,
+        updatedAt: serverTimestamp()
+      });
 
       return { ...execution, accountType: brokerConfig.accountType };
     }
@@ -203,8 +238,10 @@ export async function seedDemoData() {
       midRsi: 38,
       maxRsi: 62,
       martingale: false,
+      riskMode: 'Fijo',
+      newsFilter: true,
       pairs: ['EURUSD-OTC', 'GBPUSD-OTC', 'BTCUSD'],
-      schedules: [{start: '07:00', end: '23:00'}],
+      schedules: [{start: '07', end: '23'}],
       bot_activo: true,
       updatedAt: serverTimestamp()
     });

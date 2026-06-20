@@ -42,7 +42,11 @@
         "minRsi": { "type": "number" },
         "midRsi": { "type": "number" },
         "maxRsi": { "type": "number" },
-        "martingale": { "boolean": "boolean" },
+        "martingale": { "type": "boolean" },
+        "riskMode": { "type": "string", "enum": ["Fijo", "Interés Compuesto", "Martingala"] },
+        "newsFilter": { "type": "boolean" },
+        "tgToken": { "type": "string" },
+        "tgChatId": { "type": "string" },
         "pairs": { "type": "array", "items": { "type": "string" } },
         "schedules": { 
           "type": "array", 

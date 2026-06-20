@@ -11,10 +11,12 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Settings2, Cpu, Loader2, RefreshCw, Zap, Clock, ShieldAlert, 
   Target, Plus, Trash2, Sliders, Globe, Activity, Landmark, ShieldCheck, 
-  Wallet, Gauge, BarChart3, Info
+  Wallet, Gauge, BarChart3, Info, Send, ShieldPlus
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -46,6 +48,10 @@ export default function SettingsV7Page() {
   const [midRsi, setMidRsi] = useState('38');
   const [maxRsi, setMaxRsi] = useState('62');
   const [martingale, setMartingale] = useState(false);
+  const [riskMode, setRiskMode] = useState('Fijo');
+  const [newsFilter, setNewsFilter] = useState(true);
+  const [tgToken, setTgToken] = useState('');
+  const [tgChatId, setTgChatId] = useState('');
   const [pairs, setPairs] = useState<string[]>(['EURUSD-OTC', 'GBPUSD-OTC']);
   const [newPair, setNewPair] = useState('');
   const [schedules, setSchedules] = useState<{start: string, end: string}[]>([]);
@@ -63,8 +69,12 @@ export default function SettingsV7Page() {
       setMidRsi(botParams.midRsi?.toString() || '38');
       setMaxRsi(botParams.maxRsi?.toString() || '62');
       setMartingale(!!botParams.martingale);
+      setRiskMode(botParams.riskMode || 'Fijo');
+      setNewsFilter(botParams.newsFilter !== undefined ? botParams.newsFilter : true);
+      setTgToken(botParams.tgToken || '');
+      setTgChatId(botParams.tgChatId || '');
       setPairs(botParams.pairs || ['EURUSD-OTC', 'GBPUSD-OTC']);
-      setSchedules(botParams.schedules || [{start: '07:00', end: '09:00'}]);
+      setSchedules(botParams.schedules || [{start: '07:00', end: '23:00'}]);
     }
   }, [botParams, isEditing]);
 
@@ -91,6 +101,10 @@ export default function SettingsV7Page() {
       midRsi: parseFloat(midRsi),
       maxRsi: parseFloat(maxRsi),
       martingale,
+      riskMode,
+      newsFilter,
+      tgToken,
+      tgChatId,
       pairs,
       schedules
     };
@@ -159,7 +173,7 @@ export default function SettingsV7Page() {
             <form onSubmit={handleSave} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-24 md:pb-32">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
                 
-                {/* COLUMNA 1: ACCESO Y GESTIÓN DE CAPITAL */}
+                {/* COLUMNA 1: ACCESO Y RIESGO */}
                 <div className="space-y-6">
                   <Card className="bg-card/30 border-white/5 backdrop-blur-md overflow-hidden">
                     <CardHeader className="bg-primary/5 pb-4">
@@ -192,41 +206,63 @@ export default function SettingsV7Page() {
                   </Card>
 
                   <Card className="bg-card/30 border-white/5 backdrop-blur-md overflow-hidden">
-                    <CardHeader className="bg-primary/5 pb-4">
+                    <CardHeader className="bg-secondary/5 pb-4">
                       <CardTitle className="text-xs md:text-sm font-headline flex items-center gap-2 uppercase">
-                        <Wallet className="h-4 w-4 text-primary" />
-                        Gestión Capital
+                        <ShieldPlus className="h-4 w-4 text-secondary" />
+                        Estrategia de Riesgo
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-6 space-y-4">
                       <div className="space-y-4">
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Take Profit ($)</Label>
-                          <Input 
-                            type="number" 
-                            value={takeProfit} 
-                            onChange={e => {setTakeProfit(e.target.value); setIsEditing(true);}} 
-                            className="bg-zinc-900/50 border-white/10 h-10 md:h-11 text-green-500 font-bold text-sm"
-                          />
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Modo de Operación</Label>
+                          <Select value={riskMode} onValueChange={v => {setRiskMode(v); setIsEditing(true);}}>
+                            <SelectTrigger className="bg-zinc-900/50 border-white/10 h-10 md:h-11 text-xs">
+                              <SelectValue placeholder="Seleccione modo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Fijo">Fijo (Standard)</SelectItem>
+                              <SelectItem value="Interés Compuesto">Interés Compuesto</SelectItem>
+                              <SelectItem value="Martingala">Martingala (Riesgo Alto)</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Stop Loss ($)</Label>
-                          <Input 
-                            type="number" 
-                            value={stopLoss} 
-                            onChange={e => {setStopLoss(e.target.value); setIsEditing(true);}} 
-                            className="bg-zinc-900/50 border-white/10 h-10 md:h-11 text-red-500 font-bold text-sm"
-                          />
+                        <div className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-white/10">
+                          <div className="space-y-0.5">
+                            <Label className="text-[10px] font-bold uppercase">Filtro Noticias</Label>
+                            <p className="text-[8px] text-muted-foreground">Pausa ±15 min (3 Toros)</p>
+                          </div>
+                          <Switch checked={newsFilter} onCheckedChange={v => {setNewsFilter(v); setIsEditing(true);}} />
                         </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Balance Mínimo ($)</Label>
-                          <Input 
-                            type="number" 
-                            value={minBalance} 
-                            onChange={e => {setMinBalance(e.target.value); setIsEditing(true);}} 
-                            className="bg-zinc-900/50 border-white/10 h-10 md:h-11 font-bold text-sm"
-                          />
-                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-card/30 border-white/5 backdrop-blur-md overflow-hidden">
+                    <CardHeader className="bg-blue-500/5 pb-4">
+                      <CardTitle className="text-xs md:text-sm font-headline flex items-center gap-2 uppercase">
+                        <Send className="h-4 w-4 text-blue-500" />
+                        Notificaciones Telegram
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-6 space-y-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Bot Token</Label>
+                        <Input 
+                          placeholder="ABC:123-token" 
+                          value={tgToken} 
+                          onChange={e => {setTgToken(e.target.value); setIsEditing(true);}} 
+                          className="bg-zinc-900/50 border-white/10 h-10 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Chat ID</Label>
+                        <Input 
+                          placeholder="987654321" 
+                          value={tgChatId} 
+                          onChange={e => {setTgChatId(e.target.value); setIsEditing(true);}} 
+                          className="bg-zinc-900/50 border-white/10 h-10 text-xs"
+                        />
                       </div>
                     </CardContent>
                   </Card>
@@ -252,14 +288,23 @@ export default function SettingsV7Page() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-1 gap-4">
+                      <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Pérdidas Consecutivas</Label>
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Pérdidas Cons.</Label>
                           <Input 
                             type="number" 
                             value={maxLosses} 
                             onChange={e => {setMaxLosses(e.target.value); setIsEditing(true);}} 
                             className="bg-zinc-900/50 border-white/10 h-10 text-center font-bold text-red-500"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Balance Mín.</Label>
+                          <Input 
+                            type="number" 
+                            value={minBalance} 
+                            onChange={e => {setMinBalance(e.target.value); setIsEditing(true);}} 
+                            className="bg-zinc-900/50 border-white/10 h-10 text-center font-bold"
                           />
                         </div>
                       </div>
@@ -271,15 +316,15 @@ export default function SettingsV7Page() {
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           <div className="space-y-1 text-center">
-                            <span className="text-[8px] uppercase font-bold text-muted-foreground">Mín</span>
+                            <span className="text-[8px] uppercase font-bold text-muted-foreground">Mín (Buy)</span>
                             <Input type="number" value={minRsi} onChange={e => {setMinRsi(e.target.value); setIsEditing(true);}} className="bg-zinc-900/50 border-white/10 h-9 text-center font-bold text-xs px-1" />
                           </div>
                           <div className="space-y-1 text-center">
-                            <span className="text-[8px] uppercase font-bold text-muted-foreground">Med</span>
+                            <span className="text-[8px] uppercase font-bold text-muted-foreground">Equil.</span>
                             <Input type="number" value={midRsi} onChange={e => {setMidRsi(e.target.value); setIsEditing(true);}} className="bg-zinc-900/50 border-white/10 h-9 text-center font-bold text-primary text-xs px-1" />
                           </div>
                           <div className="space-y-1 text-center">
-                            <span className="text-[8px] uppercase font-bold text-muted-foreground">Máx</span>
+                            <span className="text-[8px] uppercase font-bold text-muted-foreground">Máx (Sell)</span>
                             <Input type="number" value={maxRsi} onChange={e => {setMaxRsi(e.target.value); setIsEditing(true);}} className="bg-zinc-900/50 border-white/10 h-9 text-center font-bold text-xs px-1" />
                           </div>
                         </div>
@@ -311,7 +356,7 @@ export default function SettingsV7Page() {
                         </Button>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2 mt-2 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
+                      <div className="grid grid-cols-1 gap-2 mt-2 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
                         {pairs.map(p => (
                           <div key={p} className="flex items-center justify-between p-2.5 bg-zinc-900/40 rounded-lg border border-white/5 group">
                             <span className="text-[10px] font-bold uppercase tracking-widest text-white/90">{p}</span>
@@ -328,12 +373,12 @@ export default function SettingsV7Page() {
                     <CardHeader className="bg-primary/5 pb-4">
                       <CardTitle className="text-xs md:text-sm font-headline flex items-center gap-2 uppercase">
                         <Clock className="h-4 w-4 text-primary" />
-                        Ventanas HFT
+                        Ventanas Operativas
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-6 space-y-4">
                       <div className="flex justify-between items-center mb-1">
-                        <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">Horarios</span>
+                        <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">Horarios Autorizados</span>
                         <Button type="button" variant="outline" size="sm" onClick={addSchedule} className="h-6 text-[9px] px-2 border-primary/30 text-primary">
                           + Nueva
                         </Button>
@@ -375,7 +420,6 @@ export default function SettingsV7Page() {
                 </div>
               </div>
 
-              {/* Action Button - Sticky on Mobile */}
               <div className="fixed md:absolute bottom-4 left-4 right-4 md:bottom-8 md:right-8 md:left-auto z-40">
                 <Button 
                   type="submit" 
@@ -383,7 +427,7 @@ export default function SettingsV7Page() {
                   className="w-full md:w-auto h-14 md:h-16 px-6 md:px-10 rounded-xl md:rounded-2xl bg-primary text-white font-headline text-base md:text-lg font-bold shadow-2xl shadow-primary/30 flex items-center justify-center gap-3"
                 >
                   {loading ? <Loader2 className="h-5 w-5 md:h-6 md:w-6 animate-spin" /> : <ShieldCheck className="h-5 w-5 md:h-6 md:w-6" />}
-                  GUARDAR CONFIGURACIÓN
+                  GUARDAR CONFIGURACIÓN MAESTRA
                 </Button>
               </div>
             </form>
