@@ -2,28 +2,36 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { rtdb } from '@/firebase/client';
+import { useRTDB } from '@/firebase';
 import { ref, onValue, query, limitToLast } from 'firebase/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Terminal, Copy, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function LogConsole() {
+  const rtdb = useRTDB();
   const [logs, setLogs] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!rtdb) return;
+
     const logsRef = query(ref(rtdb, 'logs/bot_reasoning'), limitToLast(50));
     const unsub = onValue(logsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const sortedLogs = Object.values(data).sort((a: any, b: any) => a.timestamp - b.timestamp);
+        // Realtime DB objects are often keyed by unique push IDs
+        const logsArray = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+        const sortedLogs = logsArray.sort((a: any, b: any) => a.timestamp - b.timestamp);
         setLogs(sortedLogs);
       }
     });
 
     return () => unsub();
-  }, []);
+  }, [rtdb]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -48,10 +56,10 @@ export function LogConsole() {
         ref={scrollRef}
       >
         {logs.length === 0 ? (
-          <div className="text-muted-foreground animate-pulse">Esperando flujo de datos entrantes...</div>
+          <div className="text-muted-foreground animate-pulse">Esperando flujo de datos entrantes de la base de datos...</div>
         ) : (
           logs.map((log, i) => (
-            <div key={i} className={`log-entry log-entry-${log.direction?.toLowerCase() || 'none'}`}>
+            <div key={log.id || i} className={`log-entry log-entry-${log.direction?.toLowerCase() || 'none'}`}>
               <span className="text-muted-foreground">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
               {' '}
               <span className={log.agentId ? 'text-secondary font-bold' : 'text-foreground'}>

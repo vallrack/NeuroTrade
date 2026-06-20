@@ -1,14 +1,15 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { db } from '@/firebase/client';
+import { useState, useEffect, useMemo } from 'react';
+import { useFirestore } from '@/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Wallet, Target, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function StatsGrid() {
+  const firestore = useFirestore();
   const [stats, setStats] = useState({
     balance: 0,
     dailyProfit: 0,
@@ -17,13 +18,16 @@ export function StatsGrid() {
   });
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'dashboard', 'current_stats'), (docSnapshot) => {
+    if (!firestore) return;
+    
+    const statsRef = doc(firestore, 'dashboard', 'current_stats');
+    const unsub = onSnapshot(statsRef, (docSnapshot) => {
       if (docSnapshot.exists()) {
         setStats(docSnapshot.data() as any);
       }
     });
     return () => unsub();
-  }, []);
+  }, [firestore]);
 
   const winRateColor = stats.winRate >= 65 ? 'text-green-500' : stats.winRate < 55 ? 'text-red-500' : 'text-yellow-500';
 

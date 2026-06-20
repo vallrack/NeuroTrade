@@ -2,25 +2,31 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { db } from '@/firebase/client';
+import { useFirestore } from '@/firebase';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 export function EquityChart() {
+  const firestore = useFirestore();
   const [data, setData] = useState<any[]>([]);
 
   useEffect(() => {
-    const q = query(collection(db, 'rendimiento_diario'), orderBy('date', 'asc'), limit(30));
+    if (!firestore) return;
+
+    const q = query(collection(firestore, 'rendimiento_diario'), orderBy('date', 'asc'), limit(30));
     const unsub = onSnapshot(q, (snapshot) => {
-      const records = snapshot.docs.map(docSnapshot => ({
-        date: new Date(docSnapshot.data().date).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }),
-        equity: docSnapshot.data().equity
-      }));
+      const records = snapshot.docs.map(docSnapshot => {
+        const docData = docSnapshot.data();
+        return {
+          date: new Date(docData.date).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }),
+          equity: docData.equity
+        };
+      });
       setData(records);
     });
     return () => unsub();
-  }, []);
+  }, [firestore]);
 
   return (
     <Card className="col-span-1 lg:col-span-2 bg-card/50 border-white/5 backdrop-blur-md">
