@@ -4,11 +4,11 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
 import { 
-  Zap, Wifi, Layers, ArrowRight, Activity, BarChart3, 
-  TrendingUp, Maximize2, Cpu, History, ArrowUpCircle, ArrowDownCircle,
-  Clock, Filter, MousePointer2, Settings2, Share2, Info, ChevronDown,
-  Plus, Search, LineChart, Type, Pencil, Eraser, Ruler, Eye, Magnet,
-  Lock, Trash2, LayoutGrid, SquareActivity
+  Zap, Wifi, Activity, BarChart3, 
+  TrendingUp, Cpu, ArrowUpCircle, ArrowDownCircle,
+  Clock, LineChart, ChevronDown,
+  Plus, MousePointer2, Type, Pencil, Magnet,
+  Lock, Trash2, LayoutGrid, Ruler, Eye
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -147,10 +147,12 @@ export default function TerminalPage() {
     const stochKSeries = stochChart.addLineSeries({ color: '#2196f3', lineWidth: 1.5 });
     const stochDSeries = stochChart.addLineSeries({ color: '#ff9800', lineWidth: 1.5 });
 
-    // Syncronization
+    // Syncronization - FIXED: Added range null check to prevent "Value is null" error
     priceChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
-      rsiChart.timeScale().setVisibleRange(range as any);
-      stochChart.timeScale().setVisibleRange(range as any);
+      if (range) {
+        rsiChart.timeScale().setVisibleRange(range);
+        stochChart.timeScale().setVisibleRange(range);
+      }
     });
 
     const { priceData, volumeData, rsiData, stochK, stochD } = generateInitialData();
@@ -248,7 +250,7 @@ export default function TerminalPage() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset className="bg-black flex flex-col h-screen overflow-hidden">
-        {/* TOP TOOLBAR - EXACT REPLICA */}
+        {/* TOP TOOLBAR */}
         <header className="flex h-12 shrink-0 items-center justify-between px-3 border-b border-white/5 bg-[#0a0a0a] z-50">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -360,6 +362,10 @@ export default function TerminalPage() {
                    <div className="h-1 bg-white/5 rounded-full overflow-hidden">
                       <div className="h-full bg-primary w-[92%]" />
                    </div>
+                   <div className="flex justify-between items-center text-[9px] text-muted-foreground uppercase font-bold">
+                     <span>Probabilidad:</span>
+                     <span className="text-green-500">Muy Alta</span>
+                   </div>
                 </div>
 
                 <div className="space-y-2">
@@ -374,22 +380,26 @@ export default function TerminalPage() {
                          )}
                       >
                          {p}
-                         {selectedPair === p && <ArrowRight className="h-3 w-3" />}
+                         {selectedPair === p && <Zap className="h-3 w-3 text-primary animate-pulse" />}
                       </button>
                    ))}
                 </div>
 
                 <div className="space-y-2">
-                   <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest block">Últimas Señales</span>
-                   {recentTrades.map((t: any) => (
-                      <div key={t.id} className="p-3 bg-white/5 rounded-lg border border-white/5 flex flex-col gap-1">
+                   <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest block">Señales Maestro V7</span>
+                   {recentTrades.length === 0 ? (
+                     <div className="text-center py-8 text-muted-foreground text-[10px] italic">
+                       Esperando confirmación...
+                     </div>
+                   ) : recentTrades.map((t: any) => (
+                      <div key={t.id} className="p-3 bg-white/5 rounded-lg border border-white/5 flex flex-col gap-1 hover:border-primary/30 transition-colors">
                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-bold text-white">{t.pair}</span>
-                            <span className={cn("text-[9px] font-black", t.direction === 'CALL' ? 'text-green-500' : 'text-red-500')}>{t.direction}</span>
+                            <span className="text-[10px] font-bold text-white uppercase">{t.pair}</span>
+                            <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded", t.direction === 'CALL' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500')}>{t.direction}</span>
                          </div>
                          <div className="flex justify-between items-center text-[9px] text-muted-foreground">
-                            <span>${t.amount}</span>
-                            <span className={t.status === 'win' ? 'text-green-500' : 'text-red-500'}>{t.status.toUpperCase()}</span>
+                            <span className="font-code">${t.amount}</span>
+                            <span className={cn("font-bold", t.status === 'win' ? 'text-green-500' : 'text-red-500')}>{t.status.toUpperCase()}</span>
                          </div>
                       </div>
                    ))}
