@@ -33,7 +33,7 @@ export default function DashboardPage() {
   }, []);
   
   const profileRef = useMemo(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-  const { data: profile } = useDoc(profileRef);
+  const { data: profile, loading: profileLoading } = useDoc(profileRef);
 
   useEffect(() => {
     if (mounted && !authLoading && !user) {
@@ -42,35 +42,13 @@ export default function DashboardPage() {
   }, [mounted, authLoading, user, router]);
 
   const isSuperAdmin = profile?.role === 'super-admin';
-  const hasNoRole = (mounted && user && profile && !profile.role);
+  const hasNoRole = mounted && user && profile && !profile.role;
 
-  const handleInitialSetup = async () => {
-    if (!user) return;
-    setInitLoading(true);
-    try {
-      const result = await promoteToSuperAdmin(user.uid);
-      if (result.success) {
-        toast({
-          title: "SISTEMA INICIALIZADO",
-          description: "Has sido elevado a Super Administrador Maestro.",
-        });
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "ERROR DE INICIALIZACIÓN",
-        description: "No se pudo establecer el rango maestro.",
-      });
-    } finally {
-      setInitLoading(false);
-    }
-  };
-
-  if (!mounted || (authLoading && !user)) {
+  if (!mounted || authLoading) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center gap-4 bg-background">
         <Loader2 className="h-10 w-10 text-primary animate-spin" />
-        <p className="text-muted-foreground font-headline animate-pulse uppercase tracking-widest text-[10px] font-bold">Sincronizando con la Red NeuroTrade...</p>
+        <p className="text-muted-foreground font-headline animate-pulse uppercase tracking-widest text-[10px] font-bold">Iniciando Sistemas de Red...</p>
       </div>
     );
   }
@@ -94,9 +72,15 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {(hasNoRole || !profile) && user && (
+            {(hasNoRole || !profile) && !profileLoading && user && (
               <Button 
-                onClick={handleInitialSetup} 
+                onClick={() => {
+                  setInitLoading(true);
+                  promoteToSuperAdmin(user.uid).then(res => {
+                    if (res.success) toast({ title: "ACCESO MAESTRO", description: "Privilegios activados." });
+                    setInitLoading(false);
+                  });
+                }} 
                 variant="outline" 
                 size="sm" 
                 disabled={initLoading}

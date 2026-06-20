@@ -1,11 +1,11 @@
 
 'use client';
 
-import { db } from '@/firebase/client';
+import { getFirebase } from '@/firebase';
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
 
 /**
- * Actualiza la configuración global del bot usando el SDK de Cliente.
+ * Actualiza la configuración global del bot.
  */
 export async function updateBotConfig(data: {
   investmentPerTrade: number;
@@ -13,6 +13,7 @@ export async function updateBotConfig(data: {
   martingale: boolean;
   pairs: string[];
 }) {
+  const { db } = getFirebase();
   try {
     const configRef = doc(db, 'configuracion', 'bot_params');
     await setDoc(configRef, {
@@ -31,6 +32,7 @@ export async function updateBotConfig(data: {
  * Activa el apagado de emergencia del bot.
  */
 export async function triggerKillSwitch() {
+  const { db } = getFirebase();
   try {
     const configRef = doc(db, 'configuracion', 'bot_params');
     await updateDoc(configRef, {
@@ -49,6 +51,7 @@ export async function triggerKillSwitch() {
  * Promueve a un usuario al rango de Super Administrador (Maestro).
  */
 export async function promoteToSuperAdmin(userId: string) {
+  const { db } = getFirebase();
   try {
     const userRef = doc(db, 'users', userId);
     await setDoc(userRef, {
