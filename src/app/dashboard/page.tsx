@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -94,7 +93,7 @@ export default function DashboardPage() {
               </h1>
               <Badge className={`border-primary/20 gap-1.5 py-0.5 px-3 text-[10px] flex ${currentChannel === 'real' ? 'bg-secondary/20 text-secondary border-secondary/30' : 'bg-primary/20 text-primary border-primary/30'}`}>
                 <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${currentChannel === 'real' ? 'bg-secondary' : 'bg-primary'}`} />
-                ENTORNO {currentChannel.toUpperCase()}
+                MODO {currentChannel.toUpperCase()}
               </Badge>
             </div>
           </div>
@@ -125,7 +124,7 @@ export default function DashboardPage() {
                   <Activity className={`h-5 w-5 ${isBotActive ? 'animate-pulse' : ''}`} />
                 </div>
                 <div>
-                   <h2 className="font-headline font-bold text-sm md:text-base leading-none uppercase">CANAL: {currentChannel.toUpperCase()}</h2>
+                   <h2 className="font-headline font-bold text-sm md:text-base leading-none uppercase">PUENTE: {currentChannel.toUpperCase()}</h2>
                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mt-1">
                      {isBotActive ? 'Comunicación Bilateral Activa' : 'Núcleo en Hibernación'}
                    </p>
@@ -139,7 +138,7 @@ export default function DashboardPage() {
                   className="w-full sm:w-auto border-white/10 gap-2 h-9 text-xs"
                 >
                   <RefreshCw className="h-3 w-3" />
-                  Cambiar Canal
+                  Cambiar Entorno
                 </Button>
                 {hasNoRole && user && (
                   <Button 

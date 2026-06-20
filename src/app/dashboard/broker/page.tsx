@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,7 +9,6 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useDoc, useFirestore } from '@/firebase';
@@ -32,9 +30,9 @@ export default function BrokerPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [apiKey, setApiKey] = useState('');
-  const [apiSecret, setApiSecret] = useState('');
 
-  // Sincronizar credenciales si ya existen
+  const currentAccountType = brokerConfig?.accountType || 'demo';
+
   useEffect(() => {
     if (brokerConfig) {
       setProvider(brokerConfig.provider || 'IQ Option');
@@ -48,24 +46,23 @@ export default function BrokerPage() {
     
     setLoading(true);
     try {
-      // PERSISTENCIA ATÓMICA: Cambiamos el entorno en la base de datos primero
+      // Cambio Atómico de Canal
       await setDoc(brokerRef, { accountType: type }, { merge: true });
       
-      // Sincronización de estadísticas para el nuevo canal
-      const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', type);
-      const statsSnap = await getDoc(statsRef);
-      
-      if (!statsSnap.exists()) {
-        const initialBalance = type === 'demo' ? 11046.71 : 0;
-        await setDoc(statsRef, {
-          balance: initialBalance,
-          dailyProfit: 0,
-          winRate: 0,
-          totalInvestment: 0,
-          tradesCount: 0,
-          winsCount: 0,
-          lastSync: new Date().toISOString()
-        });
+      // Sincronización de Saldo para Demo si es necesario
+      if (type === 'demo') {
+        const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', 'demo');
+        const snap = await getDoc(statsRef);
+        if (!snap.exists()) {
+          await setDoc(statsRef, {
+            balance: 11046.71,
+            dailyProfit: 0,
+            winRate: 0,
+            tradesCount: 0,
+            winsCount: 0,
+            lastSync: new Date().toISOString()
+          });
+        }
       }
 
       toast({
@@ -89,46 +86,21 @@ export default function BrokerPage() {
     
     setLoading(true);
     try {
-      const currentAccountType = brokerConfig?.accountType || 'demo';
-
       await setDoc(brokerRef, {
         provider,
         email: provider === 'IQ Option' ? email : '',
         password: provider === 'IQ Option' ? password : '',
         apiKey: provider !== 'IQ Option' ? apiKey : '',
-        apiSecret: provider !== 'IQ Option' ? apiSecret : '',
-        accountType: currentAccountType,
         status: 'connected',
         connectedAt: new Date().toISOString(),
       }, { merge: true });
 
-      const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', currentAccountType);
-      const statsSnap = await getDoc(statsRef);
-      if (!statsSnap.exists()) {
-        await setDoc(statsRef, {
-          balance: currentAccountType === 'demo' ? 11046.71 : 0,
-          dailyProfit: 0,
-          winRate: 0,
-          totalInvestment: 0,
-          tradesCount: 0,
-          winsCount: 0,
-          lastSync: new Date().toISOString()
-        });
-      }
-
-      // Activar bot globalmente
-      await setDoc(doc(firestore, 'configuracion', 'bot_params'), {
-        bot_activo: true,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
       toast({
         title: "PUENTE ESTABLECIDO",
-        description: `Conexión persistente activada en canal ${currentAccountType.toUpperCase()}.`,
+        description: "Comunicación total activada con el bróker.",
       });
       
       router.push('/dashboard');
-      
     } catch (err: any) {
       toast({ title: "FALLO DE VÍNCULO", description: err.message, variant: "destructive" });
     } finally {
@@ -137,7 +109,6 @@ export default function BrokerPage() {
   };
 
   const isConnected = brokerConfig?.status === 'connected';
-  const currentAccountType = brokerConfig?.accountType || 'demo';
 
   return (
     <SidebarProvider>
@@ -194,7 +165,7 @@ export default function BrokerPage() {
                       <button
                         type="button"
                         onClick={() => handleAccountTypeChange('demo')}
-                        className={`flex items-center justify-between p-4 rounded-xl border transition-all ${currentAccountType === 'demo' ? 'bg-primary/10 border-primary ring-2 ring-primary/20' : 'bg-background/50 border-white/5 opacity-50'}`}
+                        className={`flex items-center justify-between p-4 rounded-xl border transition-all ${currentAccountType === 'demo' ? 'bg-primary/10 border-primary ring-2 ring-primary/20 opacity-100' : 'bg-background/50 border-white/5 opacity-50 hover:opacity-80'}`}
                       >
                         <div className="flex items-center gap-3">
                           <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${currentAccountType === 'demo' ? 'border-primary' : 'border-muted-foreground'}`}>
@@ -208,7 +179,7 @@ export default function BrokerPage() {
                       <button
                         type="button"
                         onClick={() => handleAccountTypeChange('real')}
-                        className={`flex items-center justify-between p-4 rounded-xl border transition-all ${currentAccountType === 'real' ? 'bg-secondary/10 border-secondary ring-2 ring-secondary/20' : 'bg-background/50 border-white/5 opacity-50'}`}
+                        className={`flex items-center justify-between p-4 rounded-xl border transition-all ${currentAccountType === 'real' ? 'bg-secondary/10 border-secondary ring-2 ring-secondary/20 opacity-100' : 'bg-background/50 border-white/5 opacity-50 hover:opacity-80'}`}
                       >
                         <div className="flex items-center gap-3">
                           <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${currentAccountType === 'real' ? 'border-secondary' : 'border-muted-foreground'}`}>
@@ -259,18 +230,11 @@ export default function BrokerPage() {
                       )}
                     </div>
                   )}
-
-                  {isConnected && (
-                    <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-2">
-                       <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Canal de Datos Activo</p>
-                       <p className="text-sm font-code text-white truncate">{email || apiKey || 'Conexión WSS Encriptada'}</p>
-                    </div>
-                  )}
                 </CardContent>
                 <CardFooter className="flex justify-between border-t border-white/5 pt-6 bg-white/5 p-6">
                    <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest flex items-center gap-2">
                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                     Bridge Latency: &lt;150ms
+                     Bridge Status: Active
                    </div>
                    {!isConnected ? (
                      <Button type="submit" disabled={loading} className="gap-2 px-10 h-12 font-headline shadow-xl shadow-primary/20">
@@ -295,8 +259,8 @@ export default function BrokerPage() {
                 </CardHeader>
                 <CardContent className="text-[11px] text-muted-foreground space-y-4">
                   <div>
-                    <span className="text-white font-bold block mb-1">IQ OPTION (WSS)</span>
-                    <p>Login vía HTTP -&gt; SSID Token -&gt; WebSocket bidireccional buyV3 para ejecución HFT.</p>
+                    <span className="text-white font-bold block mb-1">COMUNICACIÓN TOTAL</span>
+                    <p>El bot operará ininterrumpidamente en el modo elegido hasta que se detenga manualmente.</p>
                   </div>
                 </CardContent>
               </Card>

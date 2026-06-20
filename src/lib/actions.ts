@@ -5,10 +5,12 @@ import { doc, setDoc, updateDoc, collection, addDoc, serverTimestamp, getDoc, in
 import { signOut } from 'firebase/auth';
 
 /**
- * BRIDGE MAESTRO V7 - COMUNICACIÓN TOTAL DINÁMICA
- * Ejecución unilateral que distingue entre canales DEMO y REAL.
+ * PROTOCOLO MAESTRO V7 - SINCRONIZACIÓN DE BALANCE IMAGEN
+ * Valor exacto de la cuenta de práctica de IQ Option del usuario.
  */
-async function processBrokerTrade(amount: number, accountType: string) {
+const DEMO_BALANCE_MASTER = 11046.71;
+
+async function processBrokerTrade(amount: number) {
   const latency = Math.floor(Math.random() * 50) + 60; 
   await new Promise(resolve => setTimeout(resolve, latency));
 
@@ -49,9 +51,8 @@ export async function executeTrade(userId: string, tradeData: {
     const statsRef = doc(db, 'users', userId, 'trading_stats', accountType);
     const statsSnap = await getDoc(statsRef);
     
-    // El balance inicial depende del canal (Demo: $11,046.71)
     const currentStats = statsSnap.exists() ? statsSnap.data() : { 
-      balance: accountType === 'demo' ? 11046.71 : 0, 
+      balance: accountType === 'demo' ? DEMO_BALANCE_MASTER : 0, 
       dailyProfit: 0 
     };
     
@@ -61,15 +62,11 @@ export async function executeTrade(userId: string, tradeData: {
     }
 
     let finalAmount = tradeData.amount;
-    const dailyProfit = currentStats.dailyProfit || 0;
-
     if (botParams.riskMode === 'Martingala' && botParams.lastTradeStatus === 'loss') {
       finalAmount = tradeData.amount * 2.2; 
-    } else if (botParams.riskMode === 'Interés Compuesto' && dailyProfit > 0) {
-      finalAmount = tradeData.amount + (dailyProfit * 0.1); 
     }
 
-    const execution = await processBrokerTrade(finalAmount, accountType);
+    const execution = await processBrokerTrade(finalAmount);
 
     if (execution.success) {
       const timestamp = new Date().toISOString();
@@ -157,10 +154,9 @@ export async function seedDemoData(userId?: string) {
   const { firestore: db } = initializeFirebase();
   try {
     if (userId) {
-      // Sincronización absoluta DEMO
       const statsRef = doc(db, 'users', userId, 'trading_stats', 'demo');
       await setDoc(statsRef, {
-        balance: 11046.71,
+        balance: DEMO_BALANCE_MASTER,
         dailyProfit: 0.00,
         winRate: 0,
         totalInvestment: 0,
@@ -169,23 +165,16 @@ export async function seedDemoData(userId?: string) {
         lastSync: new Date().toISOString()
       }, { merge: true });
     }
+    return { success: true };
+  } catch (error) {
+    return { success: false };
+  }
+}
 
-    const configRef = doc(db, 'configuracion', 'bot_params');
-    await setDoc(configRef, {
-      takeProfit: 60000,
-      stopLoss: 8000,
-      minBalance: 2000,
-      investmentPerTrade: 4000,
-      maxTradesPerDay: 50,
-      minRsi: 20,
-      midRsi: 38,
-      maxRsi: 62,
-      riskMode: 'Fijo',
-      bot_activo: true,
-      pairs: ['EURUSD-OTC', 'GBPUSD-OTC', 'BTCUSD'],
-      schedules: []
-    });
-
+export async function disconnectBroker(userId: string) {
+  const { firestore: db } = initializeFirebase();
+  try {
+    await deleteDoc(doc(db, 'users', userId, 'config', 'broker'));
     return { success: true };
   } catch (error) {
     return { success: false };
@@ -193,18 +182,7 @@ export async function seedDemoData(userId?: string) {
 }
 
 export async function clearSystemLogs() {
+  // En una implementación real con RTDB esto borraría el nodo de logs
+  // Por ahora devolvemos éxito para el simulador del frontend
   return { success: true };
-}
-
-export async function disconnectBroker(userId: string) {
-  const { firestore: db } = initializeFirebase();
-  try {
-    await deleteDoc(doc(db, 'users', userId, 'config', 'broker'));
-    // Limpiamos ambos canales al desconectar
-    await deleteDoc(doc(db, 'users', userId, 'trading_stats', 'demo'));
-    await deleteDoc(doc(db, 'users', userId, 'trading_stats', 'real'));
-    return { success: true };
-  } catch (error) {
-    return { success: false };
-  }
 }
