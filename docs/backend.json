@@ -42,7 +42,7 @@
         "minRsi": { "type": "number" },
         "midRsi": { "type": "number" },
         "maxRsi": { "type": "number" },
-        "martingale": { "type": "boolean" },
+        "martingale": { "boolean": "boolean" },
         "pairs": { "type": "array", "items": { "type": "string" } },
         "schedules": { 
           "type": "array", 
