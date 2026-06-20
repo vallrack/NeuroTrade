@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
 import { updateBotConfig } from '@/lib/actions';
@@ -19,6 +19,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const firestore = useFirestore();
+  const isEditing = useRef(false);
   
   const botParamsRef = doc(firestore, 'configuracion', 'bot_params');
   const { data: botParams, loading: paramsLoading } = useDoc(botParamsRef);
@@ -26,8 +27,9 @@ export default function SettingsPage() {
   const [pairs, setPairs] = useState('');
   const [botActive, setBotActive] = useState(true);
 
+  // Sincronizar solo cuando no estemos editando activamente
   useEffect(() => {
-    if (botParams) {
+    if (botParams && !isEditing.current) {
       setPairs(botParams.pairs?.join(', ') || 'EUR/USD');
       setBotActive(botParams.bot_activo !== undefined ? botParams.bot_activo : true);
     }
@@ -36,8 +38,8 @@ export default function SettingsPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    isEditing.current = false;
     
-    // Procesar la cadena de texto a un array limpio
     const pairsArray = pairs
       .split(',')
       .map(s => s.trim().toUpperCase())
@@ -119,15 +121,6 @@ export default function SettingsPage() {
                         className="scale-125"
                       />
                     </div>
-                    <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
-                       <div className="flex items-center gap-3 text-xs font-bold text-primary mb-2">
-                         <Cpu className="h-4 w-4" />
-                         ESTADO: ÓPTIMO
-                       </div>
-                       <p className="text-[10px] text-muted-foreground italic leading-tight">
-                         La latencia de ejecución actual es de 12ms. El umbral de confianza del consenso está calibrado al 75% para evitar ráfagas falsas.
-                       </p>
-                    </div>
                   </CardContent>
                 </Card>
 
@@ -142,20 +135,17 @@ export default function SettingsPage() {
                       <Input 
                         id="pairs" 
                         value={pairs}
-                        onChange={(e) => setPairs(e.target.value)}
+                        onChange={(e) => {
+                          isEditing.current = true;
+                          setPairs(e.target.value);
+                        }}
+                        onBlur={() => { isEditing.current = false; }}
                         placeholder="EUR/USD, BTC/USD, GBP/JPY" 
                         className="bg-background/50 border-white/5 h-12 font-code" 
                       />
                     </div>
-                    <div className="flex flex-wrap gap-2 pt-2">
-                       {botParams?.pairs?.map((p: string) => (
-                         <Badge key={p} variant="outline" className="py-1 px-3 border-primary/30 text-primary">
-                           {p}
-                         </Badge>
-                       ))}
-                    </div>
                     <p className="text-[10px] text-muted-foreground italic mt-2">
-                      Escriba los activos que desea monitorear. El primer activo de la lista será el par principal de ejecución.
+                      Escriba los activos que desea monitorear (ej. EUR/USD, BTC/USD). La IA analizará todos simultáneamente.
                     </p>
                   </CardContent>
                 </Card>
@@ -192,13 +182,5 @@ export default function SettingsPage() {
         </main>
       </SidebarInset>
     </SidebarProvider>
-  );
-}
-
-function Badge({ children, variant, className }: any) {
-  return (
-    <div className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${className}`}>
-      {children}
-    </div>
   );
 }

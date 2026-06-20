@@ -4,10 +4,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
-import { LineChart, Activity, Globe, ShieldCheck, RefreshCw } from 'lucide-react';
+import { LineChart, Activity, Globe, ShieldCheck, RefreshCw, Layers, ArrowRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 export default function TerminalPage() {
   const container = useRef<HTMLDivElement>(null);
@@ -21,14 +23,26 @@ export default function TerminalPage() {
   const botParamsRef = doc(firestore, 'configuracion', 'bot_params');
   const { data: botParams } = useDoc(botParamsRef);
 
+  const [selectedPair, setSelectedPair] = useState('EUR/USD');
   const [activeSymbol, setActiveSymbol] = useState('FX:EURUSD');
 
   useEffect(() => {
-    if (botParams?.pairs?.[0]) {
-      const pair = botParams.pairs[0].replace('/', '');
-      setActiveSymbol(`FX:${pair}`);
+    if (botParams?.pairs && botParams.pairs.length > 0) {
+      if (!botParams.pairs.includes(selectedPair)) {
+        setSelectedPair(botParams.pairs[0]);
+      }
     }
   }, [botParams]);
+
+  useEffect(() => {
+    const cleanPair = selectedPair.replace('/', '');
+    // Mapeo básico para TradingView
+    let symbol = `FX:${cleanPair}`;
+    if (selectedPair.includes('BTC') || selectedPair.includes('ETH')) {
+      symbol = `BINANCE:${cleanPair}T`;
+    }
+    setActiveSymbol(symbol);
+  }, [selectedPair]);
 
   useEffect(() => {
     if (!container.current) return;
@@ -46,17 +60,18 @@ export default function TerminalPage() {
       "style": "1",
       "locale": "es",
       "enable_publishing": false,
-      "hide_top_toolbar": false,
       "allow_symbol_change": true,
-      "save_image": false,
       "calendar": false,
       "hide_volume": true,
-      "support_host": "https://www.tradingview.com"
+      "support_host": "https://www.tradingview.com",
+      "container_id": "tradingview_terminal_widget"
     });
     
-    container.current.innerHTML = '';
+    container.current.innerHTML = '<div id="tradingview_terminal_widget" style="height: 100%; width: 100%;"></div>';
     container.current.appendChild(script);
   }, [activeSymbol]);
+
+  const configuredPairs = botParams?.pairs || ['EUR/USD'];
 
   return (
     <SidebarProvider>
@@ -74,7 +89,7 @@ export default function TerminalPage() {
             {isConnected ? (
               <Badge className="bg-green-500/20 text-green-500 border-green-500/50 gap-1.5 py-1 px-3">
                 <Globe className="h-3 w-3" />
-                PUENTE IQ OPTION ACTIVO
+                PUENTE {brokerConfig?.accountType?.toUpperCase()} ACTIVO
               </Badge>
             ) : (
               <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/50 gap-1.5 py-1 px-3">
@@ -82,39 +97,65 @@ export default function TerminalPage() {
                 VINCULACIÓN REQUERIDA
               </Badge>
             )}
-            <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/10">
+            <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/10">
               <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
               <span className="text-[10px] font-bold text-primary tracking-widest uppercase">Live Feed</span>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 flex flex-col overflow-hidden bg-black">
-          <div className="flex-1 w-full relative" ref={container}>
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-4">
-              <RefreshCw className="h-8 w-8 animate-spin text-primary" />
-              <p className="animate-pulse font-headline">Sincronizando flujo de {activeSymbol}...</p>
+        <main className="flex-1 flex overflow-hidden bg-black">
+          {/* Selector Lateral de Activos (Estilo Plataforma) */}
+          <aside className="w-48 border-r border-white/5 bg-card/30 backdrop-blur-sm flex flex-col">
+            <div className="p-4 border-b border-white/5 flex items-center gap-2 text-muted-foreground">
+              <Layers className="h-4 w-4" />
+              <span className="text-[10px] font-bold uppercase tracking-widest">Activos</span>
             </div>
-          </div>
-          
-          <div className="h-12 border-t border-white/5 bg-card/80 backdrop-blur-md flex items-center px-6 justify-between">
-            <div className="flex gap-6 items-center">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground uppercase font-bold">Activo Principal</span>
-                <span className="text-xs font-code font-bold text-foreground">{botParams?.pairs?.[0] || 'EUR/USD'}</span>
+            <ScrollArea className="flex-1">
+              <div className="p-2 space-y-1">
+                {configuredPairs.map((pair: string) => (
+                  <button
+                    key={pair}
+                    onClick={() => setSelectedPair(pair)}
+                    className={cn(
+                      "w-full text-left px-3 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-between group",
+                      selectedPair === pair 
+                        ? "bg-primary text-white shadow-lg shadow-primary/20" 
+                        : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                    )}
+                  >
+                    <span>{pair}</span>
+                    <ArrowRight className={cn("h-3 w-3 transition-transform", selectedPair === pair ? "translate-x-0" : "-translate-x-2 opacity-0 group-hover:opacity-100 group-hover:translate-x-0")} />
+                  </button>
+                ))}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground uppercase font-bold">Latencia</span>
-                <span className="text-xs font-code font-bold text-green-500">12ms</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground uppercase font-bold">Servidor</span>
-                <span className="text-xs font-code font-bold text-primary">Quantum-NY-04</span>
+            </ScrollArea>
+          </aside>
+
+          {/* Área de Gráfico */}
+          <div className="flex-1 flex flex-col relative">
+            <div className="flex-1 w-full relative" ref={container}>
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-4 bg-black">
+                <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+                <p className="animate-pulse font-headline">Sincronizando flujo de {selectedPair}...</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-primary animate-pulse" />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-primary">IA Monitoreando {botParams?.pairs?.length || 0} clústeres...</span>
+            
+            <div className="h-10 border-t border-white/5 bg-card/80 backdrop-blur-md flex items-center px-6 justify-between shrink-0">
+              <div className="flex gap-6 items-center">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold">Activo:</span>
+                  <span className="text-xs font-code font-bold text-foreground">{selectedPair}</span>
+                </div>
+                <div className="hidden sm:flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold">Latencia:</span>
+                  <span className="text-xs font-code font-bold text-green-500">12ms</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-primary animate-pulse" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-primary">IA Escaneando mercado...</span>
+              </div>
             </div>
           </div>
         </main>
