@@ -1,17 +1,14 @@
-
 'use client';
 
 import { initializeFirebase } from './index';
 
 /**
- * Redirigimos todas las exportaciones al archivo central index.ts 
- * para evitar inicializaciones duplicadas que causan fallos de estado.
+ * Exportamos las instancias ya inicializadas desde el singleton central.
+ * Esto garantiza que cualquier importación directa use las mismas instancias que el Provider.
  */
-const { firebaseApp, firestore, auth, rtdb } = initializeFirebase();
+const instances = initializeFirebase();
 
-export { 
-  firebaseApp as app, 
-  firestore as db, 
-  auth, 
-  rtdb 
-};
+export const app = instances.firebaseApp;
+export const db = instances.firestore;
+export const auth = instances.auth;
+export const rtdb = instances.rtdb;

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
@@ -7,40 +6,40 @@ import { getAuth, Auth } from 'firebase/auth';
 import { getDatabase, Database } from 'firebase/database';
 import { firebaseConfig } from './config';
 
-let app: FirebaseApp;
-let firestore: Firestore;
-let auth: Auth;
-let rtdb: Database;
-
 /**
- * Inicializa Firebase garantizando que sea una instancia única (Singleton)
- * para evitar errores de "Unexpected state" en Firestore.
+ * Variable global para cachear las instancias y evitar inicializaciones múltiples
+ * que causan el error "Unexpected state" en Firestore.
  */
-export function initializeFirebase(): {
+let cachedInstances: {
   firebaseApp: FirebaseApp;
   firestore: Firestore;
   auth: Auth;
   rtdb: Database;
-} {
-  if (getApps().length > 0) {
-    app = getApp();
-  } else {
-    app = initializeApp(firebaseConfig);
-  }
-  
-  // Garantizamos que cada servicio se inicialice una sola vez por el ciclo de vida de la app
-  if (!firestore) firestore = getFirestore(app);
-  if (!auth) auth = getAuth(app);
-  if (!rtdb) rtdb = getDatabase(app);
+} | null = null;
 
-  return { firebaseApp: app, firestore, auth, rtdb };
+export function initializeFirebase() {
+  if (cachedInstances) {
+    return cachedInstances;
+  }
+
+  const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+  
+  // Inicializamos los servicios una sola vez por el ciclo de vida de la aplicación
+  const firestore = getFirestore(app);
+  const auth = getAuth(app);
+  const rtdb = getDatabase(app);
+
+  cachedInstances = {
+    firebaseApp: app,
+    firestore,
+    auth,
+    rtdb,
+  };
+
+  return cachedInstances;
 }
 
-// Exportamos las instancias para uso directo y hooks
-export const getFirebase = () => {
-  return initializeFirebase();
-};
-
+// Exportamos los hooks y utilidades
 export * from './provider';
 export * from './auth/use-user';
 export * from './firestore/use-collection';

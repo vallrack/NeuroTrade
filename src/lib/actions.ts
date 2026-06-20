@@ -1,7 +1,6 @@
-
 'use client';
 
-import { getFirebase } from '@/firebase';
+import { initializeFirebase } from '@/firebase';
 import { doc, setDoc, updateDoc, collection, addDoc, serverTimestamp, getDoc, increment, deleteDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 
@@ -10,11 +9,6 @@ import { signOut } from 'firebase/auth';
  * Maneja la lógica de ejecución dependiendo del proveedor seleccionado.
  */
 async function processBrokerTrade(broker: string, credentials: any, tradeData: any) {
-  // Simulación de los protocolos técnicos descritos:
-  // IQ Option: HTTP Login -> SSID -> WebSocket buyV3
-  // Alpaca: REST Create Order
-  // Binance: CCXT createOrder
-  
   console.log(`[Bridge V7] Iniciando ejecución en ${broker}...`);
   
   // Simulación de latencia de red WSS
@@ -36,7 +30,7 @@ export async function executeTrade(userId: string, tradeData: {
   direction: 'CALL' | 'PUT';
   amount: number;
 }) {
-  const { firestore: db } = getFirebase();
+  const { firestore: db } = initializeFirebase();
   try {
     const botParamsRef = doc(db, 'configuracion', 'bot_params');
     const botParamsSnap = await getDoc(botParamsRef);
@@ -59,7 +53,7 @@ export async function executeTrade(userId: string, tradeData: {
 
     if (execution.success) {
       // Guardar trade en Firestore
-      addDoc(collection(db, 'users', userId, 'trades'), {
+      await addDoc(collection(db, 'users', userId, 'trades'), {
         ...tradeData,
         status: execution.status,
         profit: execution.profit,
@@ -70,7 +64,7 @@ export async function executeTrade(userId: string, tradeData: {
 
       // Actualizar estadísticas globales
       const statsRef = doc(db, 'dashboard', 'current_stats');
-      updateDoc(statsRef, {
+      await updateDoc(statsRef, {
         balance: increment(execution.profit),
         dailyProfit: increment(execution.profit),
         totalInvestment: increment(tradeData.amount),
@@ -91,7 +85,7 @@ export async function executeTrade(userId: string, tradeData: {
  * Actualiza la configuración operativa del bot.
  */
 export async function updateBotConfig(data: any) {
-  const { firestore: db } = getFirebase();
+  const { firestore: db } = initializeFirebase();
   try {
     const configRef = doc(db, 'configuracion', 'bot_params');
     await setDoc(configRef, {
@@ -110,7 +104,7 @@ export async function updateBotConfig(data: any) {
  * Protocolo de Apagado de Emergencia.
  */
 export async function triggerKillSwitch() {
-  const { firestore: db } = getFirebase();
+  const { firestore: db } = initializeFirebase();
   try {
     const configRef = doc(db, 'configuracion', 'bot_params');
     await updateDoc(configRef, {
@@ -124,7 +118,7 @@ export async function triggerKillSwitch() {
 }
 
 export async function promoteToSuperAdmin(userId: string) {
-  const { firestore: db } = getFirebase();
+  const { firestore: db } = initializeFirebase();
   try {
     const userRef = doc(db, 'users', userId);
     await setDoc(userRef, {
@@ -138,7 +132,7 @@ export async function promoteToSuperAdmin(userId: string) {
 }
 
 export async function signOutUser() {
-  const { auth } = getFirebase();
+  const { auth } = initializeFirebase();
   try {
     await signOut(auth);
     return { success: true };
@@ -148,7 +142,7 @@ export async function signOutUser() {
 }
 
 export async function disconnectBroker(userId: string) {
-  const { firestore: db } = getFirebase();
+  const { firestore: db } = initializeFirebase();
   try {
     const brokerRef = doc(db, 'users', userId, 'config', 'broker');
     await deleteDoc(brokerRef);
@@ -162,7 +156,7 @@ export async function disconnectBroker(userId: string) {
  * Seed inicial con los VALORES MAESTROS EXACTOS de la imagen V7.
  */
 export async function seedDemoData() {
-  const { firestore: db } = getFirebase();
+  const { firestore: db } = initializeFirebase();
   try {
     // Estadísticas iniciales del Dashboard
     const statsRef = doc(db, 'dashboard', 'current_stats');
