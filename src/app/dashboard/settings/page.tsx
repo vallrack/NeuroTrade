@@ -23,13 +23,13 @@ export default function SettingsPage() {
   const botParamsRef = doc(firestore, 'configuracion', 'bot_params');
   const { data: botParams, loading: paramsLoading } = useDoc(botParamsRef);
 
-  const [pairs, setPairs] = useState('EUR/USD, BTC/USD');
+  const [pairs, setPairs] = useState('');
   const [botActive, setBotActive] = useState(true);
 
   useEffect(() => {
     if (botParams) {
       setPairs(botParams.pairs?.join(', ') || 'EUR/USD');
-      setBotActive(!!botParams.bot_activo);
+      setBotActive(botParams.bot_activo !== undefined ? botParams.bot_activo : true);
     }
   }, [botParams]);
 
@@ -37,8 +37,24 @@ export default function SettingsPage() {
     e.preventDefault();
     setLoading(true);
     
+    // Procesar la cadena de texto a un array limpio
+    const pairsArray = pairs
+      .split(',')
+      .map(s => s.trim().toUpperCase())
+      .filter(s => s !== '');
+
+    if (pairsArray.length === 0) {
+      toast({
+        title: "ERROR DE CONFIGURACIÓN",
+        description: "Debe ingresar al menos un activo (ej: EUR/USD).",
+        variant: "destructive"
+      });
+      setLoading(false);
+      return;
+    }
+
     const config = {
-      pairs: pairs.split(',').map(s => s.trim().toUpperCase()).filter(s => s !== ''),
+      pairs: pairsArray,
       bot_activo: botActive
     };
 
@@ -48,7 +64,7 @@ export default function SettingsPage() {
     if (result.success) {
       toast({
         title: "NÚCLEO ACTUALIZADO",
-        description: "El motor ha sido reconfigurado exitosamente.",
+        description: `Motor reconfigurado con ${pairsArray.length} activos.`,
       });
     }
   }
@@ -72,7 +88,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <h2 className="text-2xl font-headline font-bold">Parámetros Operativos V4</h2>
-              <p className="text-sm text-muted-foreground">Ajuste los clústeres de datos y la latencia del núcleo. Cambios en tiempo real.</p>
+              <p className="text-sm text-muted-foreground">Ajuste los clústeres de datos y la latencia del núcleo en tiempo real.</p>
             </div>
           </div>
 
@@ -131,12 +147,16 @@ export default function SettingsPage() {
                         className="bg-background/50 border-white/5 h-12 font-code" 
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-2 pt-4">
-                       <Badge variant="outline" className="justify-center py-1">EUR/USD 12ms</Badge>
-                       <Badge variant="outline" className="justify-center py-1">BTC/USD 15ms</Badge>
-                       <Badge variant="outline" className="justify-center py-1">GBP/JPY 18ms</Badge>
-                       <Badge variant="outline" className="justify-center py-1">ETH/USD 14ms</Badge>
+                    <div className="flex flex-wrap gap-2 pt-2">
+                       {botParams?.pairs?.map((p: string) => (
+                         <Badge key={p} variant="outline" className="py-1 px-3 border-primary/30 text-primary">
+                           {p}
+                         </Badge>
+                       ))}
                     </div>
+                    <p className="text-[10px] text-muted-foreground italic mt-2">
+                      Escriba los activos que desea monitorear. El primer activo de la lista será el par principal de ejecución.
+                    </p>
                   </CardContent>
                 </Card>
               </div>
@@ -160,7 +180,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <CardTitle className="text-red-500 font-headline text-xl">Sobrescritura de Pánico Maestra</CardTitle>
-                <CardDescription className="text-red-500/70">Activar el Protocolo Cero congelará todas las actividades y borrará la memoria caché operativa.</CardDescription>
+                <CardDescription className="text-red-500/70">Activar el Protocolo Cero congelará todas las actividades de inmediato.</CardDescription>
               </div>
             </CardHeader>
             <CardContent>
@@ -172,5 +192,13 @@ export default function SettingsPage() {
         </main>
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+function Badge({ children, variant, className }: any) {
+  return (
+    <div className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${className}`}>
+      {children}
+    </div>
   );
 }

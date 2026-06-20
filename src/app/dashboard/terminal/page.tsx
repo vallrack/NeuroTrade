@@ -1,10 +1,10 @@
 
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
-import { LineChart, Activity, Globe, ShieldCheck } from 'lucide-react';
+import { LineChart, Activity, Globe, ShieldCheck, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -18,6 +18,18 @@ export default function TerminalPage() {
   const { data: brokerConfig } = useDoc(brokerRef);
   const isConnected = brokerConfig?.status === 'connected';
 
+  const botParamsRef = doc(firestore, 'configuracion', 'bot_params');
+  const { data: botParams } = useDoc(botParamsRef);
+
+  const [activeSymbol, setActiveSymbol] = useState('FX:EURUSD');
+
+  useEffect(() => {
+    if (botParams?.pairs?.[0]) {
+      const pair = botParams.pairs[0].replace('/', '');
+      setActiveSymbol(`FX:${pair}`);
+    }
+  }, [botParams]);
+
   useEffect(() => {
     if (!container.current) return;
 
@@ -27,7 +39,7 @@ export default function TerminalPage() {
     script.async = true;
     script.innerHTML = JSON.stringify({
       "autosize": true,
-      "symbol": "FX:EURUSD",
+      "symbol": activeSymbol,
       "interval": "1",
       "timezone": "Etc/UTC",
       "theme": "dark",
@@ -44,7 +56,7 @@ export default function TerminalPage() {
     
     container.current.innerHTML = '';
     container.current.appendChild(script);
-  }, []);
+  }, [activeSymbol]);
 
   return (
     <SidebarProvider>
@@ -79,17 +91,17 @@ export default function TerminalPage() {
 
         <main className="flex-1 flex flex-col overflow-hidden bg-black">
           <div className="flex-1 w-full relative" ref={container}>
-            {/* TradingView Widget se inyectará aquí */}
-            <div className="absolute inset-0 flex items-center justify-center text-muted-foreground animate-pulse">
-              Sincronizando flujo de datos con el mercado...
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-4">
+              <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+              <p className="animate-pulse font-headline">Sincronizando flujo de {activeSymbol}...</p>
             </div>
           </div>
           
           <div className="h-12 border-t border-white/5 bg-card/80 backdrop-blur-md flex items-center px-6 justify-between">
             <div className="flex gap-6 items-center">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground uppercase font-bold">Par Principal</span>
-                <span className="text-xs font-code font-bold text-foreground">EUR/USD</span>
+                <span className="text-[10px] text-muted-foreground uppercase font-bold">Activo Principal</span>
+                <span className="text-xs font-code font-bold text-foreground">{botParams?.pairs?.[0] || 'EUR/USD'}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-muted-foreground uppercase font-bold">Latencia</span>
@@ -102,7 +114,7 @@ export default function TerminalPage() {
             </div>
             <div className="flex items-center gap-2">
               <Activity className="h-4 w-4 text-primary animate-pulse" />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-primary">Motor IA Procesando señales...</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-primary">IA Monitoreando {botParams?.pairs?.length || 0} clústeres...</span>
             </div>
           </div>
         </main>

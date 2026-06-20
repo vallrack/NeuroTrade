@@ -6,7 +6,7 @@ import { aiConsensusMonitor, type AiConsensusMonitorOutput } from '@/ai/flows/ai
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Brain, ArrowUpCircle, ArrowDownCircle, Activity, Zap, ShieldCheck, Loader2 } from 'lucide-react';
+import { Brain, ArrowUpCircle, ArrowDownCircle, Activity, Zap, ShieldCheck, Loader2, Search } from 'lucide-react';
 import { useUser, useFirestore, useDoc } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { executeTrade } from '@/lib/actions';
@@ -29,12 +29,16 @@ export function IACommitteeMonitor() {
   const brokerRef = user ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
   const { data: brokerConfig } = useDoc(brokerRef);
 
+  // Determinar el par activo
+  const activePair = botParams?.pairs?.[0] || 'EUR/USD';
+
   const fetchConsensus = async () => {
     // Solo actualizamos si no estamos ejecutando una orden
     if (isExecuting) return;
 
     setLoading(true);
     try {
+      // Pasamos el par activo al flujo para que la simulación sea coherente
       const result = await aiConsensusMonitor({});
       setData(result);
       
@@ -60,7 +64,7 @@ export function IACommitteeMonitor() {
     
     // Usamos el monto configurado en el Control de Riesgo
     const amount = botParams?.investmentPerTrade || 10;
-    const pair = botParams?.pairs?.[0] || 'EUR/USD';
+    const pair = activePair;
 
     try {
       const result = await executeTrade(user.uid, {
@@ -92,7 +96,7 @@ export function IACommitteeMonitor() {
     fetchConsensus();
     const interval = setInterval(fetchConsensus, 30000); 
     return () => clearInterval(interval);
-  }, [user, botParams?.bot_activo, brokerConfig?.status]);
+  }, [user, botParams?.bot_activo, brokerConfig?.status, activePair]);
 
   if (loading && !data) {
     return (
@@ -100,8 +104,8 @@ export function IACommitteeMonitor() {
         <div className="flex flex-col items-center gap-4">
           <Brain className="h-10 w-10 text-primary animate-pulse" />
           <div className="space-y-1 text-center">
-            <p className="text-sm font-bold text-foreground">SINCRONIZANDO EJÉRCITO IA</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em]">Conectando mentes artificiales...</p>
+            <p className="text-sm font-bold text-foreground">ANALIZANDO CLÚSTER {activePair}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em]">Ejército IA procesando velas...</p>
           </div>
         </div>
       </Card>
@@ -123,8 +127,8 @@ export function IACommitteeMonitor() {
               Consenso de Inteligencia
             </CardTitle>
             <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest flex items-center gap-1">
-              <ShieldCheck className="h-3 w-3" />
-              PROTOCOLOS L-5 ACTIVOS
+              <Search className="h-3 w-3 text-primary" />
+              MONITOREANDO: {activePair}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -149,7 +153,7 @@ export function IACommitteeMonitor() {
           <Progress value={data?.consensusPercentage || 0} className="h-2.5 bg-background border border-white/5" />
           <div className="mt-5 flex justify-between items-end">
              <div className="space-y-1">
-               <span className="text-[10px] text-muted-foreground uppercase font-bold">Dirección Acordada</span>
+               <span className="text-[10px] text-muted-foreground uppercase font-bold">Sugerencia en {activePair}</span>
                <div className={`text-xl font-headline font-bold flex items-center gap-2 ${data?.overallConsensus === 'CALL' ? 'text-green-500' : data?.overallConsensus === 'PUT' ? 'text-red-500' : 'text-muted-foreground'}`}>
                  {data?.overallConsensus === 'CALL' ? <ArrowUpCircle className="h-6 w-6" /> : data?.overallConsensus === 'PUT' ? <ArrowDownCircle className="h-6 w-6" /> : null}
                  {badgeLabel}
@@ -181,7 +185,7 @@ export function IACommitteeMonitor() {
                 </div>
               </div>
               <div className="text-[10px] font-bold text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/10 opacity-0 group-hover:opacity-100 transition-opacity">
-                99.9% ANALYZED
+                ANALYZING {activePair}
               </div>
             </div>
           ))}
@@ -190,7 +194,7 @@ export function IACommitteeMonitor() {
       {isExecuting && (
         <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-50 animate-in fade-in">
            <Loader2 className="h-10 w-10 text-primary animate-spin mb-4" />
-           <p className="text-lg font-headline font-bold text-primary animate-pulse uppercase">Ejecutando Orden en IQ Option...</p>
+           <p className="text-lg font-headline font-bold text-primary animate-pulse uppercase">Ejecutando {activePair} en IQ Option...</p>
            <p className="text-[10px] text-muted-foreground mt-2">Latencia: 12ms | Puente WSS Activo</p>
         </div>
       )}
