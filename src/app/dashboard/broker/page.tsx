@@ -260,7 +260,7 @@ export default function BrokerPage() {
                 <CardContent className="text-[11px] text-muted-foreground space-y-4">
                   <div>
                     <span className="text-white font-bold block mb-1">IQ OPTION (WSS)</span>
-                    <p>Login vía HTTP -> SSID Token -> WebSocket bidireccional buyV3 para ejecución HFT.</p>
+                    <p>Login vía HTTP -&gt; SSID Token -&gt; WebSocket bidireccional buyV3 para ejecución HFT.</p>
                   </div>
                   <div>
                     <span className="text-white font-bold block mb-1">ALPACA (REST/WSS)</span>

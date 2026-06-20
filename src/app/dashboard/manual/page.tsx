@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { 
   BookOpen, Brain, TrendingUp, ShieldCheck, Zap, Info, Target, 
   Layers, Sliders, Cpu, Activity, Globe, Gauge, Calculator, MousePointer2, AlertTriangle,
-  Code2, Network, ShieldAlert, Workflow
+  Code2, Network, ShieldAlert, Workflow, Coins
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -183,7 +183,7 @@ export default function ManualPage() {
                       La estrategia Martingala duplica el monto tras una pérdida. En la Versión 7, este protocolo es **opcional** y se recomienda solo para operadores con balance superior a $20,000 debido al riesgo de drawdown exponencial.
                     </p>
                     <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
-                      <p className="text-[10px] text-yellow-500/90 font-bold uppercase tracking-tight">Latencia del Kill-Switch: < 100 microsegundos.</p>
+                      <p className="text-[10px] text-yellow-500/90 font-bold uppercase tracking-tight">Latencia del Kill-Switch: &lt; 100 microsegundos.</p>
                     </div>
                   </div>
                 </div>
