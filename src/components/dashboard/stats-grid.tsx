@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useFirestore } from '@/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
-import { TrendingUp, TrendingDown, Wallet, Target, Activity } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, Target, Activity, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function StatsGrid() {
@@ -35,46 +35,50 @@ export function StatsGrid() {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <MetricCard
         title="Saldo Total"
-        value={`$${(stats.balance || 0).toLocaleString()}`}
+        value={`$${(stats.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
         icon={<Wallet className="h-4 w-4 text-primary" />}
-        subtitle="Bróker Tiempo Real"
+        subtitle="Broker HFT Link"
+        pulse
       />
       <MetricCard
-        title="Beneficio Diario"
-        value={`$${(stats.dailyProfit || 0).toLocaleString()}`}
+        title="Profit Hoy"
+        value={`$${(stats.dailyProfit || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
         icon={(stats.dailyProfit || 0) >= 0 ? <TrendingUp className="h-4 w-4 text-green-500" /> : <TrendingDown className="h-4 w-4 text-red-500" />}
-        subtitle="Rendimiento de Hoy"
+        subtitle="Net Daily"
         trend={(stats.dailyProfit || 0) >= 0 ? 'up' : 'down'}
       />
       <MetricCard
-        title="Tasa de Acierto"
+        title="Win Rate"
         value={`${stats.winRate || 0}%`}
         icon={<Target className="h-4 w-4 text-secondary" />}
-        subtitle="Probabilidad Éxito"
+        subtitle="V7 Precision"
         valueClassName={winRateColor}
       />
       <MetricCard
-        title="Inversión Acumulada"
+        title="Volumen"
         value={`$${(stats.totalInvestment || 0).toLocaleString()}`}
-        icon={<Activity className="h-4 w-4 text-accent" />}
-        subtitle="Volumen Histórico"
+        icon={<Zap className="h-4 w-4 text-accent" />}
+        subtitle="HFT Exposure"
       />
     </div>
   );
 }
 
-function MetricCard({ title, value, icon, subtitle, trend, valueClassName }: any) {
+function MetricCard({ title, value, icon, subtitle, trend, valueClassName, pulse }: any) {
   return (
-    <Card className="bg-card/50 backdrop-blur-sm border-white/5 hover:border-primary/50 transition-all duration-300">
+    <Card className="bg-card/40 backdrop-blur-md border-white/5 hover:border-primary/40 transition-all duration-500 group relative overflow-hidden">
+      <div className="absolute top-0 left-0 w-full h-[2px] bg-primary/0 group-hover:bg-primary/30 transition-all" />
       <CardContent className="p-6">
         <div className="flex justify-between items-start mb-2">
-          <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
-          <div className="p-2 bg-background rounded-lg">{icon}</div>
+          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">{title}</p>
+          <div className="p-2 bg-[#0a0f1a] rounded-xl border border-white/5 group-hover:border-primary/20 transition-all">
+            {icon}
+          </div>
         </div>
         <div className="flex flex-col">
-          <h3 className={cn("text-2xl font-headline font-bold", valueClassName)}>{value}</h3>
-          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary live-indicator" />
+          <h3 className={cn("text-2xl font-headline font-bold tracking-tight", valueClassName)}>{value}</h3>
+          <p className="text-[9px] text-muted-foreground mt-2 flex items-center gap-1.5 font-bold uppercase tracking-widest">
+            <span className={cn("w-1.5 h-1.5 rounded-full bg-primary", pulse ? "animate-ping" : "live-indicator")} />
             {subtitle}
           </p>
         </div>

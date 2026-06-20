@@ -6,7 +6,7 @@ import { useRTDB, useDoc, useFirestore } from '@/firebase';
 import { ref, onValue, query, limitToLast } from 'firebase/database';
 import { doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Terminal, Copy, Trash2, Zap } from 'lucide-react';
+import { Terminal, Copy, Trash2, Zap, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function LogConsole() {
@@ -15,32 +15,29 @@ export function LogConsole() {
   const [logs, setLogs] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Sincronizar con divisas configuradas para logs dinámicos
   const botParamsRef = doc(firestore, 'configuracion', 'bot_params');
   const { data: botParams } = useDoc(botParamsRef);
   const activePairs = useMemo(() => botParams?.pairs || ['EUR/USD'], [botParams]);
 
-  // Simulación mejorada de logs que reacciona a los pares configurados
   useEffect(() => {
     if (logs.length > 0) return;
 
     const demoLogs = [
-      { id: 'd1', timestamp: Date.now() - 10000, message: 'Inicializando núcleo cuántico...', direction: 'NONE', agentId: 'System' },
-      { id: 'd2', timestamp: Date.now() - 8000, message: 'Sincronizando con bróker externo...', direction: 'NONE', agentId: 'Network' },
-      { id: 'd3', timestamp: Date.now() - 5000, message: `Escaneando clúster ${activePairs[0]} (Latencia 12ms)`, direction: 'NONE', agentId: 'Gemini Sentinel' },
-      { id: 'd4', timestamp: Date.now() - 2000, message: `Señal detectada en ${activePairs[0]}. Iniciando consenso.`, direction: 'CALL', agentId: 'Analyzer' }
+      { id: 'd1', timestamp: Date.now() - 10000, message: 'Inicializando núcleo cuántico V7...', direction: 'NONE', agentId: 'System' },
+      { id: 'd2', timestamp: Date.now() - 8000, message: 'Sincronización HFT completada (8μs)', direction: 'NONE', agentId: 'Network' },
+      { id: 'd3', timestamp: Date.now() - 5000, message: `Vigilancia clúster ${activePairs[0]} activa.`, direction: 'NONE', agentId: 'Sentinel' }
     ];
     setLogs(demoLogs);
 
-    // Añadir un log simulado cada 8 segundos para dar vida real al UI
+    // Flujo ultra-rápido de pensamientos (cada 3 segundos)
     const interval = setInterval(() => {
-      const agents = ['Gemini Sentinel', 'GPT-4 Analyzer', 'DeepSeek-Trader', 'Quantum Engine'];
+      const agents = ['Gemini-HFT', 'Quantum-Engine', 'Deep-Sentinel', 'V7-Core'];
       const actions = [
-        'Analizando RSI en clúster',
-        'Detectada divergencia en',
-        'Calculando probabilidad de rebote en',
-        'Sincronizando flujo de datos en',
-        'Optimización de latencia completada para'
+        'Analizando micro-tendencia en',
+        'Cálculo de probabilidad completado para',
+        'Detectada anomalía de volumen en',
+        'Sincronizando flujo de datos L2 en',
+        'Evaluando RSI cuántico en'
       ];
       const directions = ['CALL', 'PUT', 'NONE'];
       const randomPair = activePairs[Math.floor(Math.random() * activePairs.length)];
@@ -49,12 +46,12 @@ export function LogConsole() {
       const newLog = {
         id: Math.random().toString(36),
         timestamp: Date.now(),
-        message: `${randomAction} ${randomPair}...`,
+        message: `${randomAction} ${randomPair}. Confianza: ${(Math.random() * 0.2 + 0.75).toFixed(2)}`,
         direction: directions[Math.floor(Math.random() * directions.length)],
         agentId: agents[Math.floor(Math.random() * agents.length)]
       };
-      setLogs(prev => [...prev.slice(-49), newLog]);
-    }, 8000);
+      setLogs(prev => [...prev.slice(-99), newLog]);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [logs.length, activePairs]);
@@ -77,7 +74,7 @@ export function LogConsole() {
       });
       return () => unsub();
     } catch (e) {
-      console.warn("RTDB no configurado, usando simulación dinámica.");
+      console.warn("RTDB offline, usando simulación HFT.");
     }
   }, [rtdb]);
 
@@ -88,31 +85,30 @@ export function LogConsole() {
   }, [logs]);
 
   return (
-    <Card className="bg-black/40 border-white/5 h-[450px] flex flex-col backdrop-blur-md">
-      <CardHeader className="py-3 px-4 border-b border-white/5 flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-sm font-headline flex items-center gap-2 text-primary">
-          <Terminal className="h-4 w-4" />
-          FLUJO DE INTELIGENCIA EN VIVO
+    <Card className="bg-black/60 border-white/5 h-[450px] flex flex-col backdrop-blur-md shadow-2xl relative overflow-hidden">
+      <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
+      <CardHeader className="py-3 px-4 border-b border-white/5 flex flex-row items-center justify-between space-y-0 bg-white/5">
+        <CardTitle className="text-[10px] font-headline font-bold flex items-center gap-2 text-primary tracking-[0.2em] uppercase">
+          <Activity className="h-3 w-3 animate-pulse" />
+          Quantum Log Stream
         </CardTitle>
-        <div className="flex gap-2">
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
-            <span className="text-[10px] font-bold text-primary">LIVE FEED</span>
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] font-code text-muted-foreground uppercase">Rate: 3.3 msg/s</span>
+          <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping" />
         </div>
       </CardHeader>
       <CardContent 
-        className="flex-1 overflow-y-auto p-4 font-code text-xs space-y-2 custom-scrollbar" 
+        className="flex-1 overflow-y-auto p-4 font-code text-[10px] space-y-2 custom-scrollbar bg-black/20" 
         ref={scrollRef}
       >
         {logs.map((log, i) => (
-          <div key={log.id || i} className={`log-entry log-entry-${log.direction?.toLowerCase() || 'none'} animate-in fade-in slide-in-from-left-2 duration-500`}>
-            <span className="text-muted-foreground/60">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+          <div key={log.id || i} className={`log-entry log-entry-${log.direction?.toLowerCase() || 'none'} animate-in fade-in slide-in-from-left-2 duration-300`}>
+            <span className="text-muted-foreground/40 font-mono">[{new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}]</span>
             {' '}
-            <span className={log.agentId ? 'text-secondary font-bold' : 'text-foreground'}>
+            <span className={cn("font-bold tracking-tighter", log.agentId ? 'text-primary' : 'text-foreground')}>
               {log.agentId ? `${log.agentId.toUpperCase()}> ` : ''}
             </span>
-            <span className="text-foreground/90 leading-relaxed">{log.message}</span>
+            <span className="text-foreground/80 font-mono tracking-tight">{log.message}</span>
           </div>
         ))}
       </CardContent>

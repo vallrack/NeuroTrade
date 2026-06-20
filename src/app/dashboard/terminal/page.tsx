@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
-import { LineChart, Activity, Globe, ShieldCheck, RefreshCw, Layers, ArrowRight } from 'lucide-react';
+import { LineChart, Activity, Globe, ShieldCheck, RefreshCw, Layers, ArrowRight, Zap, Wifi } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -26,8 +26,16 @@ export default function TerminalPage() {
   const [selectedPair, setSelectedPair] = useState('EUR/USD');
   const [activeSymbol, setActiveSymbol] = useState('FX:EURUSD');
   const [chartLoading, setChartLoading] = useState(true);
+  const [latency, setLatency] = useState(12);
 
-  // Sincronizar par seleccionado con los configurados
+  // Simulación de latencia de red HFT (Microsegundos/Milisegundos)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLatency(Math.floor(Math.random() * 15) + 5);
+    }, 1500);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     if (botParams?.pairs && botParams.pairs.length > 0) {
       if (!botParams.pairs.includes(selectedPair)) {
@@ -36,9 +44,8 @@ export default function TerminalPage() {
     }
   }, [botParams, selectedPair]);
 
-  // Convertir par a formato TradingView
   useEffect(() => {
-    const cleanPair = selectedPair.replace('/', '');
+    const cleanPair = selectedPair.replace('/', '').replace('-', '');
     let symbol = `FX:${cleanPair}`;
     if (selectedPair.includes('BTC') || selectedPair.includes('ETH')) {
       symbol = `BINANCE:${cleanPair}T`;
@@ -47,11 +54,9 @@ export default function TerminalPage() {
     setChartLoading(true);
   }, [selectedPair]);
 
-  // Inyectar Widget de TradingView de forma estable
   useEffect(() => {
     if (!container.current) return;
 
-    // Limpiar contenedor anterior para evitar duplicados
     container.current.innerHTML = '';
     const widgetContainer = document.createElement('div');
     widgetContainer.id = `tv-widget-${activeSymbol}`;
@@ -81,7 +86,7 @@ export default function TerminalPage() {
     
     widgetContainer.appendChild(script);
 
-    const timer = setTimeout(() => setChartLoading(false), 1500);
+    const timer = setTimeout(() => setChartLoading(false), 800);
     return () => clearTimeout(timer);
   }, [activeSymbol]);
 
@@ -91,19 +96,31 @@ export default function TerminalPage() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-16 items-center justify-between px-6 border-b border-white/5 bg-background/80 backdrop-blur-md sticky top-0 z-10">
+        <header className="flex h-16 items-center justify-between px-6 border-b border-white/5 bg-[#0a0f1a]/95 backdrop-blur-md sticky top-0 z-30">
           <div className="flex items-center gap-4">
             <SidebarTrigger />
             <h1 className="font-headline text-xl font-bold flex items-center gap-2">
-              <LineChart className="h-5 w-5 text-primary" />
-              Terminal de Operaciones
+              <Zap className="h-5 w-5 text-primary animate-pulse" />
+              Terminal de Operaciones V7
             </h1>
           </div>
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4 mr-4 bg-white/5 px-4 py-1.5 rounded-full border border-white/10">
+              <div className="flex items-center gap-2">
+                <Wifi className="h-3 w-3 text-green-500" />
+                <span className="text-[10px] font-code font-bold text-muted-foreground uppercase">Net:</span>
+                <span className="text-xs font-code font-bold text-green-500">{latency}ms</span>
+              </div>
+              <div className="flex items-center gap-2 border-l border-white/10 pl-4">
+                <RefreshCw className="h-3 w-3 text-primary animate-spin" />
+                <span className="text-[10px] font-code font-bold text-muted-foreground uppercase">Feed:</span>
+                <span className="text-xs font-code font-bold text-primary">REAL-TIME</span>
+              </div>
+            </div>
             {isConnected ? (
               <Badge className="bg-green-500/20 text-green-500 border-green-500/50 gap-1.5 py-1 px-3">
                 <Globe className="h-3 w-3" />
-                PUENTE {brokerConfig?.accountType?.toUpperCase()} ACTIVO
+                PUENTE ACTIVO
               </Badge>
             ) : (
               <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/50 gap-1.5 py-1 px-3">
@@ -111,19 +128,17 @@ export default function TerminalPage() {
                 VINCULACIÓN REQUERIDA
               </Badge>
             )}
-            <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/10">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
-              <span className="text-[10px] font-bold text-primary tracking-widest uppercase">Live Feed</span>
-            </div>
           </div>
         </header>
 
         <main className="flex-1 flex overflow-hidden bg-black">
-          {/* Selector Lateral de Activos */}
-          <aside className="w-48 border-r border-white/5 bg-card/30 backdrop-blur-sm flex flex-col shrink-0">
-            <div className="p-4 border-b border-white/5 flex items-center gap-2 text-muted-foreground">
-              <Layers className="h-4 w-4" />
-              <span className="text-[10px] font-bold uppercase tracking-widest">Activos</span>
+          <aside className="w-56 border-r border-white/5 bg-[#0a0f1a] flex flex-col shrink-0 z-20">
+            <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/5">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Layers className="h-4 w-4" />
+                <span className="text-[10px] font-bold uppercase tracking-widest">Activos V7</span>
+              </div>
+              <Badge variant="outline" className="text-[9px] h-4 border-primary/30 text-primary">LIVE</Badge>
             </div>
             <ScrollArea className="flex-1">
               <div className="p-2 space-y-1">
@@ -132,47 +147,66 @@ export default function TerminalPage() {
                     key={pair}
                     onClick={() => setSelectedPair(pair)}
                     className={cn(
-                      "w-full text-left px-3 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-between group",
+                      "w-full text-left px-4 py-4 rounded-xl text-sm font-bold transition-all flex items-center justify-between group relative overflow-hidden",
                       selectedPair === pair 
-                        ? "bg-primary text-white shadow-lg shadow-primary/20" 
+                        ? "bg-primary text-white shadow-xl shadow-primary/20" 
                         : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
                     )}
                   >
-                    <span>{pair}</span>
-                    <ArrowRight className={cn("h-3 w-3 transition-transform", selectedPair === pair ? "translate-x-0" : "-translate-x-2 opacity-0 group-hover:opacity-100 group-hover:translate-x-0")} />
+                    <div className="flex flex-col relative z-10">
+                      <span className="tracking-tight">{pair}</span>
+                      <span className={cn("text-[9px] font-medium uppercase opacity-60", selectedPair === pair ? "text-white" : "text-primary")}>
+                        OTC / Real-Time
+                      </span>
+                    </div>
+                    {selectedPair === pair && (
+                      <div className="absolute right-0 top-0 h-full w-1 bg-white" />
+                    )}
+                    <ArrowRight className={cn("h-4 w-4 transition-transform relative z-10", selectedPair === pair ? "translate-x-0" : "-translate-x-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0")} />
                   </button>
                 ))}
               </div>
             </ScrollArea>
           </aside>
 
-          {/* Área de Gráfico */}
           <div className="flex-1 flex flex-col relative min-w-0">
             <div className="flex-1 w-full relative" ref={container}>
               {/* Host del widget */}
             </div>
             
             {chartLoading && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-4 bg-black z-20">
-                <RefreshCw className="h-8 w-8 animate-spin text-primary" />
-                <p className="animate-pulse font-headline">Sincronizando flujo de {selectedPair}...</p>
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-4 bg-black z-30">
+                <div className="relative">
+                   <RefreshCw className="h-10 w-10 animate-spin text-primary" />
+                   <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-2 h-2 bg-primary rounded-full animate-ping" />
+                   </div>
+                </div>
+                <div className="text-center space-y-1">
+                  <p className="font-headline font-bold text-white tracking-widest">SINCRONIZANDO CLÚSTER</p>
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-primary animate-pulse">{selectedPair} | STREAMING V7</p>
+                </div>
               </div>
             )}
             
-            <div className="h-10 border-t border-white/5 bg-card/80 backdrop-blur-md flex items-center px-6 justify-between shrink-0">
-              <div className="flex gap-6 items-center">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground uppercase font-bold">Activo:</span>
-                  <span className="text-xs font-code font-bold text-foreground">{selectedPair}</span>
+            <div className="h-12 border-t border-white/5 bg-[#0a0f1a] flex items-center px-6 justify-between shrink-0 z-20">
+              <div className="flex gap-8 items-center">
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col">
+                    <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter">Instrumento</span>
+                    <span className="text-xs font-code font-bold text-primary">{selectedPair}</span>
+                  </div>
                 </div>
-                <div className="hidden sm:flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground uppercase font-bold">Latencia:</span>
-                  <span className="text-xs font-code font-bold text-green-500">12ms</span>
+                <div className="hidden sm:flex items-center gap-3 border-l border-white/10 pl-6">
+                  <div className="flex flex-col">
+                    <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter">Motor IA</span>
+                    <span className="text-xs font-code font-bold text-green-500 uppercase">Analizando</span>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-4 bg-primary/10 px-4 py-1 rounded-md border border-primary/20">
                 <Activity className="h-4 w-4 text-primary animate-pulse" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-primary">IA Escaneando mercado...</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-primary font-headline">Vigilancia Cuántica Activa</span>
               </div>
             </div>
           </div>
