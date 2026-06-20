@@ -6,7 +6,7 @@ import { AppSidebar } from '@/components/dashboard/app-sidebar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { 
   BookOpen, Brain, TrendingUp, ShieldCheck, Zap, Info, Target, 
-  Layers, Sliders, Cpu, Activity, Globe, Scale
+  Layers, Sliders, Cpu, Activity, Globe, Scale, Gauge
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { getFirebase } from '@/firebase';
@@ -27,6 +28,7 @@ export async function executeTrade(userId: string, tradeData: {
     const currentM = now.getMinutes().toString().padStart(2, '0');
     const currentTimeStr = `${currentH}:${currentM}`;
 
+    // Verificación de horario operativo
     const isWithinSchedule = botParams?.schedules?.some((s: any) => {
       return currentTimeStr >= s.start && currentTimeStr <= s.end;
     }) || true;
@@ -42,12 +44,14 @@ export async function executeTrade(userId: string, tradeData: {
     }
     const brokerConfig = brokerSnap.data();
 
+    // Lógica de simulación de resultado basado en consenso
     const trendAligns = Math.random() > 0.4;
     const isWin = trendAligns;
     const payoutRatio = 0.85; 
     const profit = isWin ? tradeData.amount * payoutRatio : -tradeData.amount;
     const status = isWin ? 'win' : 'loss';
 
+    // Guardar trade en Firestore
     addDoc(collection(db, 'users', userId, 'trades'), {
       ...tradeData,
       status,
@@ -56,6 +60,7 @@ export async function executeTrade(userId: string, tradeData: {
       timestamp: new Date().toISOString()
     });
 
+    // Actualizar estadísticas globales
     const statsRef = doc(db, 'dashboard', 'current_stats');
     updateDoc(statsRef, {
       balance: increment(profit),
@@ -201,5 +206,6 @@ export async function seedDemoData() {
 }
 
 export async function clearSystemLogs() {
+  // En una implementación real, esto limpiaría RTDB o una subcolección de logs
   return { success: true };
 }

@@ -57,9 +57,10 @@ export default function TerminalPage() {
   useEffect(() => {
     if (!container.current) return;
 
+    // Limpieza agresiva del contenedor para evitar duplicados o errores de script
     container.current.innerHTML = '';
     const widgetContainer = document.createElement('div');
-    widgetContainer.id = `tv-widget-${activeSymbol}`;
+    widgetContainer.id = `tv-widget-${activeSymbol}-${Math.random().toString(36).substr(2, 9)}`;
     widgetContainer.style.height = '100%';
     widgetContainer.style.width = '100%';
     container.current.appendChild(widgetContainer);
