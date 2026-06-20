@@ -29,13 +29,13 @@ export default function BrokerPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  // Sincronizar estado local con Firestore
+  // Sincronizar estado local con Firestore de forma segura
   useEffect(() => {
-    if (brokerConfig) {
-      setEmail(brokerConfig.email || '');
+    if (brokerConfig && brokerConfig.email) {
+      setEmail(brokerConfig.email);
       setPassword(brokerConfig.password || '');
     } else if (!configLoading) {
-      // Si el documento no existe (borrado), asegurar que los campos estén limpios
+      // Si el documento no existe o no tiene email, limpiamos TODO
       setEmail('');
       setPassword('');
     }
@@ -77,11 +77,12 @@ export default function BrokerPage() {
     try {
       const result = await disconnectBroker(user.uid);
       if (result.success) {
-        setEmail(''); // Limpiar campos inmediatamente en la UI
+        // Forzamos limpieza inmediata del estado local para combatir el autocompletado
+        setEmail('');
         setPassword('');
         toast({
-          title: "CUENTA DESVINCULADA",
-          description: "Los datos de conexión han sido eliminados de la base de datos de forma segura.",
+          title: "DATOS ELIMINADOS",
+          description: "Las credenciales han sido borradas físicamente de la infraestructura segura.",
         });
       }
     } catch (err: any) {
@@ -96,7 +97,7 @@ export default function BrokerPage() {
   };
 
   const isConnected = brokerConfig?.status === 'connected';
-  const hasConfig = !!brokerConfig?.email;
+  const hasDataSaved = !!(brokerConfig?.email);
 
   return (
     <SidebarProvider>
@@ -140,33 +141,37 @@ export default function BrokerPage() {
                   )}
                 </div>
               </CardHeader>
-              <form onSubmit={handleConnect}>
+              <form onSubmit={handleConnect} autoComplete="off">
                 <CardContent className="space-y-6">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email de su cuenta IQ Option</Label>
+                    <Label htmlFor="broker-email">Email de su cuenta IQ Option</Label>
                     <Input 
-                      id="email" 
+                      id="broker-email" 
                       type="email" 
+                      name="broker-email"
                       placeholder="usuario@iqoption.com" 
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="bg-background/50 border-white/5 h-12"
                       required
                       disabled={isConnected}
+                      autoComplete="off"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="password">Contraseña (Encriptación de Bóveda)</Label>
+                    <Label htmlFor="broker-password">Contraseña (Encriptación de Bóveda)</Label>
                     <div className="relative">
                       <Input 
-                        id="password" 
+                        id="broker-password" 
                         type="password" 
+                        name="broker-password"
                         placeholder="••••••••" 
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         className="bg-background/50 border-white/5 h-12 pr-10"
                         required
                         disabled={isConnected}
+                        autoComplete="new-password"
                       />
                       <Lock className="absolute right-3 top-4 h-4 w-4 text-muted-foreground" />
                     </div>
@@ -237,28 +242,18 @@ export default function BrokerPage() {
                 </CardContent>
               </Card>
 
-              <div className="p-6 bg-card/50 border border-white/5 rounded-xl text-center space-y-4">
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto ${isConnected ? 'bg-green-500/20' : 'bg-primary/10'}`}>
-                  <Zap className={`h-8 w-8 ${isConnected ? 'text-green-500' : 'text-primary'}`} />
-                </div>
-                <h4 className="font-headline font-bold">Estado del Algoritmo</h4>
-                <div className="flex items-center justify-center gap-2">
-                  <span className={`flex h-2 w-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
-                  <span className={`text-xs font-bold uppercase ${isConnected ? 'text-green-500' : 'text-yellow-500'}`}>
-                    {isConnected ? 'Listo para operar' : 'Esperando puente'}
-                  </span>
-                </div>
-              </div>
-
-              {hasConfig && (
-                <Card className="bg-red-500/5 border-red-500/20">
+              {hasDataSaved && (
+                <Card className="bg-red-500/5 border-red-500/20 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-xs font-headline flex items-center gap-2 text-red-500 uppercase">
                       <ShieldAlert className="h-4 w-4" />
                       Zona de Peligro
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="space-y-4">
+                    <p className="text-[10px] text-red-500/70 italic leading-tight">
+                      Si el bróker no responde o desea cambiar de cuenta, use la desvinculación forzada.
+                    </p>
                     <Button 
                       variant="ghost" 
                       onClick={handleDisconnect}
@@ -271,6 +266,19 @@ export default function BrokerPage() {
                   </CardContent>
                 </Card>
               )}
+
+              <div className="p-6 bg-card/50 border border-white/5 rounded-xl text-center space-y-4">
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto ${isConnected ? 'bg-green-500/20' : 'bg-primary/10'}`}>
+                  <Zap className={`h-8 w-8 ${isConnected ? 'text-green-500' : 'text-primary'}`} />
+                </div>
+                <h4 className="font-headline font-bold">Estado del Algoritmo</h4>
+                <div className="flex items-center justify-center gap-2">
+                  <span className={`flex h-2 w-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
+                  <span className={`text-xs font-bold uppercase ${isConnected ? 'text-green-500' : 'text-yellow-500'}`}>
+                    {isConnected ? 'Listo para operar' : 'Esperando puente'}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </main>
