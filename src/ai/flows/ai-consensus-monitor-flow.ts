@@ -39,8 +39,7 @@ Cada agente debe proporcionar:
 
 Calcula el consenso general basado en la mayoría. Si no hay mayoría clara, usa 'NEUTRAL'. Determina el porcentaje de confianza.
 
-Toda la respuesta debe ser en ESPAÑOL y seguir estrictamente este esquema:
-{{jsonSchema output.schema}}
+Toda la respuesta debe ser en ESPAÑOL.
 
 Ejemplos de nombres de agentes:
 - "Comandante Gemini": Experto en análisis de sentimiento global.

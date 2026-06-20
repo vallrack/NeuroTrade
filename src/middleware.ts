@@ -1,10 +1,10 @@
 
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/request';
+import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  // Desactivamos las redirecciones de middleware para evitar bucles infinitos con las cookies.
-  // La protección se manejará en el lado del cliente dentro de las páginas/layouts protegidos.
+  // Desactivamos completamente las protecciones de servidor para evitar bucles.
+  // La seguridad se gestionará íntegramente en el cliente y mediante reglas de Firestore.
   return NextResponse.next();
 }
 

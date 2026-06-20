@@ -33,9 +33,8 @@ export default function DashboardPage() {
   }, []);
   
   const profileRef = useMemo(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-  const { data: profile, loading: profileLoading } = useDoc(profileRef);
+  const { data: profile } = useDoc(profileRef);
 
-  // Redirección client-side si no hay sesión
   useEffect(() => {
     if (mounted && !authLoading && !user) {
       router.push('/login');
@@ -43,7 +42,7 @@ export default function DashboardPage() {
   }, [mounted, authLoading, user, router]);
 
   const isSuperAdmin = profile?.role === 'super-admin';
-  const hasNoRole = (mounted && !authLoading && user && !profileLoading && (!profile || !profile.role));
+  const hasNoRole = (mounted && user && profile && !profile.role);
 
   const handleInitialSetup = async () => {
     if (!user) return;
@@ -71,12 +70,10 @@ export default function DashboardPage() {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center gap-4 bg-background">
         <Loader2 className="h-10 w-10 text-primary animate-spin" />
-        <p className="text-muted-foreground font-headline animate-pulse uppercase tracking-widest text-[10px] font-bold">Iniciando Sistemas de Control...</p>
+        <p className="text-muted-foreground font-headline animate-pulse uppercase tracking-widest text-[10px] font-bold">Sincronizando con la Red NeuroTrade...</p>
       </div>
     );
   }
-
-  if (!user) return null;
 
   return (
     <SidebarProvider>
@@ -97,7 +94,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {hasNoRole && (
+            {(hasNoRole || !profile) && user && (
               <Button 
                 onClick={handleInitialSetup} 
                 variant="outline" 
