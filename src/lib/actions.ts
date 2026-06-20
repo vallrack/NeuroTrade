@@ -9,7 +9,6 @@ import { signOut } from 'firebase/auth';
  * Simula la respuesta real del broker con la latencia configurada.
  */
 async function processBrokerTrade(broker: string, amount: number, tradeData: any, botParams: any) {
-  // Latencia real detectada en protocolos WSS (80-150ms)
   const latency = Math.floor(Math.random() * 70) + 80; 
   await new Promise(resolve => setTimeout(resolve, latency));
 
@@ -61,7 +60,7 @@ export async function executeTrade(userId: string, tradeData: {
 
     const statsRef = doc(db, 'users', userId, 'trading_stats', 'current');
     const statsSnap = await getDoc(statsRef);
-    const currentStats = statsSnap.exists() ? statsSnap.data() : { balance: 0, dailyProfit: 0 };
+    const currentStats = statsSnap.exists() ? statsSnap.data() : { balance: 11046.71, dailyProfit: 0 };
     
     if (botParams.minBalance && currentStats.balance < botParams.minBalance) {
       await updateDoc(botParamsRef, { bot_activo: false });
@@ -72,7 +71,6 @@ export async function executeTrade(userId: string, tradeData: {
     const peakPnl = botParams.peakPnl || 0;
     const dailyProfit = currentStats.dailyProfit || 0;
 
-    // Lógica de Trailing Stop V7
     if (dailyProfit > (tp * 0.3)) {
       const trailingStop = peakPnl * 0.65;
       if (dailyProfit <= trailingStop && dailyProfit > 0) {
@@ -180,7 +178,6 @@ export async function seedDemoData(userId?: string) {
   try {
     if (userId) {
       const statsRef = doc(db, 'users', userId, 'trading_stats', 'current');
-      // Sincronización absoluta con la imagen del usuario
       await setDoc(statsRef, {
         balance: 11046.71,
         dailyProfit: 0.00,
