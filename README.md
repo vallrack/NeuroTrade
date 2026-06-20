@@ -16,11 +16,12 @@ git push -u origin main
 ```
 
 ## Características V7
-- **Núcleo Maestro:** Consenso de 5 agentes de IA.
-- **Protocolos HFT:** Operativa en temporalidades de 1 minuto.
-- **Umbrales RSI Cuánticos:** Configuración maestra en niveles 20, 38 y 62.
-- **Arquitectura de Puente:** Soporte para IQ Option, Alpaca y Cripto (CCXT).
-- **Control de Riesgo Blindado:** Gestión de Take Profit, Stop Loss y Kill-Switch global.
+- **Núcleo Maestro:** Consenso de 5 agentes de IA con análisis en tiempo real cada 3 segundos.
+- **Protocolos HFT:** Operativa optimizada para temporalidades de 1 minuto (M1).
+- **Umbrales RSI Cuánticos:** Configuración maestra calibrada en niveles 20 (Sobreventa), 38 (Equilibrio) y 62 (Sobrecompra).
+- **Arquitectura de Puente:** Capa de abstracción preparada para IQ Option (WSS), Alpaca (REST) y Cripto (CCXT).
+- **Control de Riesgo Blindado:** Gestión dinámica de Take Profit ($60k), Stop Loss ($8k) e Inversión Maestra ($4k).
+- **Terminal Profesional:** Integración de gráficos Advanced Real-Time para monitoreo de alta fidelidad.
 
 ---
-*Desarrollado en el entorno de ingeniería financiera NeuroTrade.*
+*Desarrollado bajo el protocolo de ingeniería financiera NeuroTrade.*
