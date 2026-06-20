@@ -13,7 +13,7 @@ export async function executeTrade(userId: string, tradeData: {
   direction: 'CALL' | 'PUT';
   amount: number;
 }) {
-  const { db } = getFirebase();
+  const { firestore: db } = getFirebase();
   try {
     const isWin = Math.random() > 0.35; // Simulación de tasa de acierto del 65%
     const profit = isWin ? tradeData.amount * 0.85 : -tradeData.amount;
@@ -51,7 +51,7 @@ export async function updateBotConfig(data: {
   martingale: boolean;
   pairs: string[];
 }) {
-  const { db } = getFirebase();
+  const { firestore: db } = getFirebase();
   try {
     const configRef = doc(db, 'configuracion', 'bot_params');
     await setDoc(configRef, {
@@ -71,7 +71,7 @@ export async function updateBotConfig(data: {
  * Activa el apagado de emergencia del bot.
  */
 export async function triggerKillSwitch() {
-  const { db } = getFirebase();
+  const { firestore: db } = getFirebase();
   try {
     const configRef = doc(db, 'configuracion', 'bot_params');
     await updateDoc(configRef, {
@@ -90,7 +90,7 @@ export async function triggerKillSwitch() {
  * Promueve a un usuario al rango de Super Administrador (Maestro).
  */
 export async function promoteToSuperAdmin(userId: string) {
-  const { db } = getFirebase();
+  const { firestore: db } = getFirebase();
   try {
     const userRef = doc(db, 'users', userId);
     await setDoc(userRef, {
@@ -120,10 +120,28 @@ export async function signOutUser() {
 }
 
 /**
+ * Desvincula la cuenta del bróker.
+ */
+export async function disconnectBroker(userId: string) {
+  const { firestore: db } = getFirebase();
+  try {
+    const brokerRef = doc(db, 'users', userId, 'config', 'broker');
+    await updateDoc(brokerRef, {
+      status: 'disconnected',
+      disconnectedAt: new Date().toISOString()
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Error disconnecting broker:', error);
+    return { success: false };
+  }
+}
+
+/**
  * Inicializa datos demo para el Dashboard.
  */
 export async function seedDemoData() {
-  const { db } = getFirebase();
+  const { firestore: db } = getFirebase();
   try {
     const statsRef = doc(db, 'dashboard', 'current_stats');
     await setDoc(statsRef, {

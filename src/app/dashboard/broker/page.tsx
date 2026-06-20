@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { disconnectBroker } from '@/lib/actions';
 import { Globe, Lock, ShieldCheck, Zap, Loader2, CheckCircle2, ShieldAlert } from 'lucide-react';
 
 export default function BrokerPage() {
@@ -39,7 +40,6 @@ export default function BrokerPage() {
     
     setLoading(true);
     try {
-      // Seteamos el estado a 'connected' para activar el puente real
       await setDoc(brokerRef, {
         provider: 'IQ Option',
         email,
@@ -57,6 +57,28 @@ export default function BrokerPage() {
       toast({
         title: "ERROR DE CONEXIÓN",
         description: "No se pudo establecer el puente: " + err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const result = await disconnectBroker(user.uid);
+      if (result.success) {
+        toast({
+          title: "CUENTA DESVINCULADA",
+          description: "El puente con IQ Option ha sido cerrado de forma segura.",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "ERROR",
+        description: "No se pudo desvincular la cuenta.",
         variant: "destructive"
       });
     } finally {
@@ -206,7 +228,13 @@ export default function BrokerPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Button variant="ghost" className="w-full text-red-500 hover:bg-red-500/10 h-8 text-[10px]">
+                  <Button 
+                    variant="ghost" 
+                    onClick={handleDisconnect}
+                    disabled={loading || !isConnected}
+                    className="w-full text-red-500 hover:bg-red-500/10 h-8 text-[10px]"
+                  >
+                    {loading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : null}
                     DESVINCULAR CUENTA
                   </Button>
                 </CardContent>
