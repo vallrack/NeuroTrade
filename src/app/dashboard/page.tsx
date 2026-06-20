@@ -9,7 +9,7 @@ import { LogConsole } from '@/components/dashboard/log-console';
 import { KillSwitch } from '@/components/dashboard/kill-switch';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
-import { Bell, Search, Settings, ShieldCheck, Crown } from 'lucide-react';
+import { Bell, Search, Settings, ShieldCheck, Crown, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useUser, useDoc, useFirestore } from '@/firebase';
@@ -37,7 +37,7 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2">
               <h1 className="font-headline text-xl font-bold tracking-tight text-foreground">Centro de Comando</h1>
               {isSuperAdmin && (
-                <Badge variant="outline" className="border-primary/50 text-primary gap-1">
+                <Badge variant="outline" className="border-primary/50 text-primary gap-1 animate-pulse bg-primary/5">
                   <Crown className="h-3 w-3" />
                   MAESTRO
                 </Badge>
@@ -48,7 +48,7 @@ export default function DashboardPage() {
             <div className="hidden md:flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-md border border-white/5">
               <Search className="h-4 w-4 text-muted-foreground" />
               <input 
-                placeholder="Buscar transacciones..." 
+                placeholder="Buscar protocolos..." 
                 className="bg-transparent border-none outline-none text-sm w-48 placeholder:text-muted-foreground"
               />
             </div>
@@ -72,19 +72,29 @@ export default function DashboardPage() {
                 <IACommitteeMonitor />
                 <div className="space-y-6">
                   {isSuperAdmin && <SuperAdminTools />}
-                  <div className="p-6 bg-card/50 border border-white/5 rounded-xl">
-                    <h3 className="font-headline font-bold mb-4 flex items-center gap-2">
-                      <ShieldCheck className="h-5 w-5 text-destructive" />
+                  <div className="p-6 bg-card/50 border border-white/5 rounded-xl shadow-xl backdrop-blur-sm">
+                    <h3 className="font-headline font-bold mb-4 flex items-center gap-2 text-destructive">
+                      <ShieldCheck className="h-5 w-5" />
                       Protocolos de Emergencia
                     </h3>
                     <KillSwitch />
                   </div>
-                  <div className="p-6 bg-primary/10 border border-primary/20 rounded-xl">
-                    <h3 className="font-headline font-bold text-primary mb-2">Estado del Bot: ACTIVO</h3>
-                    <p className="text-sm text-primary/80 mb-4">El motor está procesando patrones de EUR/USD y BTC/USD a través del Clúster Neuronal A1.</p>
-                    <div className="flex gap-2">
-                      <div className="h-1 flex-1 bg-primary/30 rounded-full overflow-hidden">
-                        <div className="h-full bg-primary w-2/3 shadow-[0_0_8px_rgba(var(--primary),0.8)]" />
+                  <div className="p-6 bg-primary/10 border border-primary/20 rounded-xl relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                      <Activity className="h-12 w-12 text-primary" />
+                    </div>
+                    <h3 className="font-headline font-bold text-primary mb-2 flex items-center gap-2">
+                      <span className="flex h-2 w-2 rounded-full bg-primary animate-ping" />
+                      Estado del Bot: OPERATIVO
+                    </h3>
+                    <p className="text-sm text-primary/80 mb-4 pr-12">El motor cuántico está procesando flujos de datos a través de la red neuronal activa.</p>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex justify-between text-[10px] font-bold text-primary/60 uppercase">
+                        <span>Carga de Análisis</span>
+                        <span>84%</span>
+                      </div>
+                      <div className="h-1 w-full bg-primary/30 rounded-full overflow-hidden">
+                        <div className="h-full bg-primary w-[84%] shadow-[0_0_8px_rgba(var(--primary),0.8)]" />
                       </div>
                     </div>
                   </div>
@@ -105,29 +115,30 @@ export default function DashboardPage() {
 
 function CardWithRecentTrades() {
   return (
-    <div className="bg-card/50 border border-white/5 rounded-xl p-4">
-      <h3 className="font-headline font-bold text-sm mb-4 px-2">EJECUCIONES RECIENTES</h3>
+    <div className="bg-card/50 border border-white/5 rounded-xl p-4 shadow-sm backdrop-blur-sm">
+      <h3 className="font-headline font-bold text-xs mb-4 px-2 text-muted-foreground tracking-widest uppercase">EJECUCIONES DE ALTA FRECUENCIA</h3>
       <div className="space-y-3">
         {[
-          { pair: 'EUR/USD', type: 'COMPRA', price: '1.0842', result: 'WIN', time: 'hace 2m' },
-          { pair: 'BTC/USD', type: 'VENTA', price: '64,231', result: 'WIN', time: 'hace 8m' },
-          { pair: 'GBP/JPY', type: 'COMPRA', price: '190.12', result: 'LOSS', time: 'hace 15m' },
+          { pair: 'EUR/USD', type: 'COMPRA', price: '1.0842', result: 'WIN', time: 'hace 2m', profit: '+85%' },
+          { pair: 'BTC/USD', type: 'VENTA', price: '94,231', result: 'WIN', time: 'hace 8m', profit: '+120%' },
+          { pair: 'GBP/JPY', type: 'COMPRA', price: '190.12', result: 'LOSS', time: 'hace 15m', profit: '-100%' },
         ].map((trade, i) => (
-          <div key={i} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 transition-colors">
+          <div key={i} className="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all border border-transparent hover:border-white/5">
             <div className="flex items-center gap-3">
-              <div className={`w-1 h-8 rounded-full ${trade.result === 'WIN' ? 'bg-green-500' : 'bg-red-500'}`} />
+              <div className={`w-1 h-10 rounded-full ${trade.result === 'WIN' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`} />
               <div>
-                <p className="text-xs font-bold">{trade.pair}</p>
-                <p className="text-[10px] text-muted-foreground">{trade.type} @ {trade.price}</p>
+                <p className="text-sm font-bold">{trade.pair}</p>
+                <p className="text-[10px] text-muted-foreground font-code">{trade.type} @ {trade.price}</p>
               </div>
             </div>
             <div className="text-right">
-              <p className={`text-xs font-bold ${trade.result === 'WIN' ? 'text-green-500' : 'text-red-500'}`}>{trade.result === 'WIN' ? '+85%' : '-100%'}</p>
+              <p className={`text-sm font-bold ${trade.result === 'WIN' ? 'text-green-500' : 'text-red-500'}`}>{trade.profit}</p>
               <p className="text-[10px] text-muted-foreground">{trade.time}</p>
             </div>
           </div>
         ))}
       </div>
+      <Button variant="ghost" className="w-full mt-4 text-[10px] font-bold text-primary/70 hover:text-primary">VER TODO EL HISTORIAL</Button>
     </div>
   );
 }

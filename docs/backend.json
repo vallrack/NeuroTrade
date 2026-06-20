@@ -57,15 +57,15 @@
     },
     "/configuracion/bot_params": {
       "schema": "BotParams",
-      "description": "Configuración global de los parámetros del bot. Solo editable por admins."
+      "description": "Configuración global de los parámetros del bot. Solo editable por admins y super-admins."
     },
     "/rendimiento_diario/{recordId}": {
       "schema": "DailyEquity",
-      "description": "Datos temporales para el gráfico de equidad."
+      "description": "Datos temporales para el gráfico de equidad. Acceso total para super-admin."
     },
     "/dashboard/current_stats": {
       "schema": "DashboardStats",
-      "description": "Resumen de estadísticas en tiempo real para el dashboard."
+      "description": "Resumen de estadísticas en tiempo real para el dashboard. Acceso total para super-admin."
     }
   }
 }
