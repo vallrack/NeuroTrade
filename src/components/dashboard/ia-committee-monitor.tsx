@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { aiConsensusMonitor, type AiConsensusMonitorOutput } from '@/ai/flows/ai-consensus-monitor-flow';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -21,16 +22,15 @@ export function IACommitteeMonitor() {
   const [isExecuting, setIsExecuting] = useState(false);
   const executionCooldown = useRef(false);
 
-  const botParamsRef = doc(firestore, 'configuracion', 'bot_params');
+  const botParamsRef = useMemo(() => firestore ? doc(firestore, 'configuracion', 'bot_params') : null, [firestore]);
   const { data: botParams } = useDoc(botParamsRef);
   
-  const brokerRef = user ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
+  const brokerRef = useMemo(() => (user && firestore) ? doc(firestore, 'users', user.uid, 'config', 'broker') : null, [user, firestore]);
   const { data: brokerConfig } = useDoc(brokerRef);
 
   const activePair = botParams?.pairs?.[0] || 'EURUSD-OTC';
 
   const fetchConsensus = async () => {
-    // En HFT, la IA nunca se detiene, incluso durante la ejecución
     try {
       const result = await aiConsensusMonitor({ pair: activePair });
       setData(result);
@@ -75,7 +75,6 @@ export function IACommitteeMonitor() {
       console.error('Error en auto-trade:', err);
     } finally {
       setIsExecuting(false);
-      // Cooldown reducido para HFT (5 segundos)
       setTimeout(() => {
         executionCooldown.current = false;
       }, 5000);
@@ -84,7 +83,6 @@ export function IACommitteeMonitor() {
 
   useEffect(() => {
     fetchConsensus();
-    // FRECUENCIA ULTRA-ALTA: Actualización cada 3 segundos
     const interval = setInterval(fetchConsensus, 3000);
     return () => clearInterval(interval);
   }, [user, botParams?.bot_activo, brokerConfig?.status, activePair]);

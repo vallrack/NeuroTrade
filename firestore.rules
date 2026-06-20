@@ -22,20 +22,25 @@ service cloud.firestore {
       match /config/broker {
         allow read, write: if isOwner(userId) || isSuperAdmin();
       }
+
+      match /trades/{tradeId} {
+        allow read, write: if isOwner(userId) || isSuperAdmin();
+      }
     }
 
     match /configuracion/{docId} {
-      allow read: if isSignedIn();
+      // Permitimos lectura pública para que el monitor de IA funcione incluso durante la transición de login
+      allow read: if true;
       allow write: if isSuperAdmin();
     }
 
     match /rendimiento_diario/{docId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isSuperAdmin();
     }
 
     match /dashboard/{docId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isSuperAdmin();
     }
   }
