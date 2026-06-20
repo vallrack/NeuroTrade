@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -13,12 +14,13 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { disconnectBroker } from '@/lib/actions';
-import { Globe, Lock, ShieldCheck, Zap, Loader2, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { Globe, Lock, ShieldCheck, Zap, Loader2, CheckCircle2, ShieldAlert, LineChart, ArrowRight } from 'lucide-react';
 
 export default function BrokerPage() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   
   const brokerRef = user ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
@@ -142,6 +144,7 @@ export default function BrokerPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       className="bg-background/50 border-white/5 h-12"
                       required
+                      disabled={isConnected}
                     />
                   </div>
                   <div className="space-y-2">
@@ -155,17 +158,29 @@ export default function BrokerPage() {
                         onChange={(e) => setPassword(e.target.value)}
                         className="bg-background/50 border-white/5 h-12 pr-10"
                         required
+                        disabled={isConnected}
                       />
                       <Lock className="absolute right-3 top-4 h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
                   
                   {isConnected && (
-                    <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg flex gap-3 items-center">
-                      <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
-                      <div className="text-xs text-green-500/90 font-bold uppercase tracking-wider">
-                        Conexión establecida. Latencia: 12ms. Los activos están siendo monitoreados por la IA.
+                    <div className="space-y-4">
+                      <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg flex gap-3 items-center">
+                        <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+                        <div className="text-xs text-green-500/90 font-bold uppercase tracking-wider">
+                          Conexión establecida. Los activos están siendo monitoreados por la IA.
+                        </div>
                       </div>
+                      <Button 
+                        type="button" 
+                        onClick={() => router.push('/dashboard/terminal')}
+                        className="w-full bg-primary h-14 font-headline text-md gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform"
+                      >
+                        <LineChart className="h-5 w-5" />
+                        ENTRAR AL TERMINAL DE GRÁFICOS
+                        <ArrowRight className="h-5 w-5" />
+                      </Button>
                     </div>
                   )}
 
@@ -173,7 +188,7 @@ export default function BrokerPage() {
                     <div className="p-4 bg-primary/10 border border-primary/20 rounded-lg flex gap-3 items-start">
                       <ShieldCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                       <div className="text-xs text-primary/90 leading-relaxed">
-                        <strong>Seguridad de Grado Militar:</strong> Sus credenciales se cifran localmente y solo se utilizan para abrir el túnel de ejecución hacia IQ Option. El bot no tiene permiso para realizar retiros ni transferencias.
+                        <strong>Seguridad de Grado Militar:</strong> Sus credenciales se cifran localmente y solo se utilizan para abrir el túnel de ejecución hacia IQ Option.
                       </div>
                     </div>
                   )}
@@ -183,10 +198,17 @@ export default function BrokerPage() {
                     <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Servidor de Enlace</span>
                     <span className="text-sm font-code text-primary">NY-DC-04 (AWS)</span>
                   </div>
-                  <Button type="submit" disabled={loading} className="gap-2 px-10 h-12 font-headline text-md shadow-lg shadow-primary/20">
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-                    {isConnected ? 'REINICIAR PUENTE' : 'VINCULAR CUENTA REAL'}
-                  </Button>
+                  {!isConnected ? (
+                    <Button type="submit" disabled={loading} className="gap-2 px-10 h-12 font-headline text-md shadow-lg shadow-primary/20">
+                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+                      VINCULAR CUENTA REAL
+                    </Button>
+                  ) : (
+                    <span className="text-[10px] font-bold text-green-500 uppercase flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping" />
+                      Sistema Sincronizado
+                    </span>
+                  )}
                 </CardFooter>
               </form>
             </Card>
@@ -220,25 +242,27 @@ export default function BrokerPage() {
                 </div>
               </div>
 
-              <Card className="bg-red-500/5 border-red-500/20">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-headline flex items-center gap-2 text-red-500 uppercase">
-                    <ShieldAlert className="h-4 w-4" />
-                    Zona de Peligro
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Button 
-                    variant="ghost" 
-                    onClick={handleDisconnect}
-                    disabled={loading || !isConnected}
-                    className="w-full text-red-500 hover:bg-red-500/10 h-8 text-[10px]"
-                  >
-                    {loading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : null}
-                    DESVINCULAR CUENTA
-                  </Button>
-                </CardContent>
-              </Card>
+              {isConnected && (
+                <Card className="bg-red-500/5 border-red-500/20">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-xs font-headline flex items-center gap-2 text-red-500 uppercase">
+                      <ShieldAlert className="h-4 w-4" />
+                      Zona de Peligro
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Button 
+                      variant="ghost" 
+                      onClick={handleDisconnect}
+                      disabled={loading}
+                      className="w-full text-red-500 hover:bg-red-500/10 h-8 text-[10px]"
+                    >
+                      {loading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : null}
+                      DESVINCULAR CUENTA
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </div>
         </main>

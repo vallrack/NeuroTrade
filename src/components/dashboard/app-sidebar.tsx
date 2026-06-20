@@ -12,7 +12,8 @@ import {
   UserCircle,
   LogOut,
   Zap,
-  Globe
+  Globe,
+  LineChart
 } from "lucide-react"
 
 import {
@@ -41,6 +42,11 @@ const data = {
           url: "/dashboard",
           icon: LayoutDashboard,
           isActive: true,
+        },
+        {
+          title: "Terminal en Vivo",
+          url: "/dashboard/terminal",
+          icon: LineChart,
         },
         {
           title: "Historial de Ejecución",
@@ -120,12 +126,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
                       asChild
-                      isActive={item.isActive}
                       tooltip={item.title}
                       className="px-4 py-6 hover:bg-white/5"
                     >
                       <a href={item.url}>
-                        <item.icon className={item.isActive ? "text-primary" : "text-muted-foreground"} />
+                        <item.icon className="text-muted-foreground" />
                         <span className="font-medium">{item.title}</span>
                       </a>
                     </SidebarMenuButton>
