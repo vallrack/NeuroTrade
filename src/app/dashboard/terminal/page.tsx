@@ -147,11 +147,15 @@ export default function TerminalPage() {
     const stochKSeries = stochChart.addLineSeries({ color: '#2196f3', lineWidth: 1.5 });
     const stochDSeries = stochChart.addLineSeries({ color: '#ff9800', lineWidth: 1.5 });
 
-    // Syncronization - FIXED: Added range null check to prevent "Value is null" error
+    // Syncronization - FIXED: Added deeper null checks and try-catch to prevent "Value is null" error
     priceChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
-      if (range) {
-        rsiChart.timeScale().setVisibleRange(range);
-        stochChart.timeScale().setVisibleRange(range);
+      if (range && rsiChart && stochChart) {
+        try {
+          rsiChart.timeScale().setVisibleRange(range);
+          stochChart.timeScale().setVisibleRange(range);
+        } catch (e) {
+          // Ignore synchronization errors if charts are not ready
+        }
       }
     });
 
@@ -387,11 +391,11 @@ export default function TerminalPage() {
 
                 <div className="space-y-2">
                    <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest block">Señales Maestro V7</span>
-                   {recentTrades.length === 0 ? (
+                   {recentTrades && recentTrades.length === 0 ? (
                      <div className="text-center py-8 text-muted-foreground text-[10px] italic">
                        Esperando confirmación...
                      </div>
-                   ) : recentTrades.map((t: any) => (
+                   ) : recentTrades?.map((t: any) => (
                       <div key={t.id} className="p-3 bg-white/5 rounded-lg border border-white/5 flex flex-col gap-1 hover:border-primary/30 transition-colors">
                          <div className="flex justify-between items-center">
                             <span className="text-[10px] font-bold text-white uppercase">{t.pair}</span>
