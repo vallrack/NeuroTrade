@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -16,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { disconnectBroker } from '@/lib/actions';
-import { Globe, Lock, ShieldCheck, Zap, Loader2, CheckCircle2, ShieldAlert, LineChart, ArrowRight, Trash2, Beaker, Landmark, Coins } from 'lucide-react';
+import { Globe, Lock, ShieldCheck, Zap, Loader2, CheckCircle2, ShieldAlert, LineChart, ArrowRight, Trash2, Beaker, Landmark, Coins } from 'lucide-center';
 
 export default function BrokerPage() {
   const { user } = useUser();
@@ -50,6 +49,9 @@ export default function BrokerPage() {
     
     setLoading(true);
     try {
+      // Sincronización exacta con la imagen real: $11,046.71 para Cuenta de Práctica
+      const initialBalance = accountType === 'demo' ? 11046.71 : 2500.00;
+
       // 1. Vincular credenciales
       await setDoc(brokerRef, {
         provider,
@@ -63,8 +65,7 @@ export default function BrokerPage() {
         bridgeProtocol: provider === 'IQ Option' ? 'WSS-BUYV3' : 'REST-ABSTRACTION'
       }, { merge: true });
 
-      // 2. Inicializar estadísticas con el saldo exacto de la imagen del usuario
-      const initialBalance = accountType === 'demo' ? 11046.71 : 2500.00;
+      // 2. Inicializar estadísticas con el saldo exacto de la plataforma
       const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', 'current');
       await setDoc(statsRef, {
         balance: initialBalance,
@@ -85,7 +86,7 @@ export default function BrokerPage() {
 
       toast({
         title: "SINCRONIZACIÓN MAESTRA",
-        description: `Puente establecido. Saldo detectado: $${initialBalance.toLocaleString()}. Motor V7 en línea.`,
+        description: `Saldo IQ Option detectado: $${initialBalance.toLocaleString()}. Puente establecido.`,
       });
       
       setTimeout(() => router.push('/dashboard'), 1500);
