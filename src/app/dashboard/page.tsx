@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { StatsGrid } from '@/components/dashboard/stats-grid';
 import { IACommitteeMonitor } from '@/components/dashboard/ia-committee-monitor';
 import { EquityChart } from '@/components/dashboard/equity-chart';
@@ -9,37 +9,71 @@ import { LogConsole } from '@/components/dashboard/log-console';
 import { KillSwitch } from '@/components/dashboard/kill-switch';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
-import { Bell, Search, Settings, ShieldCheck, Crown, Activity, RefreshCw } from 'lucide-react';
+import { Bell, Settings, ShieldCheck, Crown, Activity, RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useUser, useDoc, useFirestore } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { SuperAdminTools } from '@/components/dashboard/super-admin-tools';
 import { Badge } from '@/components/ui/badge';
 import { promoteToSuperAdmin } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 
 export default function DashboardPage() {
-  const { user } = useUser();
+  const { user, loading: authLoading } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const [initLoading, setInitLoading] = useState(false);
   
   const profileRef = useMemo(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-  const { data: profile } = useDoc(profileRef);
+  const { data: profile, loading: profileLoading } = useDoc(profileRef);
 
   const isSuperAdmin = profile?.role === 'super-admin';
-  const hasNoRole = !profile?.role;
+  const hasNoRole = profile && !profile.role;
+
+  // Si el usuario existe pero no tiene documento de perfil, lo creamos
+  useEffect(() => {
+    if (user && !profileLoading && !profile && firestore) {
+      console.log("Creando perfil faltante para:", user.uid);
+      setDoc(doc(firestore, 'users', user.uid), {
+        email: user.email,
+        displayName: user.displayName || user.email?.split('@')[0],
+        role: null,
+        createdAt: serverTimestamp(),
+      }, { merge: true });
+    }
+  }, [user, profile, profileLoading, firestore]);
 
   const handleInitialSetup = async () => {
     if (!user) return;
-    const result = await promoteToSuperAdmin(user.uid);
-    if (result.success) {
+    setInitLoading(true);
+    try {
+      const result = await promoteToSuperAdmin(user.uid);
+      if (result.success) {
+        toast({
+          title: "SISTEMA INICIALIZADO",
+          description: "Has sido elevado a Super Administrador Maestro.",
+        });
+      }
+    } catch (error) {
       toast({
-        title: "SISTEMA INICIALIZADO",
-        description: "Has sido elevado a Super Administrador Maestro.",
+        variant: "destructive",
+        title: "ERROR DE INICIALIZACIÓN",
+        description: "No se pudo establecer el rango maestro.",
       });
+    } finally {
+      setInitLoading(false);
     }
   };
+
+  if (authLoading || (user && profileLoading)) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center gap-4 bg-background">
+        <Loader2 className="h-10 w-10 text-primary animate-spin" />
+        <p className="text-muted-foreground font-headline animate-pulse">Sincronizando con la Red NeuroTrade...</p>
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>
@@ -65,9 +99,10 @@ export default function DashboardPage() {
                 onClick={handleInitialSetup} 
                 variant="outline" 
                 size="sm" 
+                disabled={initLoading}
                 className="border-primary text-primary hover:bg-primary/10 gap-2 animate-bounce"
               >
-                <RefreshCw className="h-4 w-4" />
+                {initLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 INICIALIZAR SUPER ADMIN
               </Button>
             )}

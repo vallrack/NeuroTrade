@@ -2,23 +2,29 @@
 'use client';
 
 import { useState } from 'react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { useAuth } from '@/firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { useAuth, useFirestore } from '@/firebase';
 import { useRouter } from 'next/navigation';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Zap, ShieldCheck, Loader2, UserPlus, LogIn, AlertCircle } from 'lucide-react';
+import { Zap, Loader2, UserPlus, LogIn, AlertCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
   const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
+  const { toast } = useToast();
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,26 +32,52 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const userCredential = isRegister 
-        ? await createUserWithEmailAndPassword(auth, email, password)
-        : await signInWithEmailAndPassword(auth, email, password);
-      
-      const token = await userCredential.user.getIdToken();
-      // Establecemos la cookie de sesión para el middleware
-      document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Strict`;
+      if (isRegister) {
+        // Crear usuario en Auth
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        // Actualizar perfil de Auth si hay nombre
+        if (displayName) {
+          await updateProfile(user, { displayName });
+        }
+
+        // CREAR PERFIL EN FIRESTORE (Solución al problema de "no hay perfil")
+        await setDoc(doc(firestore, 'users', user.uid), {
+          email: user.email,
+          displayName: displayName || user.email?.split('@')[0],
+          role: null, // Se asignará después con el botón de inicialización
+          createdAt: serverTimestamp(),
+          lastActive: serverTimestamp(),
+        });
+
+        toast({
+          title: "CUENTA CREADA",
+          description: "Bienvenido al sistema NeuroTrade. Inicializa tu rango en el dashboard.",
+        });
+      } else {
+        // Login normal
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+
+      // Obtener token para la cookie de sesión (Middleware)
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        const token = await currentUser.getIdToken();
+        document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Strict`;
+      }
       
       router.push('/dashboard');
+      router.refresh();
     } catch (err: any) {
       console.error("Auth Error:", err.code, err.message);
       let message = 'Error de conexión con el núcleo central.';
       
       if (err.code === 'auth/user-not-found') message = 'Operador no registrado. Por favor, crea una cuenta.';
-      if (err.code === 'auth/wrong-password') message = 'Protocolo de seguridad fallido: Contraseña incorrecta.';
-      if (err.code === 'auth/email-already-in-use') message = 'Este ID de operador ya está activo en el sistema.';
-      if (err.code === 'auth/invalid-email') message = 'Formato de ID de operador no válido.';
-      if (err.code === 'auth/weak-password') message = 'La seguridad de la contraseña es insuficiente (min. 6 caracteres).';
-      if (err.code === 'auth/operation-not-allowed') message = 'El registro por email no está habilitado en Firebase Console.';
-      if (err.code === 'auth/invalid-api-key') message = 'Error crítico: Llave de sistema no configurada correctamente.';
+      if (err.code === 'auth/wrong-password') message = 'Contraseña incorrecta.';
+      if (err.code === 'auth/invalid-credential') message = 'Credenciales no válidas. Verifica tu ID y contraseña.';
+      if (err.code === 'auth/email-already-in-use') message = 'Este ID de operador ya está activo.';
+      if (err.code === 'auth/weak-password') message = 'La contraseña debe tener al menos 6 caracteres.';
       
       setError(message);
     } finally {
@@ -71,6 +103,18 @@ export default function LoginPage() {
         </CardHeader>
         <form onSubmit={handleAuth}>
           <CardContent className="space-y-4">
+            {isRegister && (
+              <div className="space-y-2">
+                <Label htmlFor="name">Nombre del Operador</Label>
+                <Input 
+                  id="name" 
+                  placeholder="Ej. Comandante Alpha" 
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="bg-background/50 border-white/5"
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">ID de Operador (Email)</Label>
               <Input 
@@ -86,7 +130,6 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <Label htmlFor="password">Protocolo de Seguridad (Contraseña)</Label>
-                {!isRegister && <a href="#" className="text-xs text-primary hover:underline">¿Olvido?</a>}
               </div>
               <Input 
                 id="password" 
@@ -98,7 +141,7 @@ export default function LoginPage() {
               />
             </div>
             {error && (
-              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-[11px] flex items-center gap-2 font-bold uppercase animate-shake">
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-[11px] flex items-center gap-2 font-bold uppercase">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{error}</span>
               </div>
@@ -126,9 +169,6 @@ export default function LoginPage() {
             >
               {isRegister ? '¿Ya tienes cuenta? Inicia Sesión' : '¿Nuevo operador? Regístrate aquí'}
             </Button>
-            <p className="text-center text-[10px] text-muted-foreground/60">
-              Sesión cifrada con estándar AES-256. El acceso no autorizado es monitoreado.
-            </p>
           </CardFooter>
         </form>
       </Card>
