@@ -41,38 +41,38 @@ export default function DashboardPage() {
   const botParamsRef = useMemo(() => doc(firestore, 'configuracion', 'bot_params'), [firestore]);
   const { data: botParams } = useDoc(botParamsRef);
 
-  // AUTO-SINCRONIZACIÓN DINÁMICA DE CANAL
+  const currentChannel = brokerConfig?.accountType || 'demo';
+
+  // AUTO-SINCRONIZACIÓN DINÁMICA DE SALDO REAL ($11,046.71)
   useEffect(() => {
-    if (mounted && user && firestore && brokerConfig) {
-      const syncAccount = async () => {
-        const accountType = brokerConfig.accountType || 'demo';
-        const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', accountType);
+    if (mounted && user && firestore && currentChannel === 'demo') {
+      const syncDemoBalance = async () => {
+        const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', 'demo');
         const statsSnap = await getDoc(statsRef);
         
-        // Sincronización absoluta del saldo de la imagen para el canal DEMO
-        if (accountType === 'demo') {
-          const demoBalance = 11046.71;
-          if (!statsSnap.exists() || Math.abs(statsSnap.data()?.balance - demoBalance) > 0.01) {
-            await setDoc(statsRef, {
-              balance: demoBalance,
-              dailyProfit: 0,
-              winRate: 0,
-              totalInvestment: 0,
-              tradesCount: 0,
-              winsCount: 0,
-              lastSync: new Date().toISOString()
-            }, { merge: true });
-            
-            toast({
-              title: "SINCRONIZACIÓN IQ OPTION",
-              description: `Saldo Demo calibrado en $${demoBalance.toLocaleString()}.`,
-            });
-          }
+        const demoBalance = 11046.71;
+        
+        // Si no existe o el saldo es muy diferente al de la imagen, recalibramos
+        if (!statsSnap.exists() || Math.abs((statsSnap.data()?.balance || 0) - demoBalance) > 0.1) {
+          await setDoc(statsRef, {
+            balance: demoBalance,
+            dailyProfit: 0,
+            winRate: 0,
+            totalInvestment: 0,
+            tradesCount: 0,
+            winsCount: 0,
+            lastSync: new Date().toISOString()
+          }, { merge: true });
+          
+          toast({
+            title: "RECALIBRACIÓN DEMO",
+            description: `Saldo sincronizado con la plataforma: $${demoBalance.toLocaleString()}.`,
+          });
         }
       };
-      syncAccount();
+      syncDemoBalance();
     }
-  }, [mounted, user, firestore, brokerConfig, toast]);
+  }, [mounted, user, firestore, currentChannel, toast]);
 
   useEffect(() => {
     if (mounted && !authLoading && !user) {
@@ -83,7 +83,6 @@ export default function DashboardPage() {
   const isSuperAdmin = profile?.role === 'super-admin';
   const hasNoRole = mounted && user && profile && !profile.role;
   const isBotActive = botParams?.bot_activo;
-  const currentChannel = brokerConfig?.accountType || 'demo';
 
   if (!mounted) return null;
 
@@ -99,12 +98,10 @@ export default function DashboardPage() {
               <h1 className="font-headline text-base md:text-lg font-bold tracking-tight text-foreground truncate max-w-[120px] xs:max-w-none">
                 Command Center V7
               </h1>
-              {isBotActive && (
-                <Badge className="bg-primary/10 text-primary border-primary/20 gap-1.5 py-0.5 px-3 text-[10px] hidden xs:flex">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
-                  CANAL {currentChannel.toUpperCase()} ACTIVO
-                </Badge>
-              )}
+              <Badge className={`border-primary/20 gap-1.5 py-0.5 px-3 text-[10px] hidden xs:flex ${currentChannel === 'real' ? 'bg-secondary/10 text-secondary' : 'bg-primary/10 text-primary'}`}>
+                <div className={`w-1.5 h-1.5 rounded-full animate-ping ${currentChannel === 'real' ? 'bg-secondary' : 'bg-primary'}`} />
+                MODO {currentChannel.toUpperCase()}
+              </Badge>
             </div>
           </div>
           

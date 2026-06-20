@@ -35,46 +35,57 @@ export default function BrokerPage() {
   const [apiSecret, setApiSecret] = useState('');
   const [accountType, setAccountType] = useState<'demo' | 'real'>('demo');
 
+  // Sincronizar estado inicial solo una vez o cuando cambie externamente de verdad
   useEffect(() => {
     if (brokerConfig) {
       setProvider(brokerConfig.provider || 'IQ Option');
       setEmail(brokerConfig.email || '');
       setApiKey(brokerConfig.apiKey || '');
-      setAccountType(brokerConfig.accountType || 'demo');
+      // Evitamos sobrescribir si el usuario acaba de cambiarlo localmente
+      if (!loading) {
+        setAccountType(brokerConfig.accountType || 'demo');
+      }
     }
-  }, [brokerConfig]);
+  }, [brokerConfig, loading]);
 
   const handleAccountTypeChange = async (type: 'demo' | 'real') => {
+    if (!user || !brokerRef) return;
+    
+    // Actualización visual inmediata
     setAccountType(type);
-    if (user && brokerRef) {
-      try {
-        // Actualización atómica del canal
-        await setDoc(brokerRef, { accountType: type }, { merge: true });
-        
-        // Inicializar estadísticas si es necesario
-        const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', type);
-        const statsSnap = await getDoc(statsRef);
-        
-        if (!statsSnap.exists()) {
-          const initialBalance = type === 'demo' ? 11046.71 : 0;
-          await setDoc(statsRef, {
-            balance: initialBalance,
-            dailyProfit: 0,
-            winRate: 0,
-            totalInvestment: 0,
-            tradesCount: 0,
-            winsCount: 0,
-            lastSync: new Date().toISOString()
-          });
-        }
-
-        toast({
-          title: "CAMBIO DE CANAL",
-          description: `Bot ahora operando en modo ${type.toUpperCase()}.`,
+    
+    try {
+      // Persistencia atómica en Firestore
+      await setDoc(brokerRef, { accountType: type }, { merge: true });
+      
+      // Inicializar estadísticas del canal si no existen
+      const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', type);
+      const statsSnap = await getDoc(statsRef);
+      
+      if (!statsSnap.exists()) {
+        const initialBalance = type === 'demo' ? 11046.71 : 0;
+        await setDoc(statsRef, {
+          balance: initialBalance,
+          dailyProfit: 0,
+          winRate: 0,
+          totalInvestment: 0,
+          tradesCount: 0,
+          winsCount: 0,
+          lastSync: new Date().toISOString()
         });
-      } catch (err) {
-        console.error("Error al cambiar de canal:", err);
       }
+
+      toast({
+        title: "CANAL SINCRONIZADO",
+        description: `Bot operando ahora en modo ${type.toUpperCase()}.`,
+      });
+    } catch (err) {
+      console.error("Error al cambiar de canal:", err);
+      toast({
+        title: "ERROR DE PROTOCOLO",
+        description: "No se pudo cambiar el canal de ejecución.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -119,16 +130,16 @@ export default function BrokerPage() {
       }, { merge: true });
 
       toast({
-        title: "SINCRONIZACIÓN MAESTRA",
-        description: `Canal ${accountType.toUpperCase()} establecido con éxito.`,
+        title: "PUENTE ESTABLECIDO",
+        description: `Sincronización exitosa en canal ${accountType.toUpperCase()}.`,
       });
       
-      setTimeout(() => router.push('/dashboard'), 1000);
+      router.push('/dashboard');
       
     } catch (err: any) {
       toast({
-        title: "ERROR DE VÍNCULO",
-        description: "Fallo en el puente: " + err.message,
+        title: "FALLO DE VÍNCULO",
+        description: err.message,
         variant: "destructive"
       });
     } finally {
@@ -140,17 +151,15 @@ export default function BrokerPage() {
     if (!user) return;
     setLoading(true);
     try {
-      const result = await disconnectBroker(user.uid);
-      if (result.success) {
-        setEmail('');
-        setPassword('');
-        setApiKey('');
-        setApiSecret('');
-        toast({
-          title: "PUENTE CERRADO",
-          description: "La sesión ha sido finalizada.",
-        });
-      }
+      await disconnectBroker(user.uid);
+      setEmail('');
+      setPassword('');
+      setApiKey('');
+      setApiSecret('');
+      toast({
+        title: "PUENTE CERRADO",
+        description: "Sesión finalizada por el usuario.",
+      });
     } catch (err: any) {
       toast({ title: "ERROR", description: "Fallo al desvincular.", variant: "destructive" });
     } finally {
@@ -175,7 +184,7 @@ export default function BrokerPage() {
         <main className="p-6 max-w-4xl mx-auto space-y-8">
           <div className="flex flex-col gap-2">
             <h2 className="text-3xl font-headline font-bold text-foreground">Gestión de Conectividad</h2>
-            <p className="text-muted-foreground italic">Cambio dinámico entre Demo y Real con persistencia absoluta.</p>
+            <p className="text-muted-foreground italic">Cambio dinámico entre entornos con persistencia absoluta.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -217,7 +226,7 @@ export default function BrokerPage() {
                       className="grid grid-cols-2 gap-4"
                     >
                       <div 
-                        className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${accountType === 'demo' ? 'bg-primary/10 border-primary' : 'bg-background/50 border-white/5'}`}
+                        className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${accountType === 'demo' ? 'bg-primary/10 border-primary shadow-[0_0_20px_rgba(59,130,246,0.1)]' : 'bg-background/50 border-white/5'}`}
                         onClick={() => handleAccountTypeChange('demo')}
                       >
                         <div className="flex items-center gap-3">
@@ -227,7 +236,7 @@ export default function BrokerPage() {
                         <Beaker className="h-5 w-5 opacity-50" />
                       </div>
                       <div 
-                        className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${accountType === 'real' ? 'bg-secondary/10 border-secondary' : 'bg-background/50 border-white/5'}`}
+                        className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${accountType === 'real' ? 'bg-secondary/10 border-secondary shadow-[0_0_20px_rgba(14,165,233,0.1)]' : 'bg-background/50 border-white/5'}`}
                         onClick={() => handleAccountTypeChange('real')}
                       >
                         <div className="flex items-center gap-3">
@@ -265,16 +274,14 @@ export default function BrokerPage() {
                           </div>
                         </>
                       ) : (
-                        <div className="space-y-4">
-                          <div className="space-y-2">
-                            <Label>API Key</Label>
-                            <Input 
-                              value={apiKey}
-                              onChange={(e) => setApiKey(e.target.value)}
-                              className="bg-background/50 border-white/5 h-12"
-                              required
-                            />
-                          </div>
+                        <div className="space-y-2">
+                          <Label>API Key</Label>
+                          <Input 
+                            value={apiKey}
+                            onChange={(e) => setApiKey(e.target.value)}
+                            className="bg-background/50 border-white/5 h-12"
+                            required
+                          />
                         </div>
                       )}
                     </div>
@@ -282,8 +289,8 @@ export default function BrokerPage() {
 
                   {isConnected && (
                     <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-2">
-                       <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Credenciales Activas</p>
-                       <p className="text-sm font-code text-white">{email || apiKey || 'Protección WSS Activa'}</p>
+                       <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Canal de Datos Activo</p>
+                       <p className="text-sm font-code text-white truncate">{email || apiKey || 'Conexión WSS Encriptada'}</p>
                     </div>
                   )}
                 </CardContent>
@@ -316,11 +323,7 @@ export default function BrokerPage() {
                 <CardContent className="text-[11px] text-muted-foreground space-y-4">
                   <div>
                     <span className="text-white font-bold block mb-1">IQ OPTION (WSS)</span>
-                    <p>Comunicación unilateral persistente vía buyV3 para ejecución HFT.</p>
-                  </div>
-                  <div>
-                    <span className="text-white font-bold block mb-1">ALPACA (REST)</span>
-                    <p>Puente oficial para acciones y cripto con feed en tiempo real.</p>
+                    <p>Comunicación persistente vía buyV3 para ejecución HFT de alta precisión.</p>
                   </div>
                 </CardContent>
               </Card>
@@ -328,9 +331,9 @@ export default function BrokerPage() {
               {isConnected && (
                 <Card className="bg-red-500/5 border-red-500/20">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-[10px] font-headline flex items-center gap-2 text-red-500 uppercase tracking-widest">
+                    <CardTitle className="text-[10px] font-headline flex items-center gap-2 text-red-500 uppercase tracking-widest text-center">
                       <ShieldAlert className="h-4 w-4" />
-                      Zona de Peligro
+                      Protocolo de Cierre
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
