@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -26,7 +27,7 @@ export function StatsGrid() {
   useEffect(() => {
     if (!firestore || !user) return;
     
-    // Escucha dinámica basada en el tipo de cuenta activa
+    // ESCUCHA DINÁMICA ABSOLUTA: Cambia de documento según el canal activo
     const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', accountType);
     
     const unsub = onSnapshot(
@@ -45,7 +46,7 @@ export function StatsGrid() {
             winRate: winRate
           });
         } else {
-          // Valores por defecto si no existe el documento de estadísticas para ese canal
+          // Valores por defecto: Demo hereda los $11,046.71 de tu imagen
           setStats({
             balance: accountType === 'demo' ? 11046.71 : 0,
             dailyProfit: 0,
@@ -72,29 +73,29 @@ export function StatsGrid() {
       <MetricCard
         title={`Saldo ${accountType.toUpperCase()}`}
         value={`$${(stats.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-        icon={<Wallet className="h-4 w-4 text-primary" />}
-        subtitle={`Vínculo ${accountType}`}
-        pulse
+        icon={<Wallet className={cn("h-4 w-4", accountType === 'real' ? "text-secondary" : "text-primary")} />}
+        subtitle={`Canal ${accountType.toUpperCase()}`}
+        pulse={accountType === 'real'}
       />
       <MetricCard
-        title="Beneficio Hoy"
+        title="P/L Diario"
         value={`$${(stats.dailyProfit || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
         icon={(stats.dailyProfit || 0) >= 0 ? <TrendingUp className="h-4 w-4 text-green-500" /> : <TrendingDown className="h-4 w-4 text-red-500" />}
-        subtitle="Neto Diario"
+        subtitle="Rendimiento Neto"
         trend={(stats.dailyProfit || 0) >= 0 ? 'up' : 'down'}
       />
       <MetricCard
-        title="Win Rate"
+        title="Win Rate V7"
         value={`${stats.winRate || 0}%`}
         icon={<Target className="h-4 w-4 text-secondary" />}
-        subtitle="V7 Precisión"
+        subtitle="Precisión IA"
         valueClassName={winRateColor}
       />
       <MetricCard
-        title="Exposición"
+        title="Volumen"
         value={`$${(stats.totalInvestment || 0).toLocaleString()}`}
         icon={<Zap className="h-4 w-4 text-accent" />}
-        subtitle="Volumen"
+        subtitle="Exposición"
       />
     </div>
   );
@@ -103,7 +104,7 @@ export function StatsGrid() {
 function MetricCard({ title, value, icon, subtitle, trend, valueClassName, pulse }: any) {
   return (
     <Card className="bg-card/40 backdrop-blur-md border-white/5 hover:border-primary/40 transition-all duration-500 group relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-full h-[2px] bg-primary/0 group-hover:bg-primary/30 transition-all" />
+      <div className={cn("absolute top-0 left-0 w-full h-[2px] transition-all", trend === 'up' ? "bg-green-500/0 group-hover:bg-green-500/30" : "bg-primary/0 group-hover:bg-primary/30")} />
       <CardContent className="p-4 md:p-6">
         <div className="flex justify-between items-start mb-2">
           <p className="text-[9px] md:text-[10px] font-black text-muted-foreground uppercase tracking-widest">{title}</p>

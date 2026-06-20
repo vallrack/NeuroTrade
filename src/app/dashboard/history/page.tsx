@@ -7,22 +7,28 @@ import { AppSidebar } from '@/components/dashboard/app-sidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { useUser, useCollection, useFirestore } from '@/firebase';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { useUser, useCollection, useFirestore, useDoc } from '@/firebase';
+import { collection, query, orderBy, limit, where } from 'firebase/firestore';
 import { History, ArrowUpRight, ArrowDownRight, Clock, DollarSign } from 'lucide-react';
 
 export default function HistoryPage() {
   const { user } = useUser();
   const firestore = useFirestore();
 
+  const brokerRef = user ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
+  const { data: brokerConfig } = useDoc(brokerRef);
+  const currentAccountType = brokerConfig?.accountType || 'demo';
+
   const tradesQuery = useMemo(() => {
     if (!user || !firestore) return null;
+    // FILTRO DINÁMICO: Solo mostramos trades del canal activo (Demo o Real)
     return query(
       collection(firestore, 'users', user.uid, 'trades'),
+      where('accountType', '==', currentAccountType),
       orderBy('timestamp', 'desc'),
       limit(50)
     );
-  }, [user, firestore]);
+  }, [user, firestore, currentAccountType]);
 
   const { data: trades, loading } = useCollection(tradesQuery);
 
@@ -34,19 +40,19 @@ export default function HistoryPage() {
           <SidebarTrigger />
           <h1 className="ml-4 font-headline text-xl font-bold flex items-center gap-2">
             <History className="h-5 w-5 text-primary" />
-            Historial de Ejecución
+            Auditoría {currentAccountType.toUpperCase()}
           </h1>
         </header>
 
         <main className="p-6 space-y-6">
           <div className="flex flex-col gap-1">
-            <h2 className="text-2xl font-headline font-bold">Auditoría de Operaciones</h2>
-            <p className="text-sm text-muted-foreground italic">Registro transparente de cada señal enviada a través del puente WSS.</p>
+            <h2 className="text-2xl font-headline font-bold">Registro de Ejecución</h2>
+            <p className="text-sm text-muted-foreground italic">Auditoría transparente del canal {currentAccountType.toUpperCase()}.</p>
           </div>
 
           <Card className="bg-card/50 border-white/5 backdrop-blur-xl">
             <CardHeader>
-              <CardTitle className="text-lg">Últimas 50 Operaciones</CardTitle>
+              <CardTitle className="text-lg">Últimas 50 Operaciones ({currentAccountType.toUpperCase()})</CardTitle>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -54,8 +60,8 @@ export default function HistoryPage() {
               ) : trades.length === 0 ? (
                 <div className="text-center py-20 text-muted-foreground">
                   <Clock className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                  <p>No se han detectado operaciones aún.</p>
-                  <p className="text-xs">Asegúrate de que el bot esté activo y haya un consenso de IA.</p>
+                  <p>Sin operaciones en este canal.</p>
+                  <p className="text-xs">Asegúrate de que el bot esté activo en modo {currentAccountType.toUpperCase()}.</p>
                 </div>
               ) : (
                 <Table>
@@ -109,3 +115,5 @@ export default function HistoryPage() {
     </SidebarProvider>
   );
 }
+
+import { doc } from 'firebase/firestore';

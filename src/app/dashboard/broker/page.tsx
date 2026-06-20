@@ -16,7 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { disconnectBroker } from '@/lib/actions';
-import { Globe, ShieldCheck, Zap, Loader2, ShieldAlert, ArrowRight, Trash2, Beaker, Landmark } from 'lucide-react';
+import { Globe, ShieldCheck, Zap, Loader2, ShieldAlert, ArrowRight, Trash2, Beaker, Landmark, Coins } from 'lucide-react';
 
 export default function BrokerPage() {
   const { user } = useUser();
@@ -33,32 +33,25 @@ export default function BrokerPage() {
   const [password, setPassword] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [apiSecret, setApiSecret] = useState('');
-  const [accountType, setAccountType] = useState<'demo' | 'real'>('demo');
 
-  // Sincronizar estado inicial solo una vez o cuando cambie externamente de verdad
+  // Sincronizar credenciales si ya existen
   useEffect(() => {
     if (brokerConfig) {
       setProvider(brokerConfig.provider || 'IQ Option');
       setEmail(brokerConfig.email || '');
       setApiKey(brokerConfig.apiKey || '');
-      // Evitamos sobrescribir si el usuario acaba de cambiarlo localmente
-      if (!loading) {
-        setAccountType(brokerConfig.accountType || 'demo');
-      }
     }
-  }, [brokerConfig, loading]);
+  }, [brokerConfig]);
 
   const handleAccountTypeChange = async (type: 'demo' | 'real') => {
-    if (!user || !brokerRef) return;
+    if (!user || !brokerRef || loading) return;
     
-    // Actualización visual inmediata
-    setAccountType(type);
-    
+    setLoading(true);
     try {
-      // Persistencia atómica en Firestore
+      // PERSISTENCIA ATÓMICA: Cambiamos el entorno en la base de datos primero
       await setDoc(brokerRef, { accountType: type }, { merge: true });
       
-      // Inicializar estadísticas del canal si no existen
+      // Sincronización de estadísticas para el nuevo canal
       const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', type);
       const statsSnap = await getDoc(statsRef);
       
@@ -76,16 +69,17 @@ export default function BrokerPage() {
       }
 
       toast({
-        title: "CANAL SINCRONIZADO",
-        description: `Bot operando ahora en modo ${type.toUpperCase()}.`,
+        title: `ENTORNO ${type.toUpperCase()} ACTIVADO`,
+        description: `Toda la plataforma ha volcado su configuración a modo ${type === 'demo' ? 'DEMO' : 'REAL'}.`,
       });
     } catch (err) {
-      console.error("Error al cambiar de canal:", err);
       toast({
-        title: "ERROR DE PROTOCOLO",
-        description: "No se pudo cambiar el canal de ejecución.",
+        title: "ERROR DE CONMUTACIÓN",
+        description: "No se pudo cambiar el entorno operativo.",
         variant: "destructive"
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -95,7 +89,7 @@ export default function BrokerPage() {
     
     setLoading(true);
     try {
-      const demoBalance = 11046.71;
+      const currentAccountType = brokerConfig?.accountType || 'demo';
 
       await setDoc(brokerRef, {
         provider,
@@ -103,17 +97,16 @@ export default function BrokerPage() {
         password: provider === 'IQ Option' ? password : '',
         apiKey: provider !== 'IQ Option' ? apiKey : '',
         apiSecret: provider !== 'IQ Option' ? apiSecret : '',
-        accountType,
+        accountType: currentAccountType,
         status: 'connected',
         connectedAt: new Date().toISOString(),
-        bridgeProtocol: provider === 'IQ Option' ? 'WSS-BUYV3' : 'REST-ABSTRACTION'
       }, { merge: true });
 
-      const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', accountType);
+      const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', currentAccountType);
       const statsSnap = await getDoc(statsRef);
       if (!statsSnap.exists()) {
         await setDoc(statsRef, {
-          balance: accountType === 'demo' ? demoBalance : 0,
+          balance: currentAccountType === 'demo' ? 11046.71 : 0,
           dailyProfit: 0,
           winRate: 0,
           totalInvestment: 0,
@@ -123,51 +116,28 @@ export default function BrokerPage() {
         });
       }
 
-      const botParamsRef = doc(firestore, 'configuracion', 'bot_params');
-      await setDoc(botParamsRef, {
+      // Activar bot globalmente
+      await setDoc(doc(firestore, 'configuracion', 'bot_params'), {
         bot_activo: true,
         updatedAt: serverTimestamp()
       }, { merge: true });
 
       toast({
         title: "PUENTE ESTABLECIDO",
-        description: `Sincronización exitosa en canal ${accountType.toUpperCase()}.`,
+        description: `Conexión persistente activada en canal ${currentAccountType.toUpperCase()}.`,
       });
       
       router.push('/dashboard');
       
     } catch (err: any) {
-      toast({
-        title: "FALLO DE VÍNCULO",
-        description: err.message,
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDisconnect = async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      await disconnectBroker(user.uid);
-      setEmail('');
-      setPassword('');
-      setApiKey('');
-      setApiSecret('');
-      toast({
-        title: "PUENTE CERRADO",
-        description: "Sesión finalizada por el usuario.",
-      });
-    } catch (err: any) {
-      toast({ title: "ERROR", description: "Fallo al desvincular.", variant: "destructive" });
+      toast({ title: "FALLO DE VÍNCULO", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
   const isConnected = brokerConfig?.status === 'connected';
+  const currentAccountType = brokerConfig?.accountType || 'demo';
 
   return (
     <SidebarProvider>
@@ -184,7 +154,7 @@ export default function BrokerPage() {
         <main className="p-6 max-w-4xl mx-auto space-y-8">
           <div className="flex flex-col gap-2">
             <h2 className="text-3xl font-headline font-bold text-foreground">Gestión de Conectividad</h2>
-            <p className="text-muted-foreground italic">Cambio dinámico entre entornos con persistencia absoluta.</p>
+            <p className="text-muted-foreground italic">Cambio dinámico entre entornos con volcado total de plataforma.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -219,33 +189,36 @@ export default function BrokerPage() {
                   </div>
 
                   <div className="space-y-3">
-                    <Label className="text-sm font-bold uppercase text-muted-foreground">Entorno de Operación</Label>
-                    <RadioGroup 
-                      value={accountType} 
-                      onValueChange={(v: any) => handleAccountTypeChange(v)}
-                      className="grid grid-cols-2 gap-4"
-                    >
-                      <div 
-                        className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${accountType === 'demo' ? 'bg-primary/10 border-primary shadow-[0_0_20px_rgba(59,130,246,0.1)]' : 'bg-background/50 border-white/5'}`}
+                    <Label className="text-sm font-bold uppercase text-muted-foreground">Entorno de Operación Global</Label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <button
+                        type="button"
                         onClick={() => handleAccountTypeChange('demo')}
+                        className={`flex items-center justify-between p-4 rounded-xl border transition-all ${currentAccountType === 'demo' ? 'bg-primary/10 border-primary ring-2 ring-primary/20' : 'bg-background/50 border-white/5 opacity-50'}`}
                       >
                         <div className="flex items-center gap-3">
-                          <RadioGroupItem value="demo" id="demo" />
-                          <Label htmlFor="demo" className="font-bold cursor-pointer uppercase">Paper / Demo</Label>
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${currentAccountType === 'demo' ? 'border-primary' : 'border-muted-foreground'}`}>
+                            {currentAccountType === 'demo' && <div className="w-2 h-2 rounded-full bg-primary" />}
+                          </div>
+                          <Label className="font-bold cursor-pointer uppercase">Paper / Demo</Label>
                         </div>
                         <Beaker className="h-5 w-5 opacity-50" />
-                      </div>
-                      <div 
-                        className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${accountType === 'real' ? 'bg-secondary/10 border-secondary shadow-[0_0_20px_rgba(14,165,233,0.1)]' : 'bg-background/50 border-white/5'}`}
+                      </button>
+
+                      <button
+                        type="button"
                         onClick={() => handleAccountTypeChange('real')}
+                        className={`flex items-center justify-between p-4 rounded-xl border transition-all ${currentAccountType === 'real' ? 'bg-secondary/10 border-secondary ring-2 ring-secondary/20' : 'bg-background/50 border-white/5 opacity-50'}`}
                       >
                         <div className="flex items-center gap-3">
-                          <RadioGroupItem value="real" id="real" />
-                          <Label htmlFor="real" className="font-bold cursor-pointer uppercase text-secondary">Real Account</Label>
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${currentAccountType === 'real' ? 'border-secondary' : 'border-muted-foreground'}`}>
+                            {currentAccountType === 'real' && <div className="w-2 h-2 rounded-full bg-secondary" />}
+                          </div>
+                          <Label className="font-bold cursor-pointer uppercase">Real Account</Label>
                         </div>
                         <Landmark className="h-5 w-5 opacity-50" />
-                      </div>
-                    </RadioGroup>
+                      </button>
+                    </div>
                   </div>
 
                   {!isConnected && (
@@ -314,7 +287,7 @@ export default function BrokerPage() {
             </Card>
 
             <div className="space-y-6">
-              <Card className="bg-primary/5 border-primary/20">
+              <Card className="bg-card/30 border-white/5">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-xs font-headline flex items-center gap-2 uppercase tracking-widest">
                     Infraestructura
@@ -323,7 +296,7 @@ export default function BrokerPage() {
                 <CardContent className="text-[11px] text-muted-foreground space-y-4">
                   <div>
                     <span className="text-white font-bold block mb-1">IQ OPTION (WSS)</span>
-                    <p>Comunicación persistente vía buyV3 para ejecución HFT de alta precisión.</p>
+                    <p>Login vía HTTP -&gt; SSID Token -&gt; WebSocket bidireccional buyV3 para ejecución HFT.</p>
                   </div>
                 </CardContent>
               </Card>
@@ -339,7 +312,15 @@ export default function BrokerPage() {
                   <CardContent>
                     <Button 
                       variant="ghost" 
-                      onClick={handleDisconnect}
+                      onClick={() => {
+                        setLoading(true);
+                        if (user) {
+                          disconnectBroker(user.uid).then(() => {
+                            toast({ title: "PUENTE CERRADO", description: "Conexión finalizada por el usuario." });
+                            setLoading(false);
+                          });
+                        }
+                      }}
                       disabled={loading}
                       className="w-full text-red-500 hover:bg-red-500/10 h-10 text-[10px] gap-2 border border-red-500/20 font-bold uppercase"
                     >
