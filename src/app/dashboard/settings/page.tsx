@@ -1,6 +1,7 @@
 
 'use client';
 
+import { useState } from 'react';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -10,22 +11,36 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { Sliders, Save, ShieldAlert, Cpu } from 'lucide-react';
+import { Sliders, Save, ShieldAlert, Cpu, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(formData: FormData) {
-    const result = await updateBotConfig(formData);
+  async function handleSave(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+    const formData = new FormData(e.currentTarget);
+    
+    const config = {
+      investmentPerTrade: parseFloat(formData.get('investment') as string),
+      stopLoss: parseFloat(formData.get('stopLoss') as string),
+      martingale: formData.get('martingale') === 'on',
+      pairs: (formData.get('pairs') as string).split(',').map(s => s.trim()),
+    };
+
+    const result = await updateBotConfig(config);
+    setLoading(false);
+
     if (result.success) {
       toast({
-        title: "Configuración Actualizada",
-        description: "Los parámetros del motor han sido guardados correctamente.",
+        title: "SISTEMA ACTUALIZADO",
+        description: "Los parámetros del motor han sido guardados en el núcleo.",
       });
     } else {
       toast({
-        title: "Error de Guardado",
+        title: "FALLO DE COMUNICACIÓN",
         description: "No se pudieron actualizar los parámetros.",
         variant: "destructive",
       });
@@ -53,7 +68,7 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <form action={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card className="bg-card/50 border-white/5">
                 <CardHeader>
                   <CardTitle className="text-lg">Gestión de Riesgo</CardTitle>
@@ -102,9 +117,9 @@ export default function SettingsPage() {
               </Card>
 
               <div className="md:col-span-2 flex justify-end gap-4">
-                <Button variant="ghost">Restaurar Fábrica</Button>
-                <Button type="submit" className="gap-2 px-8">
-                  <Save className="h-4 w-4" />
+                <Button type="button" variant="ghost">Restaurar Fábrica</Button>
+                <Button type="submit" className="gap-2 px-8" disabled={loading}>
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   Guardar Cambios
                 </Button>
               </div>

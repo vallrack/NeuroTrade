@@ -1,28 +1,25 @@
 
-'use server';
+'use client';
 
-import { db } from '@/firebase/admin';
-import { revalidatePath } from 'next/cache';
+import { db } from '@/firebase/client';
+import { doc, setDoc, updateDoc } from 'firebase/firestore';
 
 /**
- * Actualiza la configuración global del bot.
+ * Actualiza la configuración global del bot usando el SDK de Cliente.
  */
-export async function updateBotConfig(formData: FormData) {
-  const investmentPerTrade = parseFloat(formData.get('investment') as string);
-  const stopLoss = parseFloat(formData.get('stopLoss') as string);
-  const martingale = formData.get('martingale') === 'on';
-  const pairs = (formData.get('pairs') as string).split(',').map(s => s.trim());
-
+export async function updateBotConfig(data: {
+  investmentPerTrade: number;
+  stopLoss: number;
+  martingale: boolean;
+  pairs: string[];
+}) {
   try {
-    await db.collection('configuracion').doc('bot_params').set({
-      investmentPerTrade,
-      stopLoss,
-      martingale,
-      pairs,
+    const configRef = doc(db, 'configuracion', 'bot_params');
+    await setDoc(configRef, {
+      ...data,
       updatedAt: new Date().toISOString(),
     }, { merge: true });
 
-    revalidatePath('/dashboard/settings');
     return { success: true };
   } catch (error) {
     console.error('Failed to update bot config:', error);
@@ -35,12 +32,12 @@ export async function updateBotConfig(formData: FormData) {
  */
 export async function triggerKillSwitch() {
   try {
-    await db.collection('configuracion').doc('bot_params').update({
+    const configRef = doc(db, 'configuracion', 'bot_params');
+    await updateDoc(configRef, {
       bot_activo: false,
       killedAt: new Date().toISOString(),
     });
     
-    revalidatePath('/dashboard');
     return { success: true };
   } catch (error) {
     console.error('Panic button failed:', error);
@@ -50,18 +47,16 @@ export async function triggerKillSwitch() {
 
 /**
  * Promueve a un usuario al rango de Super Administrador (Maestro).
- * Nota: En una app real, esto requeriría una validación de seguridad extrema.
  */
 export async function promoteToSuperAdmin(userId: string) {
   try {
-    // Registramos la promoción en el perfil del usuario
-    await db.collection('users').doc(userId).set({
+    const userRef = doc(db, 'users', userId);
+    await setDoc(userRef, {
       role: 'super-admin',
       updatedAt: new Date().toISOString(),
       permissions: 'all'
     }, { merge: true });
     
-    revalidatePath('/dashboard');
     return { success: true };
   } catch (error) {
     console.error('Error promoting to super admin:', error);
@@ -70,13 +65,11 @@ export async function promoteToSuperAdmin(userId: string) {
 }
 
 /**
- * Limpia los logs históricos de la base de datos (Simulado para Admin).
+ * Limpia los logs históricos de la base de datos (Simulado).
  */
 export async function clearSystemLogs() {
   try {
-    // En una implementación real con RTDB, usaríamos el Admin SDK para borrar el nodo
-    // Por ahora, registramos la acción de limpieza
-    console.log('Logs despejados por Super Admin');
+    console.log('Solicitud de limpieza de memoria enviada al núcleo.');
     return { success: true };
   } catch (error) {
     return { success: false };

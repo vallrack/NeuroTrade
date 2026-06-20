@@ -35,10 +35,10 @@ export default function DashboardPage() {
   const profileRef = useMemo(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: profile, loading: profileLoading } = useDoc(profileRef);
 
-  // Redirigir al login si auth finaliza y no hay usuario
+  // Redirección client-side si no hay sesión
   useEffect(() => {
     if (mounted && !authLoading && !user) {
-      router.push('/login?from=/dashboard');
+      router.push('/login');
     }
   }, [mounted, authLoading, user, router]);
 
@@ -67,17 +67,15 @@ export default function DashboardPage() {
     }
   };
 
-  // Solo bloqueamos con pantalla de carga si realmente no tenemos información de auth
   if (!mounted || (authLoading && !user)) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center gap-4 bg-background">
         <Loader2 className="h-10 w-10 text-primary animate-spin" />
-        <p className="text-muted-foreground font-headline animate-pulse uppercase tracking-widest text-[10px] font-bold">Sincronizando con la Red NeuroTrade...</p>
+        <p className="text-muted-foreground font-headline animate-pulse uppercase tracking-widest text-[10px] font-bold">Iniciando Sistemas de Control...</p>
       </div>
     );
   }
 
-  // Si no hay usuario, el useEffect de arriba se encargará de redirigir
   if (!user) return null;
 
   return (
@@ -146,7 +144,7 @@ export default function DashboardPage() {
                       <span className="flex h-2 w-2 rounded-full bg-primary animate-ping" />
                       Estado del Bot: OPERATIVO
                     </h3>
-                    <p className="text-sm text-primary/80 mb-4 pr-12">El motor cuántico está procesando flujos de datos a través de la red neuronal activa.</p>
+                    <p className="text-sm text-primary/80 mb-4 pr-12">El motor cuántico está procesando flujos de datos en tiempo real.</p>
                   </div>
                 </div>
               </div>
