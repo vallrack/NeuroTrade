@@ -13,22 +13,18 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/api/') ||
     pathname.includes('.');
 
-  if (isPublicPath) {
-    return NextResponse.next();
+  // 2. Si ya hay sesión y el usuario intenta ir al login, lo mandamos al dashboard
+  if (session && pathname === '/login') {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  // 2. Protección de rutas privadas
-  // Si no hay cookie de sesión, redirigimos al login
-  if (!session) {
+  // 3. Protección de rutas privadas
+  if (!isPublicPath && !session) {
     const loginUrl = new URL('/login', request.url);
-    // Solo añadimos el redirect si no estamos ya en una redirección
-    if (!pathname.startsWith('/login')) {
-      loginUrl.searchParams.set('from', pathname);
-      return NextResponse.redirect(loginUrl);
-    }
+    loginUrl.searchParams.set('from', pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
-  // 3. Permitir el paso si hay sesión o es una ruta permitida
   return NextResponse.next();
 }
 

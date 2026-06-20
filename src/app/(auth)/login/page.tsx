@@ -1,11 +1,11 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, onAuthStateChanged } from 'firebase/auth';
+import { useState } from 'react';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,13 +25,12 @@ export default function LoginPage() {
   
   const auth = useAuth();
   const firestore = useFirestore();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
-  // Función para establecer la cookie de sesión
   const setSessionCookie = (token: string) => {
-    document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
+    // Establecemos la cookie con parámetros explícitos para asegurar que el Middleware la lea
+    document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax; Secure`;
   };
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -54,11 +53,11 @@ export default function LoginPage() {
           email: user.email,
           displayName: displayName || user.email?.split('@')[0],
           role: null,
-          createdAt: serverTimestamp(),
-          lastActive: serverTimestamp(),
+          createdAt: new Date().toISOString(),
+          lastActive: new Date().toISOString(),
         };
 
-        // Crear perfil inicial (esperamos a que se cree para evitar errores de permisos en dashboard)
+        // Crear perfil inicial. Si falla, emitimos error pero intentamos seguir
         await setDoc(userRef, userData, { merge: true }).catch(async (serverError) => {
           const permissionError = new FirestorePermissionError({
             path: userRef.path,
@@ -83,10 +82,10 @@ export default function LoginPage() {
         
         const from = searchParams.get('from') || '/dashboard';
         
-        // Usamos window.location.href para forzar al servidor a reconocer la nueva cookie
+        // Usamos window.location.href para forzar un refresco total y que el servidor vea la cookie
         setTimeout(() => {
           window.location.href = from;
-        }, 500);
+        }, 300);
       }
     } catch (err: any) {
       console.error(err);
@@ -97,8 +96,6 @@ export default function LoginPage() {
         message = 'El ID de operador ya está activo.';
       } else if (err.code === 'auth/weak-password') {
         message = 'Seguridad insuficiente (mín. 6 caracteres).';
-      } else if (err.code === 'auth/network-request-failed') {
-        message = 'Error de conexión con el núcleo central.';
       }
       setError(message);
       setLoading(false);
