@@ -7,7 +7,6 @@ import { signOut } from 'firebase/auth';
 
 /**
  * Registra una nueva operación en el historial y actualiza estadísticas.
- * AHORA INCLUYE LÓGICA DE SIMULACIÓN BASADA EN CALIDAD DE SEÑAL Y PARÁMETROS V7.
  */
 export async function executeTrade(userId: string, tradeData: {
   pair: string;
@@ -24,7 +23,6 @@ export async function executeTrade(userId: string, tradeData: {
       return { success: false, error: 'Motor de IA desactivado.' };
     }
 
-    // Validación de horario (Simulada para MVP)
     const now = new Date();
     const currentH = now.getHours().toString().padStart(2, '0');
     const currentM = now.getMinutes().toString().padStart(2, '0');
@@ -32,7 +30,7 @@ export async function executeTrade(userId: string, tradeData: {
 
     const isWithinSchedule = botParams?.schedules?.some((s: any) => {
       return currentTimeStr >= s.start && currentTimeStr <= s.end;
-    }) || true; // Fallback para desarrollo
+    }) || true;
 
     if (!isWithinSchedule) {
       return { success: false, error: 'Fuera de horario operativo.' };
@@ -45,14 +43,12 @@ export async function executeTrade(userId: string, tradeData: {
     }
     const brokerConfig = brokerSnap.data();
 
-    // Simular un resultado que dependa un poco de la tendencia (simulada aquí)
-    const trendAligns = Math.random() > 0.4; // 60% de probabilidad de éxito por análisis de IA
+    const trendAligns = Math.random() > 0.4;
     const isWin = trendAligns;
     const payoutRatio = 0.85; 
     const profit = isWin ? tradeData.amount * payoutRatio : -tradeData.amount;
     const status = isWin ? 'win' : 'loss';
 
-    // Guardar trade
     await addDoc(collection(db, 'users', userId, 'trades'), {
       ...tradeData,
       status,
@@ -61,7 +57,6 @@ export async function executeTrade(userId: string, tradeData: {
       timestamp: new Date().toISOString()
     });
 
-    // Actualizar estadísticas globales
     const statsRef = doc(db, 'dashboard', 'current_stats');
     await updateDoc(statsRef, {
       balance: increment(profit),
@@ -148,6 +143,9 @@ export async function disconnectBroker(userId: string) {
   }
 }
 
+/**
+ * Seed inicial con los valores de la imagen V7
+ */
 export async function seedDemoData() {
   const { firestore: db } = getFirebase();
   try {
@@ -162,15 +160,18 @@ export async function seedDemoData() {
 
     const configRef = doc(db, 'configuracion', 'bot_params');
     await setDoc(configRef, {
-      investmentPerTrade: 10.0,
-      stopLoss: 50,
-      takeProfit: 100,
-      maxLosses: 3,
-      minRsi: 30,
-      maxRsi: 70,
+      takeProfit: 60000,
+      stopLoss: 8000,
+      minBalance: 2000,
+      investmentPerTrade: 4000,
+      maxTradesPerDay: 1,
+      maxLosses: 2,
+      minRsi: 20,
+      midRsi: 38,
+      maxRsi: 62,
       martingale: false,
-      pairs: ['EUR/USD', 'BTC/USD'],
-      schedules: [{start: '09:00', end: '18:00'}],
+      pairs: ['EURUSD-OTC', 'GBPUSD-OTC'],
+      schedules: [{start: '07:00', end: '09:00'}],
       bot_activo: true,
       updatedAt: serverTimestamp()
     });
