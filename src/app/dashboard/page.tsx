@@ -54,51 +54,52 @@ export default function DashboardPage() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset className="bg-background">
-        <header className="flex h-16 shrink-0 items-center justify-between gap-2 px-6 border-b border-white/5 sticky top-0 bg-background/80 backdrop-blur-md z-10">
+        <header className="flex h-16 shrink-0 items-center justify-between gap-2 px-4 md:px-6 border-b border-white/5 sticky top-0 bg-background/80 backdrop-blur-md z-30">
           <div className="flex items-center gap-2">
             <SidebarTrigger />
-            <Separator orientation="vertical" className="mr-2 h-4" />
+            <Separator orientation="vertical" className="hidden md:block mr-2 h-4" />
             <div className="flex items-center gap-2">
-              <h1 className="font-headline text-xl font-bold tracking-tight text-foreground">Centro de Comando</h1>
+              <h1 className="font-headline text-lg md:text-xl font-bold tracking-tight text-foreground truncate max-w-[120px] md:max-w-none">Centro de Comando</h1>
               {isBotActive && (
-                <Badge className="bg-primary/10 text-primary border-primary/20 gap-1.5 py-1 px-3 ml-2">
+                <Badge className="bg-primary/10 text-primary border-primary/20 gap-1.5 py-0.5 md:py-1 px-2 md:px-3 ml-1 md:ml-2 text-[10px] md:text-xs">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
-                  SISTEMA AUTÓNOMO
+                  <span className="hidden xs:inline">SISTEMA AUTÓNOMO</span>
+                  <span className="xs:hidden">LIVE</span>
                 </Badge>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             {isSuperAdmin && (
-              <Badge variant="outline" className="border-primary/50 text-primary gap-1 bg-primary/5 uppercase text-[10px] font-bold tracking-wider">
+              <Badge variant="outline" className="hidden sm:flex border-primary/50 text-primary gap-1 bg-primary/5 uppercase text-[10px] font-bold tracking-wider">
                 <Crown className="h-3 w-3" />
-                Acceso Maestro
+                Maestro
               </Badge>
             )}
-            <Button variant="ghost" size="icon" className="relative">
+            <Button variant="ghost" size="icon" className="relative h-9 w-9">
               <Bell className="h-5 w-5" />
               <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full" />
             </Button>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="h-9 w-9">
               <Settings className="h-5 w-5" />
             </Button>
           </div>
         </header>
 
-        <main className="p-6 space-y-6">
+        <main className="p-4 md:p-6 space-y-6">
           <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-primary/5 p-4 rounded-xl border border-primary/10 mb-2">
-             <div className="flex items-center gap-3">
+             <div className="flex items-center gap-3 w-full md:w-auto">
                 <div className={`p-3 rounded-full ${isBotActive ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
-                  <Activity className={`h-6 w-6 ${isBotActive ? 'animate-pulse' : ''}`} />
+                  <Activity className={`h-5 w-5 md:h-6 md:w-6 ${isBotActive ? 'animate-pulse' : ''}`} />
                 </div>
                 <div>
-                   <h2 className="font-headline font-bold text-lg">Estado del Motor Cuántico</h2>
-                   <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">
-                     {isBotActive ? 'Operando con Autonomía Total' : 'Motor en Standby - Requiere Activación'}
+                   <h2 className="font-headline font-bold text-base md:text-lg">Estado del Motor</h2>
+                   <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
+                     {isBotActive ? 'Operando con Autonomía' : 'Motor en Standby'}
                    </p>
                 </div>
              </div>
-             <div className="flex gap-3">
+             <div className="w-full md:w-auto">
                 {hasNoRole && user && (
                   <Button 
                     onClick={() => {
@@ -111,7 +112,7 @@ export default function DashboardPage() {
                     variant="outline" 
                     size="sm" 
                     disabled={initLoading}
-                    className="border-primary text-primary hover:bg-primary/10 gap-2"
+                    className="w-full md:w-auto border-primary text-primary hover:bg-primary/10 gap-2"
                   >
                     {initLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                     SINCRONIZAR RANGO
@@ -129,8 +130,8 @@ export default function DashboardPage() {
                 <IACommitteeMonitor />
                 <div className="space-y-6">
                   {isSuperAdmin && <SuperAdminTools />}
-                  <div className="p-6 bg-card/50 border border-white/5 rounded-xl shadow-xl backdrop-blur-sm">
-                    <h3 className="font-headline font-bold mb-4 flex items-center gap-2 text-destructive">
+                  <div className="p-4 md:p-6 bg-card/50 border border-white/5 rounded-xl shadow-xl backdrop-blur-sm">
+                    <h3 className="font-headline font-bold mb-4 flex items-center gap-2 text-destructive text-sm md:text-base">
                       <ShieldCheck className="h-5 w-5" />
                       Protocolos de Emergencia
                     </h3>

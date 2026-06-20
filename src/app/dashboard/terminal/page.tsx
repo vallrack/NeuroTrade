@@ -4,12 +4,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
-import { LineChart, Zap, Wifi, Clock, Layers, ArrowRight, RefreshCw } from 'lucide-react';
+import { LineChart, Zap, Wifi, Clock, Layers, ArrowRight, RefreshCw, ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
 
 declare global {
   interface Window {
@@ -34,7 +36,6 @@ export default function TerminalPage() {
   const [chartLoading, setChartLoading] = useState(true);
   const [latency, setLatency] = useState(12);
 
-  // Simulación de latencia de red en tiempo real
   useEffect(() => {
     const interval = setInterval(() => {
       setLatency(Math.floor(Math.random() * 8) + 4);
@@ -42,7 +43,6 @@ export default function TerminalPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Mapeo inteligente de símbolos para evitar errores de carga
   useEffect(() => {
     let cleanPair = selectedPair.toUpperCase()
       .replace('/', '')
@@ -60,7 +60,6 @@ export default function TerminalPage() {
     setActiveSymbol(symbol);
   }, [selectedPair]);
 
-  // Inicialización robusta del Widget de TradingView
   useEffect(() => {
     if (!container.current) return;
 
@@ -87,9 +86,9 @@ export default function TerminalPage() {
           "hide_side_toolbar": false,
           "allow_symbol_change": true,
           "container_id": containerId,
-          "details": true,
-          "hotlist": true,
-          "calendar": true,
+          "details": false,
+          "hotlist": false,
+          "calendar": false,
           "show_popup_button": true,
           "popup_width": "1000",
           "popup_height": "650",
@@ -111,20 +110,21 @@ export default function TerminalPage() {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="bg-black">
-        <header className="flex h-16 items-center justify-between px-6 border-b border-white/5 bg-[#0a0f1a] sticky top-0 z-30">
-          <div className="flex items-center gap-4">
+      <SidebarInset className="bg-black flex flex-col h-screen overflow-hidden">
+        <header className="flex h-16 shrink-0 items-center justify-between px-4 md:px-6 border-b border-white/5 bg-[#0a0f1a] sticky top-0 z-40">
+          <div className="flex items-center gap-2 md:gap-4">
             <SidebarTrigger />
             <div className="flex flex-col">
-              <h1 className="font-headline text-sm font-bold flex items-center gap-2 text-white">
-                <Zap className="h-4 w-4 text-primary animate-pulse" />
-                TERMINAL PROFESIONAL V7
+              <h1 className="font-headline text-[10px] md:text-sm font-bold flex items-center gap-2 text-white">
+                <Zap className="h-3 w-3 md:h-4 md:w-4 text-primary animate-pulse" />
+                <span className="hidden xs:inline">TERMINAL PROFESIONAL V7</span>
+                <span className="xs:hidden">TERMINAL V7</span>
               </h1>
-              <span className="text-[9px] text-muted-foreground uppercase tracking-widest font-bold">Real-Time Data Feed HFT</span>
+              <span className="text-[8px] md:text-[9px] text-muted-foreground uppercase tracking-widest font-bold">Real-Time Data Feed</span>
             </div>
           </div>
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-4 bg-white/5 px-4 py-1.5 rounded-full border border-white/10">
+          <div className="flex items-center gap-2 md:gap-6">
+            <div className="hidden sm:flex items-center gap-4 bg-white/5 px-4 py-1.5 rounded-full border border-white/10">
               <div className="flex items-center gap-2">
                 <Wifi className="h-3 w-3 text-green-500" />
                 <span className="text-[10px] font-code text-green-500">{latency}ms</span>
@@ -135,19 +135,48 @@ export default function TerminalPage() {
               </div>
             </div>
             {isConnected ? (
-              <Badge className="bg-green-500/20 text-green-500 border-green-500/50 gap-1.5 py-1 px-3 text-[10px]">
-                PUENTE IQ ACTIVO
+              <Badge className="bg-green-500/20 text-green-500 border-green-500/50 gap-1.5 py-1 px-2 md:px-3 text-[9px] md:text-[10px]">
+                CONECTADO
               </Badge>
             ) : (
-              <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/50 text-[10px]">
-                MODO VIGILANCIA
+              <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/50 text-[9px] md:text-[10px]">
+                STANDBY
               </Badge>
             )}
           </div>
         </header>
 
-        <main className="flex-1 flex overflow-hidden">
-          <aside className="w-56 border-r border-white/5 bg-[#0a0f1a] flex flex-col shrink-0 z-20">
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+          {/* Mobile Pair Selector */}
+          <div className="md:hidden p-2 bg-[#0a0f1a] border-b border-white/5 flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase text-muted-foreground ml-2">Seleccionar Clúster:</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 text-[10px] gap-2 border-white/10 bg-white/5">
+                  {selectedPair} <ChevronDown className="h-3 w-3" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-1 bg-[#0a0f1a] border-white/10">
+                <div className="space-y-1">
+                  {configuredPairs.map((pair: string) => (
+                    <button
+                      key={pair}
+                      onClick={() => setSelectedPair(pair)}
+                      className={cn(
+                        "w-full text-left px-3 py-2 rounded-md text-[10px] font-bold transition-all",
+                        selectedPair === pair ? "bg-primary text-white" : "text-muted-foreground hover:bg-white/5"
+                      )}
+                    >
+                      {pair}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {/* Desktop Pair Selector Sidebar */}
+          <aside className="hidden md:flex w-56 border-r border-white/5 bg-[#0a0f1a] flex-col shrink-0 z-20">
             <div className="p-4 border-b border-white/5 bg-white/5">
               <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                 <Layers className="h-3 w-3" /> Clústers Activos
@@ -174,16 +203,19 @@ export default function TerminalPage() {
             </ScrollArea>
           </aside>
 
+          {/* Chart Container */}
           <div className="flex-1 relative bg-black">
             <div className="absolute inset-0" ref={container} />
             {chartLoading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-50">
-                <RefreshCw className="h-10 w-10 animate-spin text-primary mb-4" />
-                <p className="text-xs font-headline font-bold text-white tracking-widest uppercase">Sincronizando feed de {selectedPair}...</p>
+                <RefreshCw className="h-8 w-8 md:h-10 md:w-10 animate-spin text-primary mb-4" />
+                <p className="text-[10px] md:text-xs font-headline font-bold text-white tracking-widest uppercase text-center px-4">
+                  Sincronizando feed de {selectedPair}...
+                </p>
               </div>
             )}
           </div>
-        </main>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

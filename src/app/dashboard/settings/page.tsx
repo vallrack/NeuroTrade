@@ -134,207 +134,188 @@ export default function SettingsV7Page() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset className="bg-[#0b101b]">
-        <header className="flex h-16 items-center justify-between px-8 border-b border-white/5 bg-background/40 backdrop-blur-xl sticky top-0 z-20">
-          <div className="flex items-center gap-4">
+        <header className="flex h-16 shrink-0 items-center justify-between px-4 md:px-8 border-b border-white/5 bg-background/40 backdrop-blur-xl sticky top-0 z-20">
+          <div className="flex items-center gap-2 md:gap-4">
             <SidebarTrigger />
-            <div className="h-4 w-px bg-white/10 mx-2" />
+            <div className="hidden xs:block h-4 w-px bg-white/10 mx-2" />
             <div className="flex flex-col">
-              <h1 className="font-headline text-lg font-bold flex items-center gap-2 text-white">
-                <Settings2 className="h-5 w-5 text-primary" />
-                CONFIGURACIÓN NÚCLEO V7
+              <h1 className="font-headline text-sm md:text-lg font-bold flex items-center gap-2 text-white">
+                <Settings2 className="h-4 w-4 md:h-5 md:w-5 text-primary" />
+                <span className="hidden xs:inline">CONFIGURACIÓN NÚCLEO V7</span>
+                <span className="xs:hidden">CONFIG V7</span>
               </h1>
-              <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Protocolo Operativo Maestro</span>
+              <span className="text-[8px] md:text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Protocolo Maestro</span>
             </div>
           </div>
         </header>
         
-        <main className="p-8 space-y-8 max-w-[1400px] mx-auto">
+        <main className="p-4 md:p-8 space-y-8 max-w-[1400px] mx-auto">
           {paramsLoading ? (
              <div className="flex flex-col items-center justify-center py-40 gap-4">
                <RefreshCw className="h-10 w-10 text-primary animate-spin" />
-               <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Desencriptando parámetros V7...</p>
+               <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Desencriptando...</p>
              </div>
           ) : (
-            <form onSubmit={handleSave} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-32">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <form onSubmit={handleSave} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-24 md:pb-32">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
                 
                 {/* COLUMNA 1: ACCESO Y GESTIÓN DE CAPITAL */}
                 <div className="space-y-6">
-                  <Card className="bg-card/30 border-white/5 backdrop-blur-md overflow-hidden hover:border-primary/20 transition-all duration-300">
+                  <Card className="bg-card/30 border-white/5 backdrop-blur-md overflow-hidden">
                     <CardHeader className="bg-primary/5 pb-4">
-                      <CardTitle className="text-sm font-headline flex items-center gap-2">
+                      <CardTitle className="text-xs md:text-sm font-headline flex items-center gap-2 uppercase">
                         <Globe className="h-4 w-4 text-primary" />
-                        TERMINAL DE ACCESO
+                        Terminal Acceso
                       </CardTitle>
-                      <CardDescription className="text-[10px] uppercase">Bróker IQ Option</CardDescription>
                     </CardHeader>
                     <CardContent className="pt-6 space-y-4">
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Email Bróker</Label>
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Email Bróker</Label>
                         <Input 
                           placeholder="email@dominio.com" 
                           value={email} 
                           onChange={e => {setEmail(e.target.value); setIsEditing(true);}} 
-                          className="bg-zinc-900/50 border-white/10 h-11"
+                          className="bg-zinc-900/50 border-white/10 h-10 md:h-11 text-xs"
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Contraseña Cifrada</Label>
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Contraseña</Label>
                         <Input 
                           type="password" 
                           placeholder="**********" 
                           value={password} 
                           onChange={e => {setPassword(e.target.value); setIsEditing(true);}} 
-                          className="bg-zinc-900/50 border-white/10 h-11"
+                          className="bg-zinc-900/50 border-white/10 h-10 md:h-11 text-xs"
                         />
                       </div>
                     </CardContent>
                   </Card>
 
-                  <Card className="bg-card/30 border-white/5 backdrop-blur-md overflow-hidden hover:border-primary/20 transition-all duration-300">
+                  <Card className="bg-card/30 border-white/5 backdrop-blur-md overflow-hidden">
                     <CardHeader className="bg-primary/5 pb-4">
-                      <CardTitle className="text-sm font-headline flex items-center gap-2">
+                      <CardTitle className="text-xs md:text-sm font-headline flex items-center gap-2 uppercase">
                         <Wallet className="h-4 w-4 text-primary" />
-                        GESTIÓN DE CAPITAL
+                        Gestión Capital
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-6 space-y-4">
                       <div className="space-y-4">
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Ganancia Meta - TP ($)</Label>
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Take Profit ($)</Label>
                           <Input 
                             type="number" 
                             value={takeProfit} 
                             onChange={e => {setTakeProfit(e.target.value); setIsEditing(true);}} 
-                            className="bg-zinc-900/50 border-white/10 h-11 text-green-500 font-bold"
+                            className="bg-zinc-900/50 border-white/10 h-10 md:h-11 text-green-500 font-bold text-sm"
                           />
-                          <p className="text-[9px] text-muted-foreground italic flex items-center gap-1">
-                            <Info className="h-3 w-3" /> Meta diaria: el bot se detendrá al ganar esto.
-                          </p>
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Pérdida Máxima - SL ($)</Label>
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Stop Loss ($)</Label>
                           <Input 
                             type="number" 
                             value={stopLoss} 
                             onChange={e => {setStopLoss(e.target.value); setIsEditing(true);}} 
-                            className="bg-zinc-900/50 border-white/10 h-11 text-red-500 font-bold"
+                            className="bg-zinc-900/50 border-white/10 h-10 md:h-11 text-red-500 font-bold text-sm"
                           />
-                          <p className="text-[9px] text-muted-foreground italic flex items-center gap-1">
-                            <Info className="h-3 w-3" /> Límite de seguridad: apaga el bot si se pierde esto.
-                          </p>
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Mantenimiento de Saldo ($)</Label>
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Balance Mínimo ($)</Label>
                           <Input 
                             type="number" 
                             value={minBalance} 
                             onChange={e => {setMinBalance(e.target.value); setIsEditing(true);}} 
-                            className="bg-zinc-900/50 border-white/10 h-11 font-bold"
+                            className="bg-zinc-900/50 border-white/10 h-10 md:h-11 font-bold text-sm"
                           />
-                          <p className="text-[9px] text-muted-foreground italic flex items-center gap-1">
-                            <Info className="h-3 w-3" /> Saldo mínimo en bróker para operar.
-                          </p>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
                 </div>
 
-                {/* COLUMNA 2: REGLAS DE TRADING Y RSI */}
+                {/* COLUMNA 2: REGLAS DE TRADING */}
                 <div className="space-y-6">
-                  <Card className="bg-card/30 border-white/5 backdrop-blur-md overflow-hidden hover:border-primary/20 transition-all duration-300 h-full">
+                  <Card className="bg-card/30 border-white/5 backdrop-blur-md overflow-hidden h-full">
                     <CardHeader className="bg-primary/5 pb-4">
-                      <CardTitle className="text-sm font-headline flex items-center gap-2">
+                      <CardTitle className="text-xs md:text-sm font-headline flex items-center gap-2 uppercase">
                         <Sliders className="h-4 w-4 text-primary" />
-                        REGLAS DE EJECUCIÓN V7
+                        Reglas Ejecución
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-6 space-y-6">
                       <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl space-y-2">
-                        <Label className="text-[11px] uppercase text-primary font-black tracking-widest">Inversión Maestra ($)</Label>
+                        <Label className="text-[10px] uppercase text-primary font-black tracking-widest">Inversión Maestro ($)</Label>
                         <Input 
                           type="number" 
                           value={investment} 
                           onChange={e => {setInvestment(e.target.value); setIsEditing(true);}} 
-                          className="bg-zinc-900/60 border-primary/30 h-14 text-2xl text-center text-primary font-headline font-bold"
+                          className="bg-zinc-900/60 border-primary/30 h-12 md:h-14 text-xl md:text-2xl text-center text-primary font-headline font-bold"
                         />
-                        <p className="text-[10px] text-primary/70 text-center font-bold uppercase tracking-wider">
-                          Monto fijo por operación HFT
-                        </p>
                       </div>
 
                       <div className="grid grid-cols-1 gap-4">
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Pérdidas Seguidas Permitidas</Label>
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Pérdidas Consecutivas</Label>
                           <Input 
                             type="number" 
                             value={maxLosses} 
                             onChange={e => {setMaxLosses(e.target.value); setIsEditing(true);}} 
-                            className="bg-zinc-900/50 border-white/10 h-11 text-center font-bold text-red-500"
+                            className="bg-zinc-900/50 border-white/10 h-10 text-center font-bold text-red-500"
                           />
-                          <p className="text-[9px] text-muted-foreground text-center italic">Si el bot pierde N veces seguidas, se apaga por seguridad.</p>
                         </div>
                       </div>
 
                       <div className="space-y-4 pt-4 border-t border-white/5">
                         <div className="flex items-center gap-2 mb-2">
                           <Gauge className="h-4 w-4 text-primary" />
-                          <Label className="text-[11px] uppercase font-bold tracking-widest">Umbrales de RSI Cuántico</Label>
+                          <Label className="text-[10px] uppercase font-bold tracking-widest">RSI Cuántico</Label>
                         </div>
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-3 gap-2">
                           <div className="space-y-1 text-center">
-                            <span className="text-[9px] uppercase font-bold text-muted-foreground">Mín (20)</span>
-                            <Input type="number" value={minRsi} onChange={e => {setMinRsi(e.target.value); setIsEditing(true);}} className="bg-zinc-900/50 border-white/10 h-10 text-center font-bold" />
+                            <span className="text-[8px] uppercase font-bold text-muted-foreground">Mín</span>
+                            <Input type="number" value={minRsi} onChange={e => {setMinRsi(e.target.value); setIsEditing(true);}} className="bg-zinc-900/50 border-white/10 h-9 text-center font-bold text-xs px-1" />
                           </div>
                           <div className="space-y-1 text-center">
-                            <span className="text-[9px] uppercase font-bold text-muted-foreground">Med (38)</span>
-                            <Input type="number" value={midRsi} onChange={e => {setMidRsi(e.target.value); setIsEditing(true);}} className="bg-zinc-900/50 border-white/10 h-10 text-center font-bold text-primary" />
+                            <span className="text-[8px] uppercase font-bold text-muted-foreground">Med</span>
+                            <Input type="number" value={midRsi} onChange={e => {setMidRsi(e.target.value); setIsEditing(true);}} className="bg-zinc-900/50 border-white/10 h-9 text-center font-bold text-primary text-xs px-1" />
                           </div>
                           <div className="space-y-1 text-center">
-                            <span className="text-[9px] uppercase font-bold text-muted-foreground">Máx (62)</span>
-                            <Input type="number" value={maxRsi} onChange={e => {setMaxRsi(e.target.value); setIsEditing(true);}} className="bg-zinc-900/50 border-white/10 h-10 text-center font-bold" />
+                            <span className="text-[8px] uppercase font-bold text-muted-foreground">Máx</span>
+                            <Input type="number" value={maxRsi} onChange={e => {setMaxRsi(e.target.value); setIsEditing(true);}} className="bg-zinc-900/50 border-white/10 h-9 text-center font-bold text-xs px-1" />
                           </div>
                         </div>
-                        <p className="text-[9px] text-muted-foreground text-center italic leading-tight">
-                          Calibración V7 para detectar reversiones en temporalidad de 1 min.
-                        </p>
                       </div>
                     </CardContent>
                   </Card>
                 </div>
 
                 {/* COLUMNA 3: ACTIVOS Y HORARIOS */}
-                <div className="space-y-6">
-                  <Card className="bg-card/30 border-white/5 backdrop-blur-md overflow-hidden hover:border-primary/20 transition-all duration-300">
+                <div className="space-y-6 md:col-span-2 lg:col-span-1">
+                  <Card className="bg-card/30 border-white/5 backdrop-blur-md overflow-hidden">
                     <CardHeader className="bg-primary/5 pb-4">
-                      <CardTitle className="text-sm font-headline flex items-center gap-2">
+                      <CardTitle className="text-xs md:text-sm font-headline flex items-center gap-2 uppercase">
                         <BarChart3 className="h-4 w-4 text-primary" />
-                        CLÚSTERS DE ACTIVOS
+                        Clústers Activos
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-6 space-y-4">
                       <div className="flex gap-2">
                         <Input 
-                          placeholder="Ej: EURUSD-OTC" 
+                          placeholder="EURUSD-OTC" 
                           value={newPair} 
                           onChange={e => setNewPair(e.target.value)}
-                          className="bg-zinc-900/50 border-white/10 h-10 flex-1"
+                          className="bg-zinc-900/50 border-white/10 h-10 flex-1 text-xs"
                           onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addPair())}
                         />
-                        <Button type="button" onClick={addPair} size="icon" className="h-10 w-10 bg-primary">
+                        <Button type="button" onClick={addPair} size="icon" className="h-10 w-10 bg-primary shrink-0">
                           <Plus className="h-4 w-4" />
                         </Button>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-2 mt-4 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2 mt-2 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
                         {pairs.map(p => (
-                          <div key={p} className="flex items-center justify-between p-3 bg-zinc-900/40 rounded-xl border border-white/5 group hover:border-primary/40 transition-all">
-                            <div className="flex items-center gap-3">
-                              <Checkbox checked className="data-[state=checked]:bg-primary" />
-                              <span className="text-xs font-bold uppercase tracking-widest text-white/90">{p}</span>
-                            </div>
-                            <button type="button" onClick={() => removePair(p)} className="bg-red-500/10 hover:bg-red-500 p-2 rounded-lg transition-all">
+                          <div key={p} className="flex items-center justify-between p-2.5 bg-zinc-900/40 rounded-lg border border-white/5 group">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-white/90">{p}</span>
+                            <button type="button" onClick={() => removePair(p)} className="p-1.5 hover:bg-red-500 rounded-md transition-all">
                               <Trash2 className="h-3.5 w-3.5 text-red-500 group-hover:text-white" />
                             </button>
                           </div>
@@ -343,23 +324,23 @@ export default function SettingsV7Page() {
                     </CardContent>
                   </Card>
 
-                  <Card className="bg-card/30 border-white/5 backdrop-blur-md overflow-hidden hover:border-primary/20 transition-all duration-300">
+                  <Card className="bg-card/30 border-white/5 backdrop-blur-md overflow-hidden">
                     <CardHeader className="bg-primary/5 pb-4">
-                      <CardTitle className="text-sm font-headline flex items-center gap-2">
+                      <CardTitle className="text-xs md:text-sm font-headline flex items-center gap-2 uppercase">
                         <Clock className="h-4 w-4 text-primary" />
-                        VENTANAS OPERATIVAS
+                        Ventanas HFT
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-6 space-y-4">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Horarios V7</span>
-                        <Button type="button" variant="outline" size="sm" onClick={addSchedule} className="h-7 text-[10px] border-primary/30 text-primary hover:bg-primary/10">
-                          + Nueva Ventana
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">Horarios</span>
+                        <Button type="button" variant="outline" size="sm" onClick={addSchedule} className="h-6 text-[9px] px-2 border-primary/30 text-primary">
+                          + Nueva
                         </Button>
                       </div>
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         {schedules.map((s, idx) => (
-                          <div key={idx} className="flex items-center gap-3 p-2 bg-zinc-900/40 rounded-xl border border-white/5">
+                          <div key={idx} className="flex items-center gap-2 p-2 bg-zinc-900/40 rounded-lg border border-white/5">
                             <Input 
                               type="text" 
                               value={s.start} 
@@ -369,9 +350,9 @@ export default function SettingsV7Page() {
                                 setSchedules(newScheds);
                                 setIsEditing(true);
                               }}
-                              className="bg-zinc-900/50 border-white/10 h-8 text-center text-xs font-bold" 
+                              className="bg-zinc-900/50 border-white/10 h-7 text-center text-[10px] font-bold px-1" 
                             />
-                            <span className="text-xs text-muted-foreground">A</span>
+                            <span className="text-[10px] text-muted-foreground">/</span>
                             <Input 
                               type="text" 
                               value={s.end} 
@@ -381,10 +362,10 @@ export default function SettingsV7Page() {
                                 setSchedules(newScheds);
                                 setIsEditing(true);
                               }}
-                              className="bg-zinc-900/50 border-white/10 h-8 text-center text-xs font-bold" 
+                              className="bg-zinc-900/50 border-white/10 h-7 text-center text-[10px] font-bold px-1" 
                             />
-                            <button type="button" onClick={() => setSchedules(schedules.filter((_, i) => i !== idx))} className="text-red-500 hover:bg-red-500/10 p-1.5 rounded-lg transition-all">
-                              <Trash2 className="h-4 w-4" />
+                            <button type="button" onClick={() => setSchedules(schedules.filter((_, i) => i !== idx))} className="text-red-500 p-1">
+                              <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         ))}
@@ -394,14 +375,15 @@ export default function SettingsV7Page() {
                 </div>
               </div>
 
-              <div className="fixed bottom-8 right-8 z-30">
+              {/* Action Button - Sticky on Mobile */}
+              <div className="fixed md:absolute bottom-4 left-4 right-4 md:bottom-8 md:right-8 md:left-auto z-40">
                 <Button 
                   type="submit" 
                   disabled={loading} 
-                  className="h-16 px-10 rounded-2xl bg-primary text-white font-headline text-lg font-bold shadow-2xl shadow-primary/30 hover:scale-[1.05] active:scale-[0.95] transition-all flex items-center gap-4"
+                  className="w-full md:w-auto h-14 md:h-16 px-6 md:px-10 rounded-xl md:rounded-2xl bg-primary text-white font-headline text-base md:text-lg font-bold shadow-2xl shadow-primary/30 flex items-center justify-center gap-3"
                 >
-                  {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <ShieldCheck className="h-6 w-6" />}
-                  GUARDAR Y SINCRONIZAR NÚCLEO V7
+                  {loading ? <Loader2 className="h-5 w-5 md:h-6 md:w-6 animate-spin" /> : <ShieldCheck className="h-5 w-5 md:h-6 md:w-6" />}
+                  GUARDAR CONFIGURACIÓN
                 </Button>
               </div>
             </form>

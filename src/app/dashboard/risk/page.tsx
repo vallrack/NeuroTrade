@@ -66,51 +66,49 @@ export default function RiskPage() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-16 items-center px-6 border-b border-white/5 bg-background/80 backdrop-blur-md sticky top-0 z-10">
+        <header className="flex h-16 shrink-0 items-center px-4 md:px-6 border-b border-white/5 bg-background/80 backdrop-blur-md sticky top-0 z-30">
           <SidebarTrigger />
-          <h1 className="ml-4 font-headline text-xl font-bold flex items-center gap-2">
+          <h1 className="ml-4 font-headline text-lg md:text-xl font-bold flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" />
             Control de Riesgo
           </h1>
         </header>
 
-        <main className="p-6 max-w-4xl mx-auto space-y-8">
+        <main className="p-4 md:p-6 max-w-4xl mx-auto space-y-6 md:space-y-8">
           <div className="flex flex-col gap-2">
-            <h2 className="text-3xl font-headline font-bold text-foreground">Gestión de Capital</h2>
-            <p className="text-muted-foreground italic">Defina los parámetros de seguridad que el Ejército de IA debe respetar estrictamente.</p>
+            <h2 className="text-2xl md:text-3xl font-headline font-bold text-foreground tracking-tight">Gestión de Capital</h2>
+            <p className="text-sm md:text-base text-muted-foreground italic">Defina los parámetros de seguridad operativa.</p>
           </div>
 
           {paramsLoading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <RefreshCw className="h-8 w-8 text-primary animate-spin" />
-              <p className="text-sm font-bold text-muted-foreground animate-pulse">Sincronizando con el núcleo...</p>
+              <p className="text-sm font-bold text-muted-foreground animate-pulse">Sincronizando...</p>
             </div>
           ) : (
-            <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-20 md:pb-0">
               <Card className="bg-card/50 border-white/5 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-base md:text-lg">
                     <ShieldAlert className="h-5 w-5 text-red-500" />
-                    Límites de Pérdida
+                    Límites Pérdida
                   </CardTitle>
-                  <CardDescription>Evite el "Drawdown" excesivo en su cuenta.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="stopLoss">Stop Loss Diario ($)</Label>
+                    <Label htmlFor="stopLoss" className="text-xs uppercase font-bold text-muted-foreground">Stop Loss Diario ($)</Label>
                     <Input 
                       id="stopLoss" 
                       type="number" 
                       value={stopLoss}
                       onChange={(e) => setStopLoss(e.target.value)}
-                      className="bg-background/50 border-white/5 h-12" 
+                      className="bg-background/50 border-white/5 h-11 md:h-12" 
                     />
-                    <p className="text-[10px] text-muted-foreground font-bold italic uppercase tracking-widest">Apagado automático al alcanzar este límite.</p>
                   </div>
-                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-3 md:p-4 bg-white/5 rounded-xl border border-white/5">
                     <div className="space-y-0.5">
-                      <Label className="text-xs font-bold">Protección de Balance</Label>
-                      <p className="text-[10px] text-muted-foreground">Cierre forzado en volatilidad extrema</p>
+                      <Label className="text-[10px] md:text-xs font-bold">Protección Balance</Label>
+                      <p className="text-[8px] md:text-[10px] text-muted-foreground">Cierre en volatilidad</p>
                     </div>
                     <Switch defaultChecked />
                   </div>
@@ -119,63 +117,62 @@ export default function RiskPage() {
 
               <Card className="bg-card/50 border-white/5 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-base md:text-lg">
                     <Target className="h-5 w-5 text-green-500" />
-                    Objetivos de Beneficio
+                    Objetivos Meta
                   </CardTitle>
-                  <CardDescription>Asegure sus ganancias diarias.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="takeProfit">Take Profit Diario ($)</Label>
+                    <Label htmlFor="takeProfit" className="text-xs uppercase font-bold text-muted-foreground">Take Profit Diario ($)</Label>
                     <Input 
                       id="takeProfit" 
                       type="number" 
                       value={takeProfit}
                       onChange={(e) => setTakeProfit(e.target.value)}
-                      className="bg-background/50 border-white/5 h-12" 
+                      className="bg-background/50 border-white/5 h-11 md:h-12" 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="maxTrades">Máximo de Operaciones / Día</Label>
+                    <Label htmlFor="maxTrades" className="text-xs uppercase font-bold text-muted-foreground">Máx Operaciones / Día</Label>
                     <Input 
                       id="maxTrades" 
                       type="number" 
                       value={maxTrades}
                       onChange={(e) => setMaxTrades(e.target.value)}
-                      className="bg-background/50 border-white/5 h-12" 
+                      className="bg-background/50 border-white/5 h-11 md:h-12" 
                     />
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="bg-card/50 border-white/5 backdrop-blur-xl md:col-span-2 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+                <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none hidden md:block">
                   <TrendingUp className="h-40 w-40 text-primary" />
                 </div>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-base md:text-lg">
                     <TrendingUp className="h-5 w-5 text-primary" />
-                    Configuración de Apalancamiento
+                    Apalancamiento V7
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                   <div className="space-y-3">
-                    <Label htmlFor="investment" className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Monto por Operación ($)</Label>
+                    <Label htmlFor="investment" className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground">Monto por Operación ($)</Label>
                     <Input 
                       id="investment" 
                       type="number" 
                       step="0.1" 
                       value={investment}
                       onChange={(e) => setInvestment(e.target.value)}
-                      className="bg-background/50 border-white/5 h-14 text-xl font-code font-bold text-primary" 
+                      className="bg-background/50 border-white/5 h-12 md:h-14 text-xl md:text-2xl font-code font-bold text-primary text-center" 
                     />
                   </div>
-                  <div className="flex items-center justify-between p-5 bg-red-500/5 border border-red-500/20 rounded-2xl group hover:bg-red-500/10 transition-colors">
+                  <div className="flex items-center justify-between p-4 md:p-5 bg-red-500/5 border border-red-500/20 rounded-xl md:rounded-2xl group transition-colors">
                     <div className="space-y-1">
-                      <Label htmlFor="martingale" className="text-red-500 font-bold text-lg">Estrategia Martingala</Label>
-                      <p className="text-[10px] text-red-500/70 italic leading-tight uppercase font-bold tracking-tighter">
-                        Duplica el monto tras una pérdida. <br />Nivel de riesgo: CRÍTICO.
+                      <Label htmlFor="martingale" className="text-red-500 font-bold text-base md:text-lg">Estrategia Martingala</Label>
+                      <p className="text-[8px] md:text-[10px] text-red-500/70 italic leading-tight uppercase font-bold">
+                        Riesgo Crítico de Drawdown.
                       </p>
                     </div>
                     <Switch 
@@ -186,28 +183,28 @@ export default function RiskPage() {
                     />
                   </div>
                 </CardContent>
-                <CardFooter className="border-t border-white/5 pt-8 flex justify-between items-center bg-white/5 p-8 mt-4">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Estado Sincronización</span>
-                    <span className="text-xs font-code text-primary">EN LÍNEA / MOTOR V3</span>
+                <CardFooter className="border-t border-white/5 pt-6 flex flex-col md:flex-row justify-between items-center bg-white/5 p-6 md:p-8 gap-4">
+                  <div className="flex flex-col items-center md:items-start text-center md:text-left">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Sincronización HFT</span>
+                    <span className="text-xs font-code text-primary">MOTOR V7 ACTIVO</span>
                   </div>
-                  <Button type="submit" className="gap-2 px-12 h-14 font-headline text-lg shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all" disabled={loading}>
+                  <Button type="submit" className="w-full md:w-auto gap-2 px-8 md:px-12 h-12 md:h-14 font-headline text-base md:text-lg shadow-xl shadow-primary/20" disabled={loading}>
                     {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
-                    VIGILAR Y GUARDAR PARÁMETROS
+                    GUARDAR CAMBIOS
                   </Button>
                 </CardFooter>
               </Card>
             </form>
           )}
 
-          <div className="p-5 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex gap-5 items-start">
-            <div className="p-3 bg-yellow-500/20 rounded-full">
-              <AlertTriangle className="h-6 w-6 text-yellow-500 shrink-0" />
+          <div className="p-4 md:p-5 bg-yellow-500/10 border border-yellow-500/20 rounded-xl md:rounded-2xl flex flex-col sm:flex-row gap-4 md:gap-5 items-start">
+            <div className="p-2 md:p-3 bg-yellow-500/20 rounded-full shrink-0">
+              <AlertTriangle className="h-5 w-5 md:h-6 md:w-6 text-yellow-500" />
             </div>
             <div className="space-y-1">
-              <h4 className="font-bold text-yellow-500 text-md uppercase tracking-wide">Advertencia de Ejecución Autónoma</h4>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                El Ejército de IA operará de forma 100% autónoma basándose en estos límites. Asegúrese de que su Stop Loss sea coherente con su balance en IQ Option. Las decisiones tomadas por el motor cuántico son irreversibles una vez enviadas al puente.
+              <h4 className="font-bold text-yellow-500 text-sm md:text-md uppercase tracking-wide">Advertencia de Autonomía</h4>
+              <p className="text-[10px] md:text-xs text-muted-foreground leading-relaxed">
+                El sistema operará de forma autónoma basándose en estos límites. Las decisiones tomadas por el núcleo V7 son irreversibles.
               </p>
             </div>
           </div>
