@@ -4,12 +4,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
-import { LineChart, Activity, Globe, ShieldCheck, RefreshCw, Layers, ArrowRight, Zap, Wifi } from 'lucide-react';
+import { LineChart, Activity, Globe, ShieldCheck, RefreshCw, Layers, ArrowRight, Zap, Wifi, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 export default function TerminalPage() {
   const container = useRef<HTMLDivElement>(null);
@@ -44,7 +45,7 @@ export default function TerminalPage() {
   }, [botParams, selectedPair]);
 
   useEffect(() => {
-    // Mapeo inteligente de símbolos para TradingView
+    // Mapeo inteligente de símbolos para evitar fallos de conexión
     let cleanPair = selectedPair.toUpperCase()
       .replace('/', '')
       .replace('-', '')
@@ -53,11 +54,8 @@ export default function TerminalPage() {
     
     let symbol = `FX:${cleanPair}`;
     
-    if (selectedPair.includes('BTC') || selectedPair.includes('ETH') || selectedPair.includes('LTC')) {
+    if (cleanPair.includes('BTC') || cleanPair.includes('ETH') || cleanPair.includes('LTC')) {
       symbol = `BINANCE:${cleanPair}USDT`;
-    } else if (cleanPair.length === 6) {
-      // Forex estándar
-      symbol = `FX:${cleanPair}`;
     }
 
     setActiveSymbol(symbol);
@@ -67,9 +65,10 @@ export default function TerminalPage() {
   useEffect(() => {
     if (!container.current) return;
 
+    // Limpieza profunda del contenedor para evitar duplicados o estados negros
     container.current.innerHTML = '';
     const widgetContainer = document.createElement('div');
-    widgetContainer.id = `tv-widget-${activeSymbol.replace(':', '-')}`;
+    widgetContainer.id = `tv-widget-${activeSymbol.replace(':', '-')}-${Math.random().toString(36).substring(7)}`;
     widgetContainer.style.height = '100%';
     widgetContainer.style.width = '100%';
     container.current.appendChild(widgetContainer);
@@ -96,11 +95,15 @@ export default function TerminalPage() {
     
     widgetContainer.appendChild(script);
 
-    const timer = setTimeout(() => setChartLoading(false), 1200);
+    // Timeout de seguridad para desbloquear la UI si el script tarda
+    const timer = setTimeout(() => {
+      setChartLoading(false);
+    }, 2000);
+
     return () => clearTimeout(timer);
   }, [activeSymbol]);
 
-  const configuredPairs = botParams?.pairs || ['EUR/USD'];
+  const configuredPairs = botParams?.pairs || ['EURUSD-OTC'];
 
   return (
     <SidebarProvider>
@@ -142,7 +145,7 @@ export default function TerminalPage() {
         </header>
 
         <main className="flex-1 flex overflow-hidden bg-black">
-          <aside className="w-56 border-r border-white/5 bg-[#0a0f1a] flex flex-col shrink-0 z-20">
+          <aside className="w-64 border-r border-white/5 bg-[#0a0f1a] flex flex-col shrink-0 z-20">
             <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/5">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Layers className="h-4 w-4" />
@@ -155,7 +158,10 @@ export default function TerminalPage() {
                 {configuredPairs.map((pair: string) => (
                   <button
                     key={pair}
-                    onClick={() => setSelectedPair(pair)}
+                    onClick={() => {
+                      setSelectedPair(pair);
+                      setChartLoading(true);
+                    }}
                     className={cn(
                       "w-full text-left px-4 py-4 rounded-xl text-sm font-bold transition-all flex items-center justify-between group relative overflow-hidden",
                       selectedPair === pair 
@@ -192,10 +198,18 @@ export default function TerminalPage() {
                       <div className="w-2 h-2 bg-primary rounded-full animate-ping" />
                    </div>
                 </div>
-                <div className="text-center space-y-1">
-                  <p className="font-headline font-bold text-white tracking-widest">SINCRONIZANDO CLÚSTER</p>
+                <div className="text-center space-y-2">
+                  <p className="font-headline font-bold text-white tracking-widest text-lg">SINCRONIZANDO CLÚSTER</p>
                   <p className="text-[10px] uppercase tracking-[0.3em] text-primary animate-pulse">{selectedPair} | STREAMING V7</p>
                 </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="mt-4 text-[10px] text-muted-foreground hover:text-white"
+                  onClick={() => setChartLoading(false)}
+                >
+                  ¿Tarda demasiado? Forzar Visualización
+                </Button>
               </div>
             )}
             
@@ -204,19 +218,20 @@ export default function TerminalPage() {
                 <div className="flex items-center gap-3">
                   <div className="flex flex-col">
                     <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter">Instrumento</span>
-                    <span className="text-xs font-code font-bold text-primary">{selectedPair} (Mapped: {activeSymbol})</span>
+                    <span className="text-xs font-code font-bold text-primary">{selectedPair} (Feed: {activeSymbol})</span>
                   </div>
                 </div>
                 <div className="hidden sm:flex items-center gap-3 border-l border-white/10 pl-6">
-                  <div className="flex flex-col">
-                    <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter">Motor IA</span>
-                    <span className="text-xs font-code font-bold text-green-500 uppercase">Analizando</span>
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-green-500 animate-pulse" />
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground">IA Sentinel:</span>
+                    <span className="text-xs font-code font-bold text-green-500 uppercase">Analizando Acción del Precio</span>
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-4 bg-primary/10 px-4 py-1 rounded-md border border-primary/20">
-                <Activity className="h-4 w-4 text-primary animate-pulse" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-primary font-headline">Vigilancia Cuántica Activa</span>
+                <ShieldCheck className="h-4 w-4 text-primary" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-primary font-headline">Protección de Capital Activa</span>
               </div>
             </div>
           </div>

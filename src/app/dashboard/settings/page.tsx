@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { 
-  Settings2, Save, Cpu, Loader2, RefreshCw, Zap, Clock, ShieldAlert, 
+  Settings2, Cpu, Loader2, RefreshCw, Zap, Clock, ShieldAlert, 
   Target, Plus, Trash2, Sliders, Globe, Activity, Landmark, ShieldCheck, 
   Wallet, Gauge, BarChart3, Info
 } from 'lucide-react';
@@ -37,16 +37,16 @@ export default function SettingsV7Page() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [takeProfit, setTakeProfit] = useState('60000');
-  const [stopLoss, setStopLoss] = useState('13000');
-  const [minBalance, setMinBalance] = useState('20000');
-  const [investment, setInvestment] = useState('2300');
+  const [stopLoss, setStopLoss] = useState('8000');
+  const [minBalance, setMinBalance] = useState('2000');
+  const [investment, setInvestment] = useState('4000');
   const [maxTrades, setMaxTrades] = useState('1');
   const [maxLosses, setMaxLosses] = useState('2');
   const [minRsi, setMinRsi] = useState('20');
   const [midRsi, setMidRsi] = useState('38');
   const [maxRsi, setMaxRsi] = useState('62');
   const [martingale, setMartingale] = useState(false);
-  const [pairs, setPairs] = useState<string[]>(['EURUSD-OTC', 'GBPUSD-OTC', 'BTCUSD', 'ETHUSD', 'LTCUSD']);
+  const [pairs, setPairs] = useState<string[]>(['EURUSD-OTC', 'GBPUSD-OTC']);
   const [newPair, setNewPair] = useState('');
   const [schedules, setSchedules] = useState<{start: string, end: string}[]>([]);
 
@@ -54,9 +54,9 @@ export default function SettingsV7Page() {
     if (botParams && !isEditing) {
       setBotActive(botParams.bot_activo !== undefined ? botParams.bot_activo : true);
       setTakeProfit(botParams.takeProfit?.toString() || '60000');
-      setStopLoss(botParams.stopLoss?.toString() || '13000');
-      setMinBalance(botParams.minBalance?.toString() || '20000');
-      setInvestment(botParams.investmentPerTrade?.toString() || '2300');
+      setStopLoss(botParams.stopLoss?.toString() || '8000');
+      setMinBalance(botParams.minBalance?.toString() || '2000');
+      setInvestment(botParams.investmentPerTrade?.toString() || '4000');
       setMaxTrades(botParams.maxTradesPerDay?.toString() || '1');
       setMaxLosses(botParams.maxLosses?.toString() || '2');
       setMinRsi(botParams.minRsi?.toString() || '20');
@@ -95,25 +95,26 @@ export default function SettingsV7Page() {
       schedules
     };
 
-    if (user && brokerRef) {
-      setDoc(brokerRef, { email, password }, { merge: true });
-    }
-
-    const result = await updateBotConfig(config);
-    setLoading(false);
-    setIsEditing(false);
-
-    if (result.success) {
-      toast({
-        title: "NÚCLEO V7 ACTUALIZADO",
-        description: "Protocolos sincronizados exitosamente.",
-      });
+    try {
+      if (user && brokerRef) {
+        await setDoc(brokerRef, { email, password }, { merge: true });
+      }
+      const result = await updateBotConfig(config);
+      if (result.success) {
+        toast({ title: "NÚCLEO V7 ACTUALIZADO", description: "Protocolos sincronizados exitosamente." });
+      }
+    } catch (err) {
+      toast({ title: "ERROR DE GUARDADO", description: "No se pudo sincronizar el núcleo.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+      setIsEditing(false);
     }
   }
 
   const addPair = () => {
-    if (newPair && !pairs.includes(newPair.toUpperCase())) {
-      setPairs([...pairs, newPair.toUpperCase()]);
+    const formatted = newPair.trim().toUpperCase();
+    if (formatted && !pairs.includes(formatted)) {
+      setPairs([...pairs, formatted]);
       setNewPair('');
       setIsEditing(true);
     }
@@ -155,7 +156,6 @@ export default function SettingsV7Page() {
              </div>
           ) : (
             <form onSubmit={handleSave} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-32">
-              
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
                 {/* COLUMNA 1: ACCESO Y GESTIÓN DE CAPITAL */}
@@ -170,7 +170,7 @@ export default function SettingsV7Page() {
                     </CardHeader>
                     <CardContent className="pt-6 space-y-4">
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Email IQ Option</Label>
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Email Bróker</Label>
                         <Input 
                           placeholder="email@dominio.com" 
                           value={email} 
@@ -201,7 +201,7 @@ export default function SettingsV7Page() {
                     <CardContent className="pt-6 space-y-4">
                       <div className="space-y-4">
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Take Profit ($)</Label>
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Ganancia Meta - TP ($)</Label>
                           <Input 
                             type="number" 
                             value={takeProfit} 
@@ -209,11 +209,11 @@ export default function SettingsV7Page() {
                             className="bg-zinc-900/50 border-white/10 h-11 text-green-500 font-bold"
                           />
                           <p className="text-[9px] text-muted-foreground italic flex items-center gap-1">
-                            <Info className="h-3 w-3" /> Ganancia meta: hasta donde quiere ganar hoy.
+                            <Info className="h-3 w-3" /> Meta diaria: el bot se detendrá al ganar esto.
                           </p>
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Stop Loss ($)</Label>
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Pérdida Máxima - SL ($)</Label>
                           <Input 
                             type="number" 
                             value={stopLoss} 
@@ -221,11 +221,11 @@ export default function SettingsV7Page() {
                             className="bg-zinc-900/50 border-white/10 h-11 text-red-500 font-bold"
                           />
                           <p className="text-[9px] text-muted-foreground italic flex items-center gap-1">
-                            <Info className="h-3 w-3" /> Pérdida máxima permitida antes del apagado.
+                            <Info className="h-3 w-3" /> Límite de seguridad: apaga el bot si se pierde esto.
                           </p>
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Mantener Mínimo ($)</Label>
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Mantenimiento de Saldo ($)</Label>
                           <Input 
                             type="number" 
                             value={minBalance} 
@@ -233,7 +233,7 @@ export default function SettingsV7Page() {
                             className="bg-zinc-900/50 border-white/10 h-11 font-bold"
                           />
                           <p className="text-[9px] text-muted-foreground italic flex items-center gap-1">
-                            <Info className="h-3 w-3" /> Si el saldo baja de este monto, el bot para.
+                            <Info className="h-3 w-3" /> Saldo mínimo en bróker para operar.
                           </p>
                         </div>
                       </div>
@@ -247,12 +247,12 @@ export default function SettingsV7Page() {
                     <CardHeader className="bg-primary/5 pb-4">
                       <CardTitle className="text-sm font-headline flex items-center gap-2">
                         <Sliders className="h-4 w-4 text-primary" />
-                        REGLAS DE EJECUCIÓN
+                        REGLAS DE EJECUCIÓN V7
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-6 space-y-6">
                       <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl space-y-2">
-                        <Label className="text-[11px] uppercase text-primary font-black tracking-widest">Monto a Invertir ($)</Label>
+                        <Label className="text-[11px] uppercase text-primary font-black tracking-widest">Inversión Maestra ($)</Label>
                         <Input 
                           type="number" 
                           value={investment} 
@@ -260,51 +260,45 @@ export default function SettingsV7Page() {
                           className="bg-zinc-900/60 border-primary/30 h-14 text-2xl text-center text-primary font-headline font-bold"
                         />
                         <p className="text-[10px] text-primary/70 text-center font-bold uppercase tracking-wider">
-                          Inversión por trade (Monto fijo)
+                          Monto fijo por operación HFT
                         </p>
                       </div>
 
                       <div className="grid grid-cols-1 gap-4">
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Tiempo de Ejecución</Label>
-                          <Input 
-                            value="1 minuto" 
-                            readOnly 
-                            className="bg-zinc-900/30 border-white/5 h-11 text-center font-bold opacity-70"
-                          />
-                          <p className="text-[9px] text-muted-foreground text-center">Protocolo HFT optimizado para 60 segundos.</p>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Cantidad de Pérdidas Permitidas</Label>
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Pérdidas Seguidas Permitidas</Label>
                           <Input 
                             type="number" 
                             value={maxLosses} 
                             onChange={e => {setMaxLosses(e.target.value); setIsEditing(true);}} 
                             className="bg-zinc-900/50 border-white/10 h-11 text-center font-bold text-red-500"
                           />
-                          <p className="text-[9px] text-muted-foreground text-center italic">Detiene el bot tras esta cantidad de pérdidas seguidas.</p>
+                          <p className="text-[9px] text-muted-foreground text-center italic">Si el bot pierde N veces seguidas, se apaga por seguridad.</p>
                         </div>
                       </div>
 
-                      <div className="space-y-4 pt-4">
+                      <div className="space-y-4 pt-4 border-t border-white/5">
                         <div className="flex items-center gap-2 mb-2">
                           <Gauge className="h-4 w-4 text-primary" />
                           <Label className="text-[11px] uppercase font-bold tracking-widest">Umbrales de RSI Cuántico</Label>
                         </div>
                         <div className="grid grid-cols-3 gap-3">
                           <div className="space-y-1 text-center">
-                            <span className="text-[9px] uppercase font-bold text-muted-foreground">Mínimo (20)</span>
+                            <span className="text-[9px] uppercase font-bold text-muted-foreground">Mín (20)</span>
                             <Input type="number" value={minRsi} onChange={e => {setMinRsi(e.target.value); setIsEditing(true);}} className="bg-zinc-900/50 border-white/10 h-10 text-center font-bold" />
                           </div>
                           <div className="space-y-1 text-center">
-                            <span className="text-[9px] uppercase font-bold text-muted-foreground">Medio (38)</span>
+                            <span className="text-[9px] uppercase font-bold text-muted-foreground">Med (38)</span>
                             <Input type="number" value={midRsi} onChange={e => {setMidRsi(e.target.value); setIsEditing(true);}} className="bg-zinc-900/50 border-white/10 h-10 text-center font-bold text-primary" />
                           </div>
                           <div className="space-y-1 text-center">
-                            <span className="text-[9px] uppercase font-bold text-muted-foreground">Máximo (62)</span>
+                            <span className="text-[9px] uppercase font-bold text-muted-foreground">Máx (62)</span>
                             <Input type="number" value={maxRsi} onChange={e => {setMaxRsi(e.target.value); setIsEditing(true);}} className="bg-zinc-900/50 border-white/10 h-10 text-center font-bold" />
                           </div>
                         </div>
+                        <p className="text-[9px] text-muted-foreground text-center italic leading-tight">
+                          Calibración V7 para detectar reversiones en temporalidad de 1 min.
+                        </p>
                       </div>
                     </CardContent>
                   </Card>
@@ -316,13 +310,13 @@ export default function SettingsV7Page() {
                     <CardHeader className="bg-primary/5 pb-4">
                       <CardTitle className="text-sm font-headline flex items-center gap-2">
                         <BarChart3 className="h-4 w-4 text-primary" />
-                        SELECCIONAR DIVISAS
+                        CLÚSTERS DE ACTIVOS
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-6 space-y-4">
                       <div className="flex gap-2">
                         <Input 
-                          placeholder="Agregar Divisa (Ej: BTCUSD)" 
+                          placeholder="Ej: EURUSD-OTC" 
                           value={newPair} 
                           onChange={e => setNewPair(e.target.value)}
                           className="bg-zinc-900/50 border-white/10 h-10 flex-1"
@@ -333,7 +327,7 @@ export default function SettingsV7Page() {
                         </Button>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-2 mt-4 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+                      <div className="grid grid-cols-1 gap-2 mt-4 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
                         {pairs.map(p => (
                           <div key={p} className="flex items-center justify-between p-3 bg-zinc-900/40 rounded-xl border border-white/5 group hover:border-primary/40 transition-all">
                             <div className="flex items-center gap-3">
@@ -353,19 +347,19 @@ export default function SettingsV7Page() {
                     <CardHeader className="bg-primary/5 pb-4">
                       <CardTitle className="text-sm font-headline flex items-center gap-2">
                         <Clock className="h-4 w-4 text-primary" />
-                        PROGRAMACIÓN OPERATIVA
+                        VENTANAS OPERATIVAS
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-6 space-y-4">
-                      <div className="flex justify-between items-center mb-4">
-                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Ventanas de Ejecución</span>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Horarios V7</span>
                         <Button type="button" variant="outline" size="sm" onClick={addSchedule} className="h-7 text-[10px] border-primary/30 text-primary hover:bg-primary/10">
-                          + Añadir Ventana
+                          + Nueva Ventana
                         </Button>
                       </div>
                       <div className="space-y-3">
                         {schedules.map((s, idx) => (
-                          <div key={idx} className="flex items-center gap-3 p-3 bg-zinc-900/40 rounded-xl border border-white/5">
+                          <div key={idx} className="flex items-center gap-3 p-2 bg-zinc-900/40 rounded-xl border border-white/5">
                             <Input 
                               type="text" 
                               value={s.start} 
@@ -375,9 +369,9 @@ export default function SettingsV7Page() {
                                 setSchedules(newScheds);
                                 setIsEditing(true);
                               }}
-                              className="bg-zinc-900/50 border-white/10 h-9 text-center text-xs font-bold" 
+                              className="bg-zinc-900/50 border-white/10 h-8 text-center text-xs font-bold" 
                             />
-                            <span className="text-xs text-muted-foreground font-bold">A</span>
+                            <span className="text-xs text-muted-foreground">A</span>
                             <Input 
                               type="text" 
                               value={s.end} 
@@ -387,9 +381,9 @@ export default function SettingsV7Page() {
                                 setSchedules(newScheds);
                                 setIsEditing(true);
                               }}
-                              className="bg-zinc-900/50 border-white/10 h-9 text-center text-xs font-bold" 
+                              className="bg-zinc-900/50 border-white/10 h-8 text-center text-xs font-bold" 
                             />
-                            <button type="button" onClick={() => setSchedules(schedules.filter((_, i) => i !== idx))} className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-all">
+                            <button type="button" onClick={() => setSchedules(schedules.filter((_, i) => i !== idx))} className="text-red-500 hover:bg-red-500/10 p-1.5 rounded-lg transition-all">
                               <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
@@ -398,7 +392,6 @@ export default function SettingsV7Page() {
                     </CardContent>
                   </Card>
                 </div>
-
               </div>
 
               <div className="fixed bottom-8 right-8 z-30">
