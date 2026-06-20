@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -24,6 +25,16 @@
     --input: 222 47% 15%;
     --ring: 221 83% 53%;
     --radius: 1rem;
+    
+    /* Sidebar specific variables */
+    --sidebar-background: 222 47% 8%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 221 83% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 47% 12%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 222 47% 15%;
+    --sidebar-ring: 221 83% 53%;
   }
 }
 
@@ -32,14 +43,19 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-body overflow-x-hidden;
+    @apply bg-background text-foreground font-body overflow-x-hidden antialiased;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-headline tracking-tight;
   }
 }
 
-/* Custom Thin Techy Scrollbar */
+/* Cleanup: Remove default scrollbars and use techy ones */
+html, body {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--primary) / 0.2) transparent;
+}
+
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
@@ -53,10 +69,22 @@
   @apply bg-primary/20 rounded-full hover:bg-primary/40 transition-colors;
 }
 
+/* Techy scrollbar for containers */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--primary) / 0.2) transparent;
+  overflow-y: auto;
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 3px;
 }
 
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-primary/30 rounded-full hover:bg-primary/50;
+}
+
+/* Dashboard Effects */
 .log-entry {
   font-family: var(--font-code);
   font-size: 0.75rem;
@@ -78,4 +106,14 @@
 
 .live-indicator {
   animation: pulse-subtle 3s infinite ease-in-out;
+}
+
+/* Glassmorphism effects */
+.glass-panel {
+  @apply bg-white/5 backdrop-blur-xl border border-white/10;
+}
+
+/* Hide Sidebar Overflow properly */
+[data-sidebar="sidebar"] {
+  @apply overflow-hidden;
 }
