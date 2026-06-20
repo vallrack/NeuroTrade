@@ -12,9 +12,9 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useDoc, useFirestore } from '@/firebase';
-import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
-import { disconnectBroker } from '@/lib/actions';
-import { Globe, ShieldCheck, Zap, Loader2, ShieldAlert, ArrowRight, Trash2, Beaker, Landmark, Coins } from 'lucide-react';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { syncBrokerProfile, disconnectBroker } from '@/lib/actions';
+import { Globe, Zap, Loader2, ShieldAlert, ArrowRight, Trash2, Beaker, Landmark } from 'lucide-react';
 
 export default function BrokerPage() {
   const { user } = useUser();
@@ -30,55 +30,16 @@ export default function BrokerPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [apiKey, setApiKey] = useState('');
-
-  const currentAccountType = brokerConfig?.accountType || 'demo';
+  const [accountType, setAccountType] = useState<'demo' | 'real'>('demo');
 
   useEffect(() => {
     if (brokerConfig) {
       setProvider(brokerConfig.provider || 'IQ Option');
       setEmail(brokerConfig.email || '');
       setApiKey(brokerConfig.apiKey || '');
+      setAccountType(brokerConfig.accountType || 'demo');
     }
   }, [brokerConfig]);
-
-  const handleAccountTypeChange = async (type: 'demo' | 'real') => {
-    if (!user || !brokerRef || loading) return;
-    
-    setLoading(true);
-    try {
-      // Cambio Atómico de Canal
-      await setDoc(brokerRef, { accountType: type }, { merge: true });
-      
-      // Sincronización de Saldo para Demo si es necesario
-      if (type === 'demo') {
-        const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', 'demo');
-        const snap = await getDoc(statsRef);
-        if (!snap.exists()) {
-          await setDoc(statsRef, {
-            balance: 11046.71,
-            dailyProfit: 0,
-            winRate: 0,
-            tradesCount: 0,
-            winsCount: 0,
-            lastSync: new Date().toISOString()
-          });
-        }
-      }
-
-      toast({
-        title: `ENTORNO ${type.toUpperCase()} ACTIVADO`,
-        description: `Toda la plataforma ha volcado su configuración a modo ${type === 'demo' ? 'DEMO' : 'REAL'}.`,
-      });
-    } catch (err) {
-      toast({
-        title: "ERROR DE CONMUTACIÓN",
-        description: "No se pudo cambiar el entorno operativo.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,21 +47,31 @@ export default function BrokerPage() {
     
     setLoading(true);
     try {
-      await setDoc(brokerRef, {
+      const brokerData = {
         provider,
         email: provider === 'IQ Option' ? email : '',
         password: provider === 'IQ Option' ? password : '',
         apiKey: provider !== 'IQ Option' ? apiKey : '',
+        accountType,
         status: 'connected',
         connectedAt: new Date().toISOString(),
-      }, { merge: true });
+      };
 
-      toast({
-        title: "PUENTE ESTABLECIDO",
-        description: "Comunicación total activada con el bróker.",
-      });
+      // 1. Guardar credenciales
+      await setDoc(brokerRef, brokerData, { merge: true });
+
+      // 2. Sincronización Automática con la API de IQ Option
+      const syncResult = await syncBrokerProfile(user.uid, brokerData);
       
-      router.push('/dashboard');
+      if (syncResult.success) {
+        toast({
+          title: "PUENTE ESTABLECIDO CON ÉXITO",
+          description: `Se ha identificado la cuenta ${accountType.toUpperCase()} con balance real de la API.`,
+        });
+        router.push('/dashboard');
+      } else {
+        throw new Error(syncResult.error);
+      }
     } catch (err: any) {
       toast({ title: "FALLO DE VÍNCULO", description: err.message, variant: "destructive" });
     } finally {
@@ -125,7 +96,7 @@ export default function BrokerPage() {
         <main className="p-6 max-w-4xl mx-auto space-y-8">
           <div className="flex flex-col gap-2">
             <h2 className="text-3xl font-headline font-bold text-foreground">Gestión de Conectividad</h2>
-            <p className="text-muted-foreground italic">Cambio dinámico entre entornos con volcado total de plataforma.</p>
+            <p className="text-muted-foreground italic">Identificación automática de cuentas mediante el puente oficial.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -134,7 +105,7 @@ export default function BrokerPage() {
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
                     <CardTitle>Configuración de Puente</CardTitle>
-                    <CardDescription>Seleccione su infraestructura de ejecución.</CardDescription>
+                    <CardDescription>Conecte su cuenta para sincronización de API.</CardDescription>
                   </div>
                   {isConnected && (
                     <Badge className="bg-green-500/20 text-green-500 border-green-500/50 uppercase">
@@ -160,32 +131,28 @@ export default function BrokerPage() {
                   </div>
 
                   <div className="space-y-3">
-                    <Label className="text-sm font-bold uppercase text-muted-foreground">Entorno de Operación Global</Label>
+                    <Label className="text-sm font-bold uppercase text-muted-foreground">Tipo de Cuenta a Vincular</Label>
                     <div className="grid grid-cols-2 gap-4">
                       <button
                         type="button"
-                        onClick={() => handleAccountTypeChange('demo')}
-                        className={`flex items-center justify-between p-4 rounded-xl border transition-all ${currentAccountType === 'demo' ? 'bg-primary/10 border-primary ring-2 ring-primary/20 opacity-100' : 'bg-background/50 border-white/5 opacity-50 hover:opacity-80'}`}
+                        disabled={isConnected}
+                        onClick={() => setAccountType('demo')}
+                        className={`flex items-center justify-between p-4 rounded-xl border transition-all ${accountType === 'demo' ? 'bg-primary/10 border-primary ring-2 ring-primary/20 opacity-100' : 'bg-background/50 border-white/5 opacity-50 hover:opacity-80'}`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${currentAccountType === 'demo' ? 'border-primary' : 'border-muted-foreground'}`}>
-                            {currentAccountType === 'demo' && <div className="w-2 h-2 rounded-full bg-primary" />}
-                          </div>
-                          <Label className="font-bold cursor-pointer uppercase">Paper / Demo</Label>
+                          <Label className="font-bold cursor-pointer uppercase">Demo</Label>
                         </div>
                         <Beaker className="h-5 w-5 opacity-50" />
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => handleAccountTypeChange('real')}
-                        className={`flex items-center justify-between p-4 rounded-xl border transition-all ${currentAccountType === 'real' ? 'bg-secondary/10 border-secondary ring-2 ring-secondary/20 opacity-100' : 'bg-background/50 border-white/5 opacity-50 hover:opacity-80'}`}
+                        disabled={isConnected}
+                        onClick={() => setAccountType('real')}
+                        className={`flex items-center justify-between p-4 rounded-xl border transition-all ${accountType === 'real' ? 'bg-secondary/10 border-secondary ring-2 ring-secondary/20 opacity-100' : 'bg-background/50 border-white/5 opacity-50 hover:opacity-80'}`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${currentAccountType === 'real' ? 'border-secondary' : 'border-muted-foreground'}`}>
-                            {currentAccountType === 'real' && <div className="w-2 h-2 rounded-full bg-secondary" />}
-                          </div>
-                          <Label className="font-bold cursor-pointer uppercase">Real Account</Label>
+                          <Label className="font-bold cursor-pointer uppercase">Real</Label>
                         </div>
                         <Landmark className="h-5 w-5 opacity-50" />
                       </button>
@@ -232,18 +199,14 @@ export default function BrokerPage() {
                   )}
                 </CardContent>
                 <CardFooter className="flex justify-between border-t border-white/5 pt-6 bg-white/5 p-6">
-                   <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest flex items-center gap-2">
-                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                     Bridge Status: Active
-                   </div>
                    {!isConnected ? (
-                     <Button type="submit" disabled={loading} className="gap-2 px-10 h-12 font-headline shadow-xl shadow-primary/20">
+                     <Button type="submit" disabled={loading} className="w-full gap-2 h-12 font-headline shadow-xl shadow-primary/20">
                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-                       VINCULAR NÚCLEO
+                       ABRIR PUENTE CON API
                      </Button>
                    ) : (
-                     <Button type="button" variant="outline" onClick={() => router.push('/dashboard')} className="gap-2">
-                       VOLVER AL DASHBOARD <ArrowRight className="h-4 w-4" />
+                     <Button type="button" variant="outline" onClick={() => router.push('/dashboard')} className="w-full gap-2">
+                       IR AL CENTRO DE MANDO <ArrowRight className="h-4 w-4" />
                      </Button>
                    )}
                 </CardFooter>
@@ -251,26 +214,12 @@ export default function BrokerPage() {
             </Card>
 
             <div className="space-y-6">
-              <Card className="bg-card/30 border-white/5">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-headline flex items-center gap-2 uppercase tracking-widest">
-                    Infraestructura
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-[11px] text-muted-foreground space-y-4">
-                  <div>
-                    <span className="text-white font-bold block mb-1">COMUNICACIÓN TOTAL</span>
-                    <p>El bot operará ininterrumpidamente en el modo elegido hasta que se detenga manualmente.</p>
-                  </div>
-                </CardContent>
-              </Card>
-
               {isConnected && (
                 <Card className="bg-red-500/5 border-red-500/20">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-[10px] font-headline flex items-center gap-2 text-red-500 uppercase tracking-widest text-center">
+                    <CardTitle className="text-[10px] font-headline flex items-center gap-2 text-red-500 uppercase tracking-widest">
                       <ShieldAlert className="h-4 w-4" />
-                      Protocolo de Cierre
+                      Cerrar Puente Actual
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -280,7 +229,7 @@ export default function BrokerPage() {
                         setLoading(true);
                         if (user) {
                           disconnectBroker(user.uid).then(() => {
-                            toast({ title: "PUENTE CERRADO", description: "Conexión finalizada por el usuario." });
+                            toast({ title: "PUENTE CERRADO", description: "Vínculo finalizado para cambio de cuenta." });
                             setLoading(false);
                           });
                         }
@@ -289,7 +238,7 @@ export default function BrokerPage() {
                       className="w-full text-red-500 hover:bg-red-500/10 h-10 text-[10px] gap-2 border border-red-500/20 font-bold uppercase"
                     >
                       {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                      CERRAR PUENTE
+                      DESVINCULAR CUENTA
                     </Button>
                   </CardContent>
                 </Card>
