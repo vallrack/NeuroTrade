@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -5,20 +6,25 @@ import { aiConsensusMonitor, type AiConsensusMonitorOutput } from '@/ai/flows/ai
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { ArrowUpCircle, ArrowDownCircle, Cpu, TrendingUp, BarChart3, RefreshCw, Zap } from 'lucide-react';
-import { useUser, useFirestore, useDoc } from '@/firebase';
+import { ArrowUpCircle, ArrowDownCircle, Cpu, TrendingUp, RefreshCw, Zap } from 'lucide-react';
+import { useUser, useFirestore, useDoc, useRTDB } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import { ref, onValue } from 'firebase/database';
 import { executeTrade } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 
 export function IACommitteeMonitor() {
   const { user } = useUser();
   const firestore = useFirestore();
+  const rtdb = useRTDB();
   const { toast } = useToast();
+  
   const [data, setData] = useState<AiConsensusMonitorOutput | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastExecution, setLastExecution] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [realPrice, setRealPrice] = useState<number | null>(null);
+  
   const executionCooldown = useRef(false);
 
   const botParamsRef = useMemo(() => firestore ? doc(firestore, 'configuracion', 'bot_params') : null, [firestore]);
@@ -28,6 +34,19 @@ export function IACommitteeMonitor() {
   const { data: brokerConfig } = useDoc(brokerRef);
 
   const activePair = botParams?.pairs?.[0] || 'EURUSD-OTC';
+
+  // Escuchar Ticks reales del bot de Python desde RTDB
+  useEffect(() => {
+    if (!rtdb || !activePair) return;
+    const tickRef = ref(rtdb, `market/ticks/${activePair.replace('/', '')}`);
+    const unsub = onValue(tickRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val && val.price) {
+        setRealPrice(val.price);
+      }
+    });
+    return () => unsub();
+  }, [rtdb, activePair]);
 
   const fetchConsensus = async () => {
     try {
@@ -54,11 +73,10 @@ export function IACommitteeMonitor() {
     executionCooldown.current = true;
     
     const amount = botParams?.investmentPerTrade || 4000;
-    const pair = activePair;
 
     try {
       const result = await executeTrade(user.uid, {
-        pair,
+        pair: activePair,
         direction,
         amount
       });
@@ -66,8 +84,8 @@ export function IACommitteeMonitor() {
       if (result.success) {
         setLastExecution(new Date().toLocaleTimeString());
         toast({
-          title: `EJECUCIÓN V7: ${result.status === 'win' ? 'PROFIT' : 'LOSS'}`,
-          description: `Orden de $${amount} procesada en túnel ${result.latency}.`,
+          title: `ORDEN EJECUTADA: ${direction}`,
+          description: `Resultado: ${result.status.toUpperCase()} | Latencia: ${result.latency}`,
           variant: result.status === 'win' ? 'default' : 'destructive'
         });
       }
@@ -87,17 +105,6 @@ export function IACommitteeMonitor() {
     return () => clearInterval(interval);
   }, [user, botParams?.bot_activo, brokerConfig?.status, activePair]);
 
-  if (loading && !data) {
-    return (
-      <Card className="h-[400px] md:h-[450px] bg-card/40 border-white/5 flex items-center justify-center rounded-2xl">
-        <div className="flex flex-col items-center gap-4">
-          <RefreshCw className="h-8 w-8 text-primary animate-spin" />
-          <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-muted-foreground animate-pulse">Sincronizando HFT...</p>
-        </div>
-      </Card>
-    );
-  }
-
   return (
     <Card className="h-[400px] md:h-[450px] bg-card/40 border-white/5 backdrop-blur-xl relative overflow-hidden flex flex-col shadow-2xl rounded-2xl">
       <CardHeader className="pb-4 border-b border-white/5 bg-white/5 px-6">
@@ -113,8 +120,10 @@ export function IACommitteeMonitor() {
             </span>
           </div>
           <div className="text-right">
-             <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Ticker</p>
-             <p className="text-xs md:text-sm font-code text-primary font-bold">{data?.livePrice}</p>
+             <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">FEED REAL-TIME</p>
+             <p className="text-xs md:text-sm font-code text-primary font-bold">
+               {realPrice ? realPrice.toFixed(5) : data?.livePrice}
+             </p>
           </div>
         </div>
       </CardHeader>
@@ -123,18 +132,18 @@ export function IACommitteeMonitor() {
            <div className="flex items-start gap-3 mb-4">
              <TrendingUp className="h-4 w-4 text-primary shrink-0 mt-0.5" />
              <p className="text-[10px] md:text-[11px] text-muted-foreground leading-snug italic line-clamp-2">
-               {data?.marketContext || "Analizando ráfaga de datos..."}
+               {data?.marketContext || "Analizando flujo de ticks del bot..."}
              </p>
            </div>
            <div className="flex justify-between items-center mb-2">
-             <span className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest">Consenso</span>
+             <span className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest">Confianza IA</span>
              <span className="text-lg font-headline font-bold text-primary">{data?.consensusPercentage}%</span>
            </div>
            <Progress value={data?.consensusPercentage || 0} className="h-1.5 bg-zinc-800" />
            <div className="mt-4 flex justify-between items-center">
              <div className={`text-lg font-headline font-bold flex items-center gap-2 ${data?.overallConsensus === 'CALL' ? 'text-green-500' : data?.overallConsensus === 'PUT' ? 'text-red-500' : 'text-muted-foreground'}`}>
                {data?.overallConsensus === 'CALL' ? <ArrowUpCircle className="h-5 w-5 animate-bounce" /> : data?.overallConsensus === 'PUT' ? <ArrowDownCircle className="h-5 w-5 animate-bounce" /> : null}
-               {data?.overallConsensus}
+               {data?.overallConsensus || 'ESPERANDO...'}
              </div>
              {lastExecution && (
                <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/5 font-code">
@@ -163,8 +172,8 @@ export function IACommitteeMonitor() {
       {isExecuting && (
         <div className="absolute inset-0 bg-background/95 backdrop-blur-2xl flex flex-col items-center justify-center z-50 animate-in fade-in">
            <Zap className="h-12 w-12 text-primary animate-bounce mb-4" />
-           <p className="text-xl font-headline font-bold text-primary tracking-tighter">ORDEN V7</p>
-           <p className="text-[9px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">Injecting Capital...</p>
+           <p className="text-xl font-headline font-bold text-primary tracking-tighter">INYECTANDO ORDEN</p>
+           <p className="text-[9px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">Puente de Python Activo...</p>
         </div>
       )}
     </Card>

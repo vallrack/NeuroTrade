@@ -73,24 +73,14 @@
         "broker": { "type": "string" }
       }
     },
-    "DailyEquity": {
-      "title": "Rendimiento Diario",
-      "description": "Registro de seguimiento de rendimiento diario.",
+    "MarketTick": {
+      "title": "Tick de Mercado (RTDB)",
+      "description": "Precio en tiempo real inyectado por el bot de Python.",
       "type": "object",
       "properties": {
-        "date": { "type": "string", "format": "date" },
-        "equity": { "type": "number" }
-      }
-    },
-    "DashboardStats": {
-      "title": "Estadísticas del Dashboard",
-      "description": "Resumen de las estadísticas actuales de trading.",
-      "type": "object",
-      "properties": {
-        "balance": { "type": "number" },
-        "dailyProfit": { "type": "number" },
-        "winRate": { "type": "number" },
-        "totalInvestment": { "type": "number" }
+        "price": { "type": "number" },
+        "timestamp": { "type": "number" },
+        "rsi": { "type": "number" }
       }
     }
   },
@@ -113,14 +103,6 @@
     "/configuracion/bot_params": {
       "schema": "BotParams",
       "description": "Configuración global de los parámetros del bot."
-    },
-    "/rendimiento_diario/{recordId}": {
-      "schema": "DailyEquity",
-      "description": "Datos temporales para el gráfico de equidad."
-    },
-    "/dashboard/current_stats": {
-      "schema": "DashboardStats",
-      "description": "Resumen de estadísticas en tiempo real."
     }
   }
 }
