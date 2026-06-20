@@ -143,11 +143,12 @@ export async function disconnectBroker(userId: string) {
 }
 
 /**
- * Seed inicial con los valores EXACTOS de la imagen V7
+ * Seed inicial con los valores EXACTOS de la imagen V7 y parámetros globales sincronizados.
  */
 export async function seedDemoData() {
   const { firestore: db } = getFirebase();
   try {
+    // Estadísticas iniciales del Dashboard
     const statsRef = doc(db, 'dashboard', 'current_stats');
     await setDoc(statsRef, {
       balance: 10500.50,
@@ -157,6 +158,7 @@ export async function seedDemoData() {
       updatedAt: serverTimestamp()
     });
 
+    // Parámetros Maestros V7
     const configRef = doc(db, 'configuracion', 'bot_params');
     await setDoc(configRef, {
       takeProfit: 60000,
@@ -175,8 +177,25 @@ export async function seedDemoData() {
       updatedAt: serverTimestamp()
     });
 
+    // Rendimiento diario inicial para el gráfico
+    const dates = [
+      '2024-05-15', '2024-05-16', '2024-05-17', '2024-05-18', '2024-05-19', 
+      '2024-05-20', '2024-05-21', '2024-05-22', '2024-05-23', '2024-05-24'
+    ];
+    let currentEquity = 8000;
+    
+    for (const date of dates) {
+      currentEquity += (Math.random() * 500) - 100;
+      const recordId = date.replace(/-/g, '');
+      await setDoc(doc(db, 'rendimiento_diario', recordId), {
+        date,
+        equity: currentEquity
+      });
+    }
+
     return { success: true };
   } catch (error) {
+    console.error("Fallo al inyectar datos V7:", error);
     return { success: false };
   }
 }
