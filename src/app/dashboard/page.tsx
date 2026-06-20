@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -57,7 +58,8 @@ export default function DashboardPage() {
     }
   };
 
-  if (!mounted || authLoading) {
+  // Solo mostramos carga si no sabemos quién es el usuario todavía
+  if (!mounted || (authLoading && !user)) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center gap-4 bg-background">
         <Loader2 className="h-10 w-10 text-primary animate-spin" />
@@ -66,6 +68,8 @@ export default function DashboardPage() {
     );
   }
 
+  // Si después de cargar no hay usuario, el middleware debería habernos echado, 
+  // pero por seguridad devolvemos null
   if (!user) {
     return null; 
   }

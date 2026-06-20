@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, onAuthStateChanged } from 'firebase/auth';
-import { useAuth, useFirestore } from '@/firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { useAuth, useFirestore, useUser } from '@/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -11,8 +12,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Zap, Loader2, UserPlus, LogIn, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
@@ -26,12 +25,21 @@ export default function LoginPage() {
   const auth = useAuth();
   const firestore = useFirestore();
   const router = useRouter();
+  const { user } = useUser();
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Si ya hay usuario, intentar redirigir
+  useEffect(() => {
+    if (mounted && user) {
+      const from = searchParams.get('from') || '/dashboard';
+      router.push(from);
+    }
+  }, [mounted, user, router, searchParams]);
 
   const ensureUserProfile = async (user: any, name?: string) => {
     const userRef = doc(firestore, 'users', user.uid);
@@ -44,11 +52,10 @@ export default function LoginPage() {
           lastActive: new Date().toISOString(),
           createdAt: new Date().toISOString(),
         };
-        
         await setDoc(userRef, userData, { merge: true });
       }
     } catch (err) {
-      // Manejado por listener global
+      console.error("Error al asegurar perfil:", err);
     }
   };
 
@@ -58,44 +65,43 @@ export default function LoginPage() {
     setError('');
 
     try {
-      let user;
+      let loggedUser;
       if (isRegister) {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        user = userCredential.user;
+        loggedUser = userCredential.user;
         if (displayName) {
-          await updateProfile(user, { displayName });
+          await updateProfile(loggedUser, { displayName });
         }
-        await ensureUserProfile(user, displayName);
+        await ensureUserProfile(loggedUser, displayName);
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        user = userCredential.user;
-        await ensureUserProfile(user);
+        loggedUser = userCredential.user;
       }
 
-      if (user) {
-        const token = await user.getIdToken();
-        // Sincronización crítica de cookie para el Middleware
+      if (loggedUser) {
+        const token = await loggedUser.getIdToken();
+        // Sincronización de cookie
         document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
         
         toast({
           title: "SISTEMA SINCRONIZADO",
-          description: "Entrando al Centro de Comando...",
+          description: "Accediendo...",
         });
 
-        // Forzar recarga total para asegurar que el Middleware vea la cookie
+        // Forzar navegación
         const from = searchParams.get('from') || '/dashboard';
         window.location.href = from;
       }
     } catch (err: any) {
       setLoading(false);
-      let message = 'Fallo en la conexión cuántica.';
+      console.error("Auth Error:", err.code, err.message);
+      
+      let message = 'Error de conexión cuántica.';
       if (err.code === 'auth/email-already-in-use') {
         message = 'El ID ya existe. Por favor, inicia sesión.';
         setIsRegister(false);
       } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
-        message = 'Credenciales incorrectas o usuario no encontrado.';
-      } else if (err.code === 'auth/too-many-requests') {
-        message = 'Demasiados intentos. Acceso bloqueado temporalmente.';
+        message = 'Credenciales incorrectas.';
       }
       setError(message);
     }
@@ -104,31 +110,28 @@ export default function LoginPage() {
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-background font-body text-foreground overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/10 via-background to-background opacity-50" />
-      
-      <Card className="w-full max-w-md bg-card/50 border-white/5 backdrop-blur-xl relative z-10 shadow-2xl border">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background font-body text-foreground">
+      <Card className="w-full max-w-md bg-card/50 border-white/5 backdrop-blur-xl shadow-2xl">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20 rotate-3">
+            <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20">
               <Zap className="h-10 w-10 text-white" />
             </div>
           </div>
           <CardTitle className="text-3xl font-headline font-bold">
-            {isRegister ? 'Registro de Operador' : 'Puerta de Acceso'}
+            {isRegister ? 'Registro' : 'Conexión'}
           </CardTitle>
-          <CardDescription className="uppercase text-[10px] tracking-[0.2em] font-bold text-muted-foreground mt-2">
-            Autenticación Cuántica NeuroTrade
+          <CardDescription className="uppercase text-[10px] tracking-widest font-bold text-muted-foreground mt-2">
+            NeuroTrade Quantum Access
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleAuth}>
           <CardContent className="space-y-4">
             {isRegister && (
               <div className="space-y-2">
-                <Label htmlFor="name">Nombre de Operador</Label>
+                <Label htmlFor="name">Nombre Operador</Label>
                 <Input 
                   id="name" 
-                  placeholder="Jose Daniel" 
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   className="bg-background/50 border-white/5"
@@ -137,11 +140,10 @@ export default function LoginPage() {
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="email">ID de Operador (Email)</Label>
+              <Label htmlFor="email">Email de Operador</Label>
               <Input 
                 id="email" 
                 type="email" 
-                placeholder="operador@neurotrade.io" 
                 required 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -149,7 +151,7 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Protocolo de Seguridad</Label>
+              <Label htmlFor="password">Protocolo (Password)</Label>
               <Input 
                 id="password" 
                 type="password" 
@@ -160,34 +162,25 @@ export default function LoginPage() {
               />
             </div>
             {error && (
-              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-[11px] flex items-center gap-2 font-bold uppercase">
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-[11px] flex items-center gap-2 font-bold">
                 <AlertCircle className="h-4 w-4" />
                 <span>{error}</span>
               </div>
             )}
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full h-12 font-headline text-lg" disabled={loading}>
-              {loading ? (
-                <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              ) : isRegister ? (
-                <UserPlus className="h-5 w-5 mr-2" />
-              ) : (
-                <LogIn className="h-5 w-5 mr-2" />
-              )}
-              {isRegister ? 'CREAR OPERADOR' : 'ESTABLECER CONEXIÓN'}
+            <Button type="submit" className="w-full h-12 font-headline" disabled={loading}>
+              {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
+              {isRegister ? 'CREAR CUENTA' : 'ENTRAR AL SISTEMA'}
             </Button>
             <Button 
               type="button" 
               variant="ghost" 
-              className="w-full text-xs text-muted-foreground" 
-              onClick={() => {
-                setIsRegister(!isRegister);
-                setError('');
-              }}
+              className="w-full text-xs" 
+              onClick={() => setIsRegister(!isRegister)}
               disabled={loading}
             >
-              {isRegister ? '¿Ya eres operador? Inicia Sesión' : '¿Nuevo operador? Regístrate aquí'}
+              {isRegister ? '¿Ya tienes cuenta? Inicia Sesión' : '¿Eres nuevo? Regístrate'}
             </Button>
           </CardFooter>
         </form>
