@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -5,7 +6,7 @@ import { aiConsensusMonitor, type AiConsensusMonitorOutput } from '@/ai/flows/ai
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Brain, ArrowUpCircle, ArrowDownCircle, Info } from 'lucide-react';
+import { Brain, ArrowUpCircle, ArrowDownCircle, Info, ShieldCheck } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export function IACommitteeMonitor() {
@@ -25,7 +26,7 @@ export function IACommitteeMonitor() {
 
   useEffect(() => {
     fetchConsensus();
-    const interval = setInterval(fetchConsensus, 30000); // Refresh every 30s
+    const interval = setInterval(fetchConsensus, 30000); 
     return () => clearInterval(interval);
   }, []);
 
@@ -35,30 +36,32 @@ export function IACommitteeMonitor() {
         <CardContent className="h-64 flex items-center justify-center">
           <div className="flex flex-col items-center gap-2">
             <Brain className="h-8 w-8 text-primary animate-pulse" />
-            <p className="text-sm text-muted-foreground">Synchronizing AI Agents...</p>
+            <p className="text-sm text-muted-foreground">Sincronizando Ejército de IA...</p>
           </div>
         </CardContent>
       </Card>
     );
   }
 
+  const badgeLabel = data.overallConsensus === 'CALL' ? 'COMPRA' : data.overallConsensus === 'PUT' ? 'VENTA' : 'NEUTRAL';
+
   return (
     <Card className="h-full bg-card/50 border-white/5 backdrop-blur-md">
       <CardHeader className="pb-2">
         <div className="flex justify-between items-center">
           <CardTitle className="text-lg font-headline flex items-center gap-2">
-            <Brain className="h-5 w-5 text-primary" />
-            AI Committee Consensus
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            Consenso del Ejército de IA
           </CardTitle>
           <Badge variant={data.overallConsensus === 'CALL' ? 'default' : data.overallConsensus === 'PUT' ? 'destructive' : 'secondary'} className="font-headline">
-            {data.overallConsensus}
+            {badgeLabel}
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Confidence Threshold</span>
+            <span className="text-muted-foreground">Umbral de Confianza Cuántica</span>
             <span className="font-bold">{data.consensusPercentage}%</span>
           </div>
           <Progress value={data.consensusPercentage} className="h-2" />
@@ -75,7 +78,7 @@ export function IACommitteeMonitor() {
                 )}
                 <div>
                   <p className="text-sm font-medium">{agent.agentName}</p>
-                  <p className="text-xs text-muted-foreground line-clamp-1">{agent.reasoning}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-1 italic">{agent.reasoning}</p>
                 </div>
               </div>
               <TooltipProvider>
@@ -83,7 +86,7 @@ export function IACommitteeMonitor() {
                   <TooltipTrigger>
                     <Info className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                   </TooltipTrigger>
-                  <TooltipContent className="max-w-[200px]">
+                  <TooltipContent className="max-w-[200px] bg-popover border-white/10">
                     <p className="text-xs">{agent.reasoning}</p>
                   </TooltipContent>
                 </Tooltip>

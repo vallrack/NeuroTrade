@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -35,7 +36,7 @@ export function LogConsole() {
       <CardHeader className="py-3 px-4 border-b border-white/5 flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-sm font-headline flex items-center gap-2 text-primary">
           <Terminal className="h-4 w-4" />
-          Intelligence Streaming Console
+          Consola de Inteligencia en Tiempo Real
         </CardTitle>
         <div className="flex gap-2">
           <Button variant="ghost" size="icon" className="h-7 w-7"><Copy className="h-3 w-3" /></Button>
@@ -47,7 +48,7 @@ export function LogConsole() {
         ref={scrollRef}
       >
         {logs.length === 0 ? (
-          <div className="text-muted-foreground animate-pulse">Awaiting incoming data stream...</div>
+          <div className="text-muted-foreground animate-pulse">Esperando flujo de datos entrantes...</div>
         ) : (
           logs.map((log, i) => (
             <div key={i} className={`log-entry log-entry-${log.direction?.toLowerCase() || 'none'}`}>

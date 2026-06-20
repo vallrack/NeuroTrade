@@ -1,3 +1,4 @@
+
 import { StatsGrid } from '@/components/dashboard/stats-grid';
 import { IACommitteeMonitor } from '@/components/dashboard/ia-committee-monitor';
 import { EquityChart } from '@/components/dashboard/equity-chart';
@@ -18,13 +19,13 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <SidebarTrigger />
             <Separator orientation="vertical" className="mr-2 h-4" />
-            <h1 className="font-headline text-xl font-bold tracking-tight text-foreground">Command Center</h1>
+            <h1 className="font-headline text-xl font-bold tracking-tight text-foreground">Centro de Comando</h1>
           </div>
           <div className="flex items-center gap-4">
             <div className="hidden md:flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-md border border-white/5">
               <Search className="h-4 w-4 text-muted-foreground" />
               <input 
-                placeholder="Search transactions..." 
+                placeholder="Buscar transacciones..." 
                 className="bg-transparent border-none outline-none text-sm w-48 placeholder:text-muted-foreground"
               />
             </div>
@@ -48,12 +49,12 @@ export default function DashboardPage() {
                 <IACommitteeMonitor />
                 <div className="space-y-6">
                   <div className="p-6 bg-card/50 border border-white/5 rounded-xl">
-                    <h3 className="font-headline font-bold mb-4">Emergency Protocols</h3>
+                    <h3 className="font-headline font-bold mb-4">Protocolos de Emergencia</h3>
                     <KillSwitch />
                   </div>
                   <div className="p-6 bg-primary/10 border border-primary/20 rounded-xl">
-                    <h3 className="font-headline font-bold text-primary mb-2">Bot Status: ACTIVE</h3>
-                    <p className="text-sm text-primary/80 mb-4">The engine is currently parsing EUR/USD and GBP/JPY patterns via Neural Network Cluster A1.</p>
+                    <h3 className="font-headline font-bold text-primary mb-2">Estado del Bot: ACTIVO</h3>
+                    <p className="text-sm text-primary/80 mb-4">El motor está procesando patrones de EUR/USD y BTC/USD a través del Clúster Neuronal A1.</p>
                     <div className="flex gap-2">
                       <div className="h-1 flex-1 bg-primary/30 rounded-full overflow-hidden">
                         <div className="h-full bg-primary w-2/3" />
@@ -78,12 +79,12 @@ export default function DashboardPage() {
 function CardWithRecentTrades() {
   return (
     <div className="bg-card/50 border border-white/5 rounded-xl p-4">
-      <h3 className="font-headline font-bold text-sm mb-4 px-2">RECENT EXECUTIONS</h3>
+      <h3 className="font-headline font-bold text-sm mb-4 px-2">EJECUCIONES RECIENTES</h3>
       <div className="space-y-3">
         {[
-          { pair: 'EUR/USD', type: 'CALL', price: '1.0842', result: 'WIN', time: '2m ago' },
-          { pair: 'BTC/USD', type: 'PUT', price: '64,231', result: 'WIN', time: '8m ago' },
-          { pair: 'GBP/JPY', type: 'CALL', price: '190.12', result: 'LOSS', time: '15m ago' },
+          { pair: 'EUR/USD', type: 'COMPRA', price: '1.0842', result: 'WIN', time: 'hace 2m' },
+          { pair: 'BTC/USD', type: 'VENTA', price: '64,231', result: 'WIN', time: 'hace 8m' },
+          { pair: 'GBP/JPY', type: 'COMPRA', price: '190.12', result: 'LOSS', time: 'hace 15m' },
         ].map((trade, i) => (
           <div key={i} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 transition-colors">
             <div className="flex items-center gap-3">

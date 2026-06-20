@@ -12,8 +12,8 @@ export function FirebaseErrorListener() {
     const handlePermissionError = (error: any) => {
       toast({
         variant: "destructive",
-        title: "Security Protocol Violation",
-        description: error.message,
+        title: "Violación de Protocolo de Seguridad",
+        description: "Fallo de permisos en el sistema: " + error.message,
       });
     };
 

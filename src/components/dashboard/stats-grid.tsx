@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -16,9 +17,9 @@ export function StatsGrid() {
   });
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'dashboard', 'current_stats'), (doc) => {
-      if (doc.exists()) {
-        setStats(doc.data() as any);
+    const unsub = onSnapshot(doc(db, 'dashboard', 'current_stats'), (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        setStats(docSnapshot.data() as any);
       }
     });
     return () => unsub();
@@ -29,30 +30,30 @@ export function StatsGrid() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <MetricCard
-        title="Total Balance"
+        title="Saldo Total"
         value={`$${stats.balance.toLocaleString()}`}
         icon={<Wallet className="h-4 w-4 text-primary" />}
-        subtitle="Broker Real-time"
+        subtitle="Bróker Tiempo Real"
       />
       <MetricCard
-        title="Daily Profit"
+        title="Beneficio Diario"
         value={`$${stats.dailyProfit.toLocaleString()}`}
         icon={stats.dailyProfit >= 0 ? <TrendingUp className="h-4 w-4 text-green-500" /> : <TrendingDown className="h-4 w-4 text-red-500" />}
-        subtitle="Today's Performance"
+        subtitle="Rendimiento de Hoy"
         trend={stats.dailyProfit >= 0 ? 'up' : 'down'}
       />
       <MetricCard
-        title="Win Rate"
+        title="Tasa de Acierto"
         value={`${stats.winRate}%`}
         icon={<Target className="h-4 w-4 text-secondary" />}
-        subtitle="Success Probability"
+        subtitle="Probabilidad Éxito"
         valueClassName={winRateColor}
       />
       <MetricCard
-        title="Accumulated Invest"
+        title="Inversión Acumulada"
         value={`$${stats.totalInvestment.toLocaleString()}`}
         icon={<Activity className="h-4 w-4 text-accent" />}
-        subtitle="Lifetime Volume"
+        subtitle="Volumen Histórico"
       />
     </div>
   );

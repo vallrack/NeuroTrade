@@ -28,12 +28,11 @@ export default function LoginPage() {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const token = await userCredential.user.getIdToken();
       
-      // Setting a session cookie
       document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Strict`;
       
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err.message || 'Authentication failed. Check your credentials.');
+      setError(err.message || 'Error de autenticación. Verifique sus credenciales.');
     } finally {
       setLoading(false);
     }
@@ -48,19 +47,19 @@ export default function LoginPage() {
               <Zap className="h-10 w-10 text-white" />
             </div>
           </div>
-          <CardTitle className="text-3xl font-headline font-bold tracking-tight">Access Gateway</CardTitle>
+          <CardTitle className="text-3xl font-headline font-bold tracking-tight">Puerta de Acceso</CardTitle>
           <CardDescription className="text-muted-foreground uppercase text-[10px] tracking-[0.2em] font-bold">
-            NeuroTrade Quantum Authentication
+            Autenticación Cuántica NeuroTrade
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Operator ID (Email)</Label>
+              <Label htmlFor="email">ID de Operador (Email)</Label>
               <Input 
                 id="email" 
                 type="email" 
-                placeholder="operator@neurotrade.io" 
+                placeholder="operador@neurotrade.io" 
                 required 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -69,8 +68,8 @@ export default function LoginPage() {
             </div>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <Label htmlFor="password">Security Protocol (Password)</Label>
-                <a href="#" className="text-xs text-primary hover:underline">Forgot?</a>
+                <Label htmlFor="password">Protocolo de Seguridad (Contraseña)</Label>
+                <a href="#" className="text-xs text-primary hover:underline">¿Olvido?</a>
               </div>
               <Input 
                 id="password" 
@@ -90,10 +89,10 @@ export default function LoginPage() {
           <CardFooter className="flex flex-col space-y-4">
             <Button type="submit" className="w-full h-12 font-headline text-lg group" disabled={loading}>
               {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <ShieldCheck className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform" />}
-              ESTABLISH CONNECTION
+              ESTABLECER CONEXIÓN
             </Button>
             <p className="text-center text-xs text-muted-foreground">
-              Encrypted session. Unauthorized access is monitored.
+              Sesión cifrada. El acceso no autorizado es monitoreado.
             </p>
           </CardFooter>
         </form>

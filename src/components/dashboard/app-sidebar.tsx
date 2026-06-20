@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from "react"
@@ -29,7 +30,7 @@ import {
 const data = {
   navMain: [
     {
-      title: "Navigation",
+      title: "Navegación",
       items: [
         {
           title: "Dashboard",
@@ -38,42 +39,42 @@ const data = {
           isActive: true,
         },
         {
-          title: "Execution History",
+          title: "Historial de Ejecución",
           url: "/dashboard/history",
           icon: History,
         },
         {
-          title: "Analytics",
+          title: "Analítica Avanzada",
           url: "/dashboard/analytics",
           icon: TrendingUp,
         },
       ],
     },
     {
-      title: "Intelligence",
+      title: "Inteligencia",
       items: [
         {
-          title: "AI Strategy Lab",
+          title: "Laboratorio de IA",
           url: "/dashboard/lab",
           icon: Zap,
         },
         {
-          title: "Risk Control",
+          title: "Control de Riesgo",
           url: "/dashboard/risk",
           icon: ShieldCheck,
         },
       ],
     },
     {
-      title: "System",
+      title: "Sistema",
       items: [
         {
-          title: "Engine Config",
+          title: "Configuración Motor",
           url: "/dashboard/settings",
           icon: Settings,
         },
         {
-          title: "Profile",
+          title: "Perfil de Operador",
           url: "/dashboard/profile",
           icon: UserCircle,
         },
@@ -92,7 +93,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </div>
           <div className="flex flex-col group-data-[collapsible=icon]:hidden">
             <span className="font-headline font-bold text-lg leading-none tracking-tight">NeuroTrade</span>
-            <span className="text-[10px] text-primary font-bold uppercase tracking-widest mt-0.5">Quantum Engine</span>
+            <span className="text-[10px] text-primary font-bold uppercase tracking-widest mt-0.5">Motor Cuántico</span>
           </div>
         </div>
       </SidebarHeader>
@@ -127,7 +128,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton className="px-4 py-6 text-red-400 hover:text-red-300 hover:bg-red-500/10">
               <LogOut />
-              <span>Sign Out</span>
+              <span>Cerrar Sesión</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

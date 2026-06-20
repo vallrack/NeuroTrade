@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -12,9 +13,9 @@ export function EquityChart() {
   useEffect(() => {
     const q = query(collection(db, 'rendimiento_diario'), orderBy('date', 'asc'), limit(30));
     const unsub = onSnapshot(q, (snapshot) => {
-      const records = snapshot.docs.map(doc => ({
-        date: new Date(doc.data().date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        equity: doc.data().equity
+      const records = snapshot.docs.map(docSnapshot => ({
+        date: new Date(docSnapshot.data().date).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }),
+        equity: docSnapshot.data().equity
       }));
       setData(records);
     });
@@ -24,7 +25,7 @@ export function EquityChart() {
   return (
     <Card className="col-span-1 lg:col-span-2 bg-card/50 border-white/5 backdrop-blur-md">
       <CardHeader>
-        <CardTitle className="text-lg font-headline">Dynamic Equity Curve</CardTitle>
+        <CardTitle className="text-lg font-headline">Curva de Equidad Dinámica</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-[300px] w-full">
@@ -57,6 +58,7 @@ export function EquityChart() {
                   borderRadius: 'var(--radius)',
                   fontSize: '12px'
                 }}
+                labelStyle={{ color: 'hsl(var(--primary))' }}
               />
               <Area 
                 type="monotone" 
