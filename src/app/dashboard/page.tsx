@@ -9,22 +9,37 @@ import { LogConsole } from '@/components/dashboard/log-console';
 import { KillSwitch } from '@/components/dashboard/kill-switch';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
-import { Bell, Search, Settings, ShieldCheck, Crown, Activity } from 'lucide-react';
+import { Bell, Search, Settings, ShieldCheck, Crown, Activity, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { SuperAdminTools } from '@/components/dashboard/super-admin-tools';
 import { Badge } from '@/components/ui/badge';
+import { promoteToSuperAdmin } from '@/lib/actions';
+import { useToast } from '@/hooks/use-toast';
 
 export default function DashboardPage() {
   const { user } = useUser();
   const firestore = useFirestore();
+  const { toast } = useToast();
   
   const profileRef = useMemo(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: profile } = useDoc(profileRef);
 
   const isSuperAdmin = profile?.role === 'super-admin';
+  const hasNoRole = !profile?.role;
+
+  const handleInitialSetup = async () => {
+    if (!user) return;
+    const result = await promoteToSuperAdmin(user.uid);
+    if (result.success) {
+      toast({
+        title: "SISTEMA INICIALIZADO",
+        description: "Has sido elevado a Super Administrador Maestro.",
+      });
+    }
+  };
 
   return (
     <SidebarProvider>
@@ -45,13 +60,17 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-md border border-white/5">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <input 
-                placeholder="Buscar protocolos..." 
-                className="bg-transparent border-none outline-none text-sm w-48 placeholder:text-muted-foreground"
-              />
-            </div>
+            {hasNoRole && user && (
+              <Button 
+                onClick={handleInitialSetup} 
+                variant="outline" 
+                size="sm" 
+                className="border-primary text-primary hover:bg-primary/10 gap-2 animate-bounce"
+              >
+                <RefreshCw className="h-4 w-4" />
+                INICIALIZAR SUPER ADMIN
+              </Button>
+            )}
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
               <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full" />

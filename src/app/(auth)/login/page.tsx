@@ -2,16 +2,17 @@
 'use client';
 
 import { useState } from 'react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { useAuth } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Zap, ShieldCheck, Loader2 } from 'lucide-react';
+import { Zap, ShieldCheck, Loader2, UserPlus } from 'lucide-react';
 
 export default function LoginPage() {
+  const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,15 +20,17 @@ export default function LoginPage() {
   const auth = useAuth();
   const router = useRouter();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const token = await userCredential.user.getIdToken();
+      const userCredential = isRegister 
+        ? await createUserWithEmailAndPassword(auth, email, password)
+        : await signInWithEmailAndPassword(auth, email, password);
       
+      const token = await userCredential.user.getIdToken();
       document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Strict`;
       
       router.push('/dashboard');
@@ -47,12 +50,14 @@ export default function LoginPage() {
               <Zap className="h-10 w-10 text-white" />
             </div>
           </div>
-          <CardTitle className="text-3xl font-headline font-bold tracking-tight">Puerta de Acceso</CardTitle>
+          <CardTitle className="text-3xl font-headline font-bold tracking-tight">
+            {isRegister ? 'Registro de Operador' : 'Puerta de Acceso'}
+          </CardTitle>
           <CardDescription className="text-muted-foreground uppercase text-[10px] tracking-[0.2em] font-bold">
             Autenticación Cuántica NeuroTrade
           </CardDescription>
         </CardHeader>
-        <form onSubmit={handleLogin}>
+        <form onSubmit={handleAuth}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">ID de Operador (Email)</Label>
@@ -69,7 +74,7 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <Label htmlFor="password">Protocolo de Seguridad (Contraseña)</Label>
-                <a href="#" className="text-xs text-primary hover:underline">¿Olvido?</a>
+                {!isRegister && <a href="#" className="text-xs text-primary hover:underline">¿Olvido?</a>}
               </div>
               <Input 
                 id="password" 
@@ -81,17 +86,31 @@ export default function LoginPage() {
               />
             </div>
             {error && (
-              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-xs text-center font-bold uppercase">
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-[10px] text-center font-bold uppercase">
                 {error}
               </div>
             )}
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
             <Button type="submit" className="w-full h-12 font-headline text-lg group" disabled={loading}>
-              {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <ShieldCheck className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform" />}
-              ESTABLECER CONEXIÓN
+              {loading ? (
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              ) : isRegister ? (
+                <UserPlus className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform" />
+              ) : (
+                <ShieldCheck className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform" />
+              )}
+              {isRegister ? 'CREAR OPERADOR' : 'ESTABLECER CONEXIÓN'}
             </Button>
-            <p className="text-center text-xs text-muted-foreground">
+            <Button 
+              type="button" 
+              variant="ghost" 
+              className="w-full text-xs" 
+              onClick={() => setIsRegister(!isRegister)}
+            >
+              {isRegister ? '¿Ya tienes cuenta? Inicia Sesión' : '¿Nuevo operador? Regístrate aquí'}
+            </Button>
+            <p className="text-center text-[10px] text-muted-foreground">
               Sesión cifrada. El acceso no autorizado es monitoreado.
             </p>
           </CardFooter>
