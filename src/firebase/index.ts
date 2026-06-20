@@ -12,6 +12,10 @@ let firestore: Firestore;
 let auth: Auth;
 let rtdb: Database;
 
+/**
+ * Inicializa Firebase garantizando que sea una instancia única (Singleton)
+ * para evitar errores de "Unexpected state" en Firestore.
+ */
 export function initializeFirebase(): {
   firebaseApp: FirebaseApp;
   firestore: Firestore;
@@ -24,17 +28,23 @@ export function initializeFirebase(): {
     app = initializeApp(firebaseConfig);
   }
   
-  firestore = getFirestore(app);
-  auth = getAuth(app);
-  rtdb = getDatabase(app);
+  // Solo inicializamos los servicios si no existen para evitar duplicados
+  if (!firestore) firestore = getFirestore(app);
+  if (!auth) auth = getAuth(app);
+  if (!rtdb) rtdb = getDatabase(app);
 
   return { firebaseApp: app, firestore, auth, rtdb };
 }
 
-// Exportamos las instancias para uso directo en componentes y acciones
+// Exportamos las instancias para uso directo
 export const getFirebase = () => {
-  if (!app) initializeFirebase();
-  return { app, db: firestore, auth, rtdb };
+  const instances = initializeFirebase();
+  return { 
+    app: instances.firebaseApp, 
+    db: instances.firestore, 
+    auth: instances.auth, 
+    rtdb: instances.rtdb 
+  };
 };
 
 export * from './provider';
