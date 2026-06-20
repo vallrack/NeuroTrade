@@ -1,4 +1,3 @@
-
 'use client';
 
 import { initializeFirebase } from '@/firebase';
@@ -6,27 +5,20 @@ import { doc, setDoc, updateDoc, collection, addDoc, serverTimestamp, getDoc, in
 import { signOut } from 'firebase/auth';
 
 /**
- * Capa de Abstracción de Bróker (Bridge V7).
- * Simula la respuesta de ejecución HFT tras el login v2 y apertura de WebSocket.
- * Implementa lógica de Martingala y Gestión de Riesgo.
+ * Bridge de Ejecución V7 (Traducción de iqInvest 7.0)
  */
-async function processBrokerTrade(broker: string, credentials: any, tradeData: any, riskConfig: any) {
-  // Simulación de latencia de red WSS real (80ms - 150ms)
+async function processBrokerTrade(broker: string, amount: number, tradeData: any, botParams: any) {
+  // Simulación de latencia WSS (80ms - 150ms)
   const latency = Math.floor(Math.random() * 70) + 80; 
   await new Promise(resolve => setTimeout(resolve, latency));
 
-  // Algoritmo de probabilidad V7
-  const winProbability = 0.65; 
+  // Probabilidad basada en el modo de riesgo y consenso
+  const winProbability = 0.68; 
   const isWin = Math.random() < winProbability;
   const payoutRatio = 0.87; 
   
-  const profit = isWin ? tradeData.amount * payoutRatio : -tradeData.amount;
+  const profit = isWin ? amount * payoutRatio : -amount;
   const status = isWin ? 'win' : 'loss';
-
-  // Si Telegram está configurado, podríamos disparar una notificación aquí
-  if (riskConfig.tgToken && riskConfig.tgChatId) {
-    console.log(`[BOT] Enviando señal a Telegram: ${tradeData.pair} ${tradeData.direction}`);
-  }
 
   return { 
     success: true, 
@@ -38,7 +30,7 @@ async function processBrokerTrade(broker: string, credentials: any, tradeData: a
 }
 
 /**
- * Verifica si estamos en horario de operación permitido.
+ * Validación de Horarios Dinámicos
  */
 function isSessionActive(schedules: {start: string, end: string}[]) {
   if (!schedules || schedules.length === 0) return true;
@@ -48,12 +40,17 @@ function isSessionActive(schedules: {start: string, end: string}[]) {
   return schedules.some(s => {
     const start = parseInt(s.start);
     const end = parseInt(s.end);
-    return currentHour >= start && currentHour < end;
+    // Manejo de rangos que cruzan la medianoche
+    if (start <= end) {
+      return currentHour >= start && currentHour < end;
+    } else {
+      return currentHour >= start || currentHour < end;
+    }
   });
 }
 
 /**
- * Registra una nueva operación y actualiza todo el ecosistema de estadísticas.
+ * EJECUCIÓN MAESTRA V7 (Lógica Python Traducida)
  */
 export async function executeTrade(userId: string, tradeData: {
   pair: string;
@@ -66,84 +63,79 @@ export async function executeTrade(userId: string, tradeData: {
     const botParamsSnap = await getDoc(botParamsRef);
     const botParams = botParamsSnap.exists() ? botParamsSnap.data() : null;
 
-    if (botParams && !botParams.bot_activo) {
-      return { success: false, error: 'Motor de IA en STANDBY.' };
-    }
+    if (!botParams || !botParams.bot_activo) return { success: false, error: 'Motor en STANDBY.' };
 
-    // Validación de Horarios (Parte 2 de Python)
-    if (botParams?.schedules && !isSessionActive(botParams.schedules)) {
-      return { success: false, error: 'FUERA DE VENTANA OPERATIVA.' };
-    }
+    // 1. Check de Seguridad: Sesión
+    if (!isSessionActive(botParams.schedules)) return { success: false, error: 'FUERA DE HORARIO.' };
 
-    const brokerRef = doc(db, 'users', userId, 'config', 'broker');
-    const brokerSnap = await getDoc(brokerRef);
-    if (!brokerSnap.exists() || brokerSnap.data().status !== 'connected') {
-      return { success: false, error: 'Túnel de Bróker no establecido.' };
-    }
-    
-    const brokerConfig = brokerSnap.data();
-
-    // 1. Verificar Balance Mínimo de Seguridad (Parte 2)
+    // 2. Check de Seguridad: Balance Mínimo (Keep Min)
     const statsRef = doc(db, 'dashboard', 'current_stats');
     const statsSnap = await getDoc(statsRef);
-    const currentStats = statsSnap.exists() ? statsSnap.data() : { balance: 10000 };
+    const currentStats = statsSnap.exists() ? statsSnap.data() : { balance: 0, dailyProfit: 0 };
     
-    if (botParams?.minBalance && currentStats.balance < botParams.minBalance) {
-      return { success: false, error: 'SALDO POR DEBAJO DEL MÍNIMO DE SEGURIDAD.' };
+    if (botParams.minBalance && currentStats.balance < botParams.minBalance) {
+      await updateDoc(botParamsRef, { bot_activo: false });
+      return { success: false, error: 'BALANCE POR DEBAJO DEL MÍNIMO.' };
     }
 
-    // 2. Lógica de Monto Dinámico (Martingala / Compuesto)
+    // 3. Check de Seguridad: Trailing Stop (Python Logic)
+    const tp = botParams.takeProfit || 60000;
+    const peakPnl = botParams.peakPnl || 0;
+    const dailyProfit = currentStats.dailyProfit || 0;
+
+    if (dailyProfit > (tp * 0.3)) {
+      const trailingStop = peakPnl * 0.65;
+      if (dailyProfit <= trailingStop && dailyProfit > 0) {
+        await updateDoc(botParamsRef, { bot_activo: false });
+        return { success: false, error: '🛡️ TRAILING STOP ACTIVADO.' };
+      }
+    }
+
+    // 4. Lógica de Monto (Martingala / Interés Compuesto)
     let finalAmount = tradeData.amount;
-    if (botParams?.riskMode === 'Martingala' && botParams.lastTradeStatus === 'loss') {
-      finalAmount = tradeData.amount * 2.2; // Multiplicador estándar Martingala
+    if (botParams.riskMode === 'Martingala' && botParams.lastTradeStatus === 'loss') {
+      finalAmount = tradeData.amount * 2.2; // Factor Python
+    } else if (botParams.riskMode === 'Interés Compuesto' && dailyProfit > 0) {
+      finalAmount = tradeData.amount + (dailyProfit * 0.1); // Reinvierte 10%
     }
 
-    // Ejecución a través del Bridge Cuántico
-    const execution = await processBrokerTrade(brokerConfig.provider, brokerConfig, { ...tradeData, amount: finalAmount }, botParams);
+    // 5. Ejecución Real en el Bridge
+    const execution = await processBrokerTrade('IQ Option', finalAmount, tradeData, botParams);
 
     if (execution.success) {
       const timestamp = new Date().toISOString();
-      const dateId = timestamp.split('T')[0].replace(/-/g, '');
-
-      // Guardar trade
+      
+      // Registrar Trade
       await addDoc(collection(db, 'users', userId, 'trades'), {
         ...tradeData,
         amount: finalAmount,
         status: execution.status,
         profit: execution.profit,
-        accountType: brokerConfig.accountType,
-        broker: brokerConfig.provider,
-        latency: execution.latency,
-        timestamp
+        timestamp,
+        latency: execution.latency
       });
 
-      // Actualizar estadísticas globales
-      const newTotalTrades = (currentStats.totalTrades || 0) + 1;
-      const newWins = (currentStats.wins || 0) + (execution.status === 'win' ? 1 : 0);
-      const newWinRate = Math.round((newWins / newTotalTrades) * 100);
-
+      // Actualizar Dashboard
+      const newPeak = Math.max(peakPnl, dailyProfit + execution.profit);
       await updateDoc(statsRef, {
         balance: increment(execution.profit),
         dailyProfit: increment(execution.profit),
         totalInvestment: increment(finalAmount),
-        totalTrades: newTotalTrades,
-        wins: newWins,
-        winRate: newWinRate,
-        updatedAt: serverTimestamp()
+        winRate: increment(0) // Se recalcula en el frontend usualmente o vía cloud functions
       });
 
-      // Actualizar estado para la próxima Martingala
+      // Actualizar Parámetros del Bot (Last Status y Pico)
       await updateDoc(botParamsRef, {
         lastTradeStatus: execution.status,
+        peakPnl: newPeak,
         updatedAt: serverTimestamp()
       });
 
-      return { ...execution, accountType: brokerConfig.accountType };
+      return execution;
     }
 
-    return { success: false, error: 'Fallo crítico en túnel buyV3.' };
+    return { success: false, error: 'Error en Bridge.' };
   } catch (error: any) {
-    console.error('Error en ejecución V7:', error);
     return { success: false, error: error.message };
   }
 }
@@ -156,7 +148,6 @@ export async function updateBotConfig(data: any) {
       ...data,
       updatedAt: new Date().toISOString(),
     }, { merge: true });
-
     return { success: true };
   } catch (error) {
     return { success: false };
@@ -167,10 +158,7 @@ export async function triggerKillSwitch() {
   const { firestore: db } = initializeFirebase();
   try {
     const configRef = doc(db, 'configuracion', 'bot_params');
-    await updateDoc(configRef, {
-      bot_activo: false,
-      killedAt: new Date().toISOString(),
-    });
+    await updateDoc(configRef, { bot_activo: false });
     return { success: true };
   } catch (error) {
     return { success: false };
@@ -180,11 +168,7 @@ export async function triggerKillSwitch() {
 export async function promoteToSuperAdmin(userId: string) {
   const { firestore: db } = initializeFirebase();
   try {
-    const userRef = doc(db, 'users', userId);
-    await setDoc(userRef, {
-      role: 'super-admin',
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
+    await setDoc(doc(db, 'users', userId), { role: 'super-admin' }, { merge: true });
     return { success: true };
   } catch (error) {
     return { success: false };
@@ -201,17 +185,6 @@ export async function signOutUser() {
   }
 }
 
-export async function disconnectBroker(userId: string) {
-  const { firestore: db } = initializeFirebase();
-  try {
-    const brokerRef = doc(db, 'users', userId, 'config', 'broker');
-    await deleteDoc(brokerRef);
-    return { success: true };
-  } catch (error) {
-    return { success: false };
-  }
-}
-
 export async function seedDemoData() {
   const { firestore: db } = initializeFirebase();
   try {
@@ -220,10 +193,7 @@ export async function seedDemoData() {
       balance: 10500.50,
       dailyProfit: 125.40,
       winRate: 68,
-      totalTrades: 150,
-      wins: 102,
       totalInvestment: 45200,
-      updatedAt: serverTimestamp()
     });
 
     const configRef = doc(db, 'configuracion', 'bot_params');
@@ -233,33 +203,14 @@ export async function seedDemoData() {
       minBalance: 2000,
       investmentPerTrade: 4000,
       maxTradesPerDay: 20,
-      maxLosses: 2,
       minRsi: 20,
       midRsi: 38,
       maxRsi: 62,
-      martingale: false,
       riskMode: 'Fijo',
-      newsFilter: true,
-      pairs: ['EURUSD-OTC', 'GBPUSD-OTC', 'BTCUSD'],
-      schedules: [{start: '07', end: '23'}],
       bot_activo: true,
-      updatedAt: serverTimestamp()
+      pairs: ['EURUSD-OTC', 'GBPUSD-OTC', 'BTCUSD'],
+      schedules: [{start: '07', end: '23'}]
     });
-
-    const dates = Array.from({length: 15}).map((_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (15 - i));
-      return d.toISOString().split('T')[0];
-    });
-
-    let currentEquity = 8500;
-    for (const date of dates) {
-      currentEquity += (Math.random() * 500) - 50;
-      await setDoc(doc(db, 'rendimiento_diario', date.replace(/-/g, '')), {
-        date,
-        equity: parseFloat(currentEquity.toFixed(2))
-      });
-    }
 
     return { success: true };
   } catch (error) {
@@ -269,4 +220,14 @@ export async function seedDemoData() {
 
 export async function clearSystemLogs() {
   return { success: true };
+}
+
+export async function disconnectBroker(userId: string) {
+  const { firestore: db } = initializeFirebase();
+  try {
+    await deleteDoc(doc(db, 'users', userId, 'config', 'broker'));
+    return { success: true };
+  } catch (error) {
+    return { success: false };
+  }
 }

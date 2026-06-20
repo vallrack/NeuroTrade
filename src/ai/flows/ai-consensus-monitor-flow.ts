@@ -1,44 +1,39 @@
-
 'use server';
 /**
- * @fileOverview Flujo de Genkit para monitorear el consenso del comité de IA con datos de mercado.
- * - Optimizado para Alta Frecuencia (HFT) con fluctuaciones reales cada tick.
+ * @fileOverview Núcleo de Consenso V7 - Traducción de Estrategia Python
+ * Incluye filtros de ADX, EMA 100 y Bollinger.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const MarketSnapshotSchema = z.object({
-  pair: z.string().describe('El par de divisas analizado.'),
-  currentPrice: z.number().describe('El precio actual del mercado.'),
-  trend: z.enum(['UPWARD', 'DOWNWARD', 'SIDEWAYS']).describe('La tendencia detectada.'),
-  volatility: z.enum(['LOW', 'MEDIUM', 'HIGH']).describe('Nivel de volatilidad.'),
-  rsi: z.number().describe('Valor de RSI actual analizado.'),
-  lastCandles: z.array(z.object({
-    time: z.string(),
-    close: z.number(),
-  })).describe('Cierre de las últimas velas.'),
+  pair: z.string(),
+  currentPrice: z.number(),
+  trend: z.enum(['UPWARD', 'DOWNWARD', 'SIDEWAYS']),
+  adx: z.number().describe('Filtro de fuerza de tendencia (Python Logic)'),
+  ema100: z.number().describe('Filtro de dirección macro'),
+  rsi: z.number(),
+  bb_b: z.number().describe('Posición relativa en Bandas de Bollinger (0-1)'),
 });
 
 const AiConsensusMonitorInputSchema = z.object({
   pair: z.string().optional().default('EUR/USD'),
 });
-export type AiConsensusMonitorInput = z.infer<typeof AiConsensusMonitorInputSchema>;
 
 const AiConsensusMonitorOutputSchema = z.object({
-  overallConsensus: z.enum(['CALL', 'PUT', 'NEUTRAL']).describe('El consenso general del comité.'),
-  consensusPercentage: z.number().min(0).max(100).int().describe('Porcentaje de confianza.'),
-  marketContext: z.string().describe('Resumen de lectura técnica en español.'),
-  livePrice: z.number().describe('El precio exacto que la IA está leyendo en este microsegundo.'),
+  overallConsensus: z.enum(['CALL', 'PUT', 'NEUTRAL']),
+  consensusPercentage: z.number().min(0).max(100),
+  marketContext: z.string(),
+  livePrice: z.number(),
   agentRecommendations: z.array(
     z.object({
-      agentName: z.string().describe('Nombre del agente.'),
-      recommendation: z.enum(['CALL', 'PUT']).describe('Recomendación.'),
-      reasoning: z.string().describe('Razonamiento técnico.'),
+      agentName: z.string(),
+      recommendation: z.enum(['CALL', 'PUT']),
+      reasoning: z.string(),
     })
-  ).describe('Recomendaciones individuales.'),
+  ),
 });
-export type AiConsensusMonitorOutput = z.infer<typeof AiConsensusMonitorOutputSchema>;
 
 const aiConsensusMonitorPrompt = ai.definePrompt({
   name: 'aiConsensusMonitorPrompt',
@@ -49,50 +44,44 @@ const aiConsensusMonitorPrompt = ai.definePrompt({
     })
   },
   output: {schema: AiConsensusMonitorOutputSchema},
-  prompt: `Eres el Núcleo Maestro V7 de NeuroTrade. Analiza datos HFT para {{{pair}}}:
+  prompt: `Eres el Núcleo Maestro NeuroTrade V7. Tu estrategia se basa en MERCADO EN RANGO (Python Logic):
 
-- PRECIO ACTUAL: {{{marketData.currentPrice}}}
-- RSI (1m): {{{marketData.rsi}}}
-- TENDENCIA: {{{marketData.trend}}}
-- VOLATILIDAD: {{{marketData.volatility}}}
+DATOS ACTUALES:
+- PRECIO: {{{marketData.currentPrice}}}
+- RSI: {{{marketData.rsi}}} (Buy < 30, Sell > 70)
+- ADX: {{{marketData.adx}}} (Si ADX < 30, el mercado está en rango: OPERA)
+- EMA 100: {{{marketData.ema100}}} (Si precio > EMA, tendencia alcista)
+- Bollinger %B: {{{marketData.bb_b}}} (0 = Banda inferior, 1 = Banda superior)
 
-Actúa como un comité de 5 agentes expertos. La respuesta debe ser en ESPAÑOL profesional y técnico.
-Si el RSI > 62, la recomendación de los agentes debe tender fuertemente a PUT.
-Si el RSI < 20, la recomendación de los agentes debe tender fuertemente a CALL.
-Porcentaje de confianza debe ser alto si RSI es extremo.`,
+REGLAS DE ORO:
+1. Solo opera si ADX < 30 (Mercado en rango).
+2. Para CALL: Precio debe estar en Banda Inferior (BB %B cerca de 0) Y RSI < 35 Y estar sobre o cerca de la EMA 100.
+3. Para PUT: Precio debe estar en Banda Superior (BB %B cerca de 1) Y RSI > 65.
+
+Responde como un comité de 5 agentes expertos en español técnico.`,
 });
 
-const aiConsensusMonitorFlow = ai.defineFlow(
+export const aiConsensusMonitor = ai.defineFlow(
   {
     name: 'aiConsensusMonitorFlow',
     inputSchema: AiConsensusMonitorInputSchema,
     outputSchema: AiConsensusMonitorOutputSchema,
   },
   async input => {
-    // Generador de ticks HFT ultra-dinámico
     const now = Date.now();
-    const secondFactor = (now % 10000) / 10000;
-    const microJitter = (Math.random() - 0.5) * 0.0003; 
-    
-    // Base dinámica según el par
-    let basePrice = 1.14790;
-    if (input.pair.includes('BTC')) basePrice = 64500.50;
-    if (input.pair.includes('GBP')) basePrice = 1.26400;
-
-    const livePrice = basePrice + (Math.sin(now / 5000) * 0.002) + microJitter;
-    // RSI oscilante para ver cambios reales en el Dashboard
-    const liveRsi = 40 + (Math.sin(now / 8000) * 35) + (Math.random() * 5);
+    const livePrice = 1.14790 + (Math.sin(now / 5000) * 0.002);
+    const ema100 = livePrice - 0.0005;
+    const adx = 22 + (Math.random() * 15); // Simulación de ADX en rango
+    const liveRsi = 40 + (Math.sin(now / 8000) * 35);
     
     const marketData = {
       pair: input.pair,
       currentPrice: parseFloat(livePrice.toFixed(5)),
       trend: liveRsi > 50 ? 'UPWARD' : 'DOWNWARD' as any,
-      volatility: Math.random() > 0.8 ? 'HIGH' : 'MEDIUM' as any,
+      adx: parseFloat(adx.toFixed(2)),
+      ema100: parseFloat(ema100.toFixed(5)),
       rsi: parseFloat(liveRsi.toFixed(2)),
-      lastCandles: Array.from({length: 5}).map((_, i) => ({
-        time: `${i+1}m ago`,
-        close: livePrice + (Math.random() * 0.0002)
-      }))
+      bb_b: (liveRsi / 100) // Simplificación para la simulación
     };
 
     try {
@@ -100,20 +89,15 @@ const aiConsensusMonitorFlow = ai.defineFlow(
         pair: input.pair,
         marketData
       });
-      if (!output) throw new Error('Engine Timeout');
-      return { ...output, livePrice: marketData.currentPrice };
-    } catch (error: any) {
+      return { ...output!, livePrice: marketData.currentPrice };
+    } catch (error) {
       return {
         overallConsensus: 'NEUTRAL',
         consensusPercentage: 0,
-        marketContext: 'Inyectando micro-ticks de mercado...',
+        marketContext: 'Sincronizando flujo técnico...',
         livePrice: marketData.currentPrice,
         agentRecommendations: []
       };
     }
   }
 );
-
-export async function aiConsensusMonitor(input: AiConsensusMonitorInput): Promise<AiConsensusMonitorOutput> {
-  return aiConsensusMonitorFlow(input);
-}
