@@ -28,7 +28,7 @@ export function initializeFirebase(): {
     app = initializeApp(firebaseConfig);
   }
   
-  // Solo inicializamos los servicios si no existen para evitar duplicados
+  // Garantizamos que cada servicio se inicialice una sola vez por el ciclo de vida de la app
   if (!firestore) firestore = getFirestore(app);
   if (!auth) auth = getAuth(app);
   if (!rtdb) rtdb = getDatabase(app);
@@ -36,15 +36,9 @@ export function initializeFirebase(): {
   return { firebaseApp: app, firestore, auth, rtdb };
 }
 
-// Exportamos las instancias para uso directo
+// Exportamos las instancias para uso directo y hooks
 export const getFirebase = () => {
-  const instances = initializeFirebase();
-  return { 
-    app: instances.firebaseApp, 
-    db: instances.firestore, 
-    auth: instances.auth, 
-    rtdb: instances.rtdb 
-  };
+  return initializeFirebase();
 };
 
 export * from './provider';
