@@ -2,8 +2,45 @@
 'use client';
 
 import { getFirebase } from '@/firebase';
-import { doc, setDoc, updateDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, collection, addDoc, serverTimestamp, getDoc, increment } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
+
+/**
+ * Registra una nueva operación en el historial y actualiza estadísticas.
+ */
+export async function executeTrade(userId: string, tradeData: {
+  pair: string;
+  direction: 'CALL' | 'PUT';
+  amount: number;
+}) {
+  const { db } = getFirebase();
+  try {
+    const isWin = Math.random() > 0.35; // Simulación de tasa de acierto del 65%
+    const profit = isWin ? tradeData.amount * 0.85 : -tradeData.amount;
+    const status = isWin ? 'win' : 'loss';
+
+    // 1. Guardar el trade
+    await addDoc(collection(db, 'users', userId, 'trades'), {
+      ...tradeData,
+      status,
+      profit,
+      timestamp: new Date().toISOString()
+    });
+
+    // 2. Actualizar estadísticas globales (Simulado para el dashboard)
+    const statsRef = doc(db, 'dashboard', 'current_stats');
+    await updateDoc(statsRef, {
+      balance: increment(profit),
+      dailyProfit: increment(profit),
+      totalInvestment: increment(tradeData.amount)
+    });
+
+    return { success: true, status, profit };
+  } catch (error) {
+    console.error('Error executing trade:', error);
+    return { success: false };
+  }
+}
 
 /**
  * Actualiza la configuración global del bot.
@@ -88,7 +125,6 @@ export async function signOutUser() {
 export async function seedDemoData() {
   const { db } = getFirebase();
   try {
-    // 1. Estadísticas actuales
     const statsRef = doc(db, 'dashboard', 'current_stats');
     await setDoc(statsRef, {
       balance: 12450.75,
@@ -98,7 +134,6 @@ export async function seedDemoData() {
       updatedAt: serverTimestamp()
     });
 
-    // 2. Datos de gráfico (Rendimiento diario)
     const rendimientoRef = collection(db, 'rendimiento_diario');
     const days = 7;
     const baseValue = 10000;
@@ -115,7 +150,6 @@ export async function seedDemoData() {
       });
     }
 
-    // 3. Parámetros del bot
     const configRef = doc(db, 'configuracion', 'bot_params');
     await setDoc(configRef, {
       investmentPerTrade: 10,
@@ -133,9 +167,6 @@ export async function seedDemoData() {
   }
 }
 
-/**
- * Limpia los logs históricos de la base de datos (Simulado).
- */
 export async function clearSystemLogs() {
   try {
     console.log('Solicitud de limpieza de memoria enviada al núcleo.');

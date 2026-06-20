@@ -38,6 +38,19 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       }
     },
+    "Trade": {
+      "title": "Operación de Trading",
+      "description": "Registro de una operación ejecutada por el bot.",
+      "type": "object",
+      "properties": {
+        "pair": { "type": "string" },
+        "direction": { "type": "string", "enum": ["CALL", "PUT"] },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["win", "loss", "pending"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "profit": { "type": "number" }
+      }
+    },
     "DailyEquity": {
       "title": "Rendimiento Diario",
       "description": "Registro de seguimiento de rendimiento diario.",
@@ -70,6 +83,10 @@
     "/users/{userId}/config/broker": {
       "schema": "BrokerConfig",
       "description": "Configuración privada del bróker para cada usuario."
+    },
+    "/users/{userId}/trades/{tradeId}": {
+      "schema": "Trade",
+      "description": "Historial de operaciones del usuario."
     },
     "/configuracion/bot_params": {
       "schema": "BotParams",
