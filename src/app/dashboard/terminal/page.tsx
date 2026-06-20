@@ -1,13 +1,14 @@
-
 'use client';
 
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
 import { 
-  Zap, Wifi, Layers, ArrowRight, RefreshCw, Activity, BarChart3, 
+  Zap, Wifi, Layers, ArrowRight, Activity, BarChart3, 
   TrendingUp, Maximize2, Cpu, History, ArrowUpCircle, ArrowDownCircle,
-  Clock, Filter, MousePointer2, Settings2, Share2, Info, ChevronDown
+  Clock, Filter, MousePointer2, Settings2, Share2, Info, ChevronDown,
+  Plus, Search, LineChart, Type, Pencil, Eraser, Ruler, Eye, Magnet,
+  Lock, Trash2, LayoutGrid, SquareActivity
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,31 +19,34 @@ import { cn } from '@/lib/utils';
 import { createChart, ColorType, IChartApi, ISeriesApi, LineStyle, CrosshairMode } from 'lightweight-charts';
 
 export default function TerminalPage() {
+  // Chart Refs
   const priceContainerRef = useRef<HTMLDivElement>(null);
   const rsiContainerRef = useRef<HTMLDivElement>(null);
+  const stochContainerRef = useRef<HTMLDivElement>(null);
+  
   const priceChartRef = useRef<IChartApi | null>(null);
   const rsiChartRef = useRef<IChartApi | null>(null);
+  const stochChartRef = useRef<IChartApi | null>(null);
+  
   const priceSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const rsiSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const stochKSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const stochDSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  
   const lastCandleRef = useRef<any>(null);
   
   const { user } = useUser();
   const firestore = useFirestore();
   const rtdb = useRTDB();
   
-  const brokerRef = user ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
-  const { data: brokerConfig } = useDoc(brokerRef);
-  const isConnected = brokerConfig?.status === 'connected';
-
   const botParamsRef = doc(firestore, 'configuracion', 'bot_params');
   const { data: botParams } = useDoc(botParamsRef);
 
   const [selectedPair, setSelectedPair] = useState('EUR/USD');
-  const [chartLoading, setChartLoading] = useState(true);
   const [latency, setLatency] = useState(12);
-  const [timeframe, setTimeframe] = useState('M1');
+  const [timeframe, setTimeframe] = useState('1m');
 
-  // Historial de señales para el panel derecho
   const tradesQuery = useMemo(() => {
     if (!user || !firestore) return null;
     return query(collection(firestore, 'users', user.uid, 'trades'), orderBy('timestamp', 'desc'), limit(15));
@@ -51,7 +55,10 @@ export default function TerminalPage() {
 
   const generateInitialData = () => {
     const priceData = [];
+    const volumeData = [];
     const rsiData = [];
+    const stochK = [];
+    const stochD = [];
     const now = Math.floor(Date.now() / 1000);
     let lastPrice = 1.1470;
     
@@ -63,80 +70,110 @@ export default function TerminalPage() {
       const low = Math.min(open, close) - Math.random() * 0.0003;
       
       priceData.push({ time, open, high, low, close });
+      volumeData.push({ 
+        time, 
+        value: Math.random() * 100, 
+        color: close >= open ? 'rgba(38, 166, 154, 0.3)' : 'rgba(239, 83, 80, 0.3)' 
+      });
       rsiData.push({ time, value: 30 + (Math.random() * 40) });
+      stochK.push({ time, value: 40 + (Math.sin(i/5) * 20) });
+      stochD.push({ time, value: 40 + (Math.sin(i/6) * 18) });
+      
       lastPrice = close;
     }
     lastCandleRef.current = priceData[priceData.length - 1];
-    return { priceData, rsiData };
+    return { priceData, volumeData, rsiData, stochK, stochD };
   };
 
   useEffect(() => {
-    if (!priceContainerRef.current || !rsiContainerRef.current) return;
+    if (!priceContainerRef.current || !rsiContainerRef.current || !stochContainerRef.current) return;
 
     const chartOptions = {
       layout: {
         background: { type: ColorType.Solid, color: '#000000' },
-        textColor: '#71717a',
-        fontSize: 10,
+        textColor: '#d1d4dc',
+        fontSize: 11,
       },
       grid: {
-        vertLines: { color: 'rgba(255, 255, 255, 0.03)' },
-        horzLines: { color: 'rgba(255, 255, 255, 0.03)' },
+        vertLines: { color: 'rgba(42, 46, 57, 0.05)' },
+        horzLines: { color: 'rgba(42, 46, 57, 0.05)' },
       },
       crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { 
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        scaleMargins: { top: 0.1, bottom: 0.1 }
-      },
       timeScale: { 
         borderColor: 'rgba(255, 255, 255, 0.1)',
-        timeVisible: true,
-        secondsVisible: false,
+        visible: true,
       },
+      handleScroll: { mouseWheel: true, pressedMouseMove: true },
+      handleScale: { axisPressedMouseMove: true, mouseWheel: true },
     };
 
+    // 1. Price Chart
     const priceChart = createChart(priceContainerRef.current, {
       ...chartOptions,
       width: priceContainerRef.current.clientWidth,
       height: priceContainerRef.current.clientHeight,
     });
-
     const priceSeries = priceChart.addCandlestickSeries({
-      upColor: '#10b981',
-      downColor: '#ef4444',
+      upColor: '#26a69a',
+      downColor: '#ef5350',
       borderVisible: false,
-      wickUpColor: '#10b981',
-      wickDownColor: '#ef4444',
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350',
+    });
+    const volumeSeries = priceChart.addHistogramSeries({
+      priceFormat: { type: 'volume' },
+      priceScaleId: '', // Separate scale
+    });
+    volumeSeries.priceScale().applyOptions({
+      scaleMargins: { top: 0.8, bottom: 0 },
     });
 
+    // 2. RSI Chart
     const rsiChart = createChart(rsiContainerRef.current, {
       ...chartOptions,
       width: rsiContainerRef.current.clientWidth,
       height: rsiContainerRef.current.clientHeight,
     });
+    const rsiSeries = rsiChart.addLineSeries({ color: '#9c27b0', lineWidth: 2 });
+    rsiSeries.createPriceLine({ price: 70, color: 'rgba(156, 39, 176, 0.4)', lineWidth: 1, lineStyle: LineStyle.Dashed });
+    rsiSeries.createPriceLine({ price: 30, color: 'rgba(156, 39, 176, 0.4)', lineWidth: 1, lineStyle: LineStyle.Dashed });
 
-    const rsiSeries = rsiChart.addLineSeries({
-      color: '#8b5cf6',
-      lineWidth: 2,
+    // 3. Stoch RSI Chart
+    const stochChart = createChart(stochContainerRef.current, {
+      ...chartOptions,
+      width: stochContainerRef.current.clientWidth,
+      height: stochContainerRef.current.clientHeight,
+    });
+    const stochKSeries = stochChart.addLineSeries({ color: '#2196f3', lineWidth: 1.5 });
+    const stochDSeries = stochChart.addLineSeries({ color: '#ff9800', lineWidth: 1.5 });
+
+    // Syncronization
+    priceChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
+      rsiChart.timeScale().setVisibleRange(range as any);
+      stochChart.timeScale().setVisibleRange(range as any);
     });
 
-    rsiSeries.createPriceLine({ price: 70, color: '#ef4444', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'OVERBOUGHT' });
-    rsiSeries.createPriceLine({ price: 30, color: '#10b981', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'OVERSOLD' });
-
-    const { priceData, rsiData } = generateInitialData();
+    const { priceData, volumeData, rsiData, stochK, stochD } = generateInitialData();
     priceSeries.setData(priceData);
+    volumeSeries.setData(volumeData);
     rsiSeries.setData(rsiData);
+    stochKSeries.setData(stochK);
+    stochDSeries.setData(stochD);
 
     priceChartRef.current = priceChart;
     rsiChartRef.current = rsiChart;
+    stochChartRef.current = stochChart;
     priceSeriesRef.current = priceSeries;
+    volumeSeriesRef.current = volumeSeries;
     rsiSeriesRef.current = rsiSeries;
-    setChartLoading(false);
+    stochKSeriesRef.current = stochKSeries;
+    stochDSeriesRef.current = stochDSeries;
 
     const handleResize = () => {
-      if (priceContainerRef.current && rsiContainerRef.current) {
+      if (priceContainerRef.current && rsiContainerRef.current && stochContainerRef.current) {
         priceChart.applyOptions({ width: priceContainerRef.current.clientWidth, height: priceContainerRef.current.clientHeight });
         rsiChart.applyOptions({ width: rsiContainerRef.current.clientWidth, height: rsiContainerRef.current.clientHeight });
+        stochChart.applyOptions({ width: stochContainerRef.current.clientWidth, height: stochContainerRef.current.clientHeight });
       }
     };
 
@@ -145,6 +182,7 @@ export default function TerminalPage() {
       window.removeEventListener('resize', handleResize);
       priceChart.remove();
       rsiChart.remove();
+      stochChart.remove();
     };
   }, []);
 
@@ -155,7 +193,7 @@ export default function TerminalPage() {
 
     const interval = setInterval(() => {
       const lastPrice = lastCandleRef.current?.close || 1.1470;
-      const noise = (Math.random() - 0.5) * 0.0004;
+      const noise = (Math.random() - 0.5) * 0.0002;
       const newPrice = lastPrice + noise;
       
       set(tickRef, {
@@ -163,7 +201,7 @@ export default function TerminalPage() {
         timestamp: Date.now(),
         rsi: 30 + (Math.random() * 40)
       });
-      setLatency(Math.floor(Math.random() * 10) + 4);
+      setLatency(Math.floor(Math.random() * 8) + 4);
     }, 1000);
 
     return () => clearInterval(interval);
@@ -191,7 +229,14 @@ export default function TerminalPage() {
         };
         
         priceSeriesRef.current?.update(updateObj);
+        volumeSeriesRef.current?.update({ 
+          time: candleTime, 
+          value: Math.random() * 100,
+          color: updateObj.close >= updateObj.open ? 'rgba(38, 166, 154, 0.3)' : 'rgba(239, 83, 80, 0.3)'
+        });
         rsiSeriesRef.current?.update({ time: candleTime, value: val.rsi || 50 });
+        stochKSeriesRef.current?.update({ time: candleTime, value: 50 + (Math.sin(now/5) * 10) });
+        stochDSeriesRef.current?.update({ time: candleTime, value: 50 + (Math.sin(now/6) * 9) });
         lastCandleRef.current = updateObj;
       }
     });
@@ -199,215 +244,157 @@ export default function TerminalPage() {
     return () => unsub();
   }, [rtdb, selectedPair]);
 
-  const configuredPairs = botParams?.pairs || ['EURUSD-OTC', 'GBPUSD-OTC', 'BTCUSD'];
-
   return (
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset className="bg-black flex flex-col h-screen overflow-hidden">
-        {/* TOP BAR - PRO TERMINAL STYLE */}
-        <header className="flex h-14 shrink-0 items-center justify-between px-4 border-b border-white/5 bg-[#050505] z-50">
+        {/* TOP TOOLBAR - EXACT REPLICA */}
+        <header className="flex h-12 shrink-0 items-center justify-between px-3 border-b border-white/5 bg-[#0a0a0a] z-50">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <SidebarTrigger className="text-muted-foreground hover:text-white" />
-              <div className="h-4 w-px bg-white/10 mx-1" />
-              <div className="flex items-center gap-2 px-2 py-1 bg-primary/10 rounded-md border border-primary/20">
-                <Zap className="h-3.5 w-3.5 text-primary animate-pulse" />
-                <span className="font-headline text-[10px] md:text-xs font-bold text-white uppercase tracking-tighter">
-                  IQINVEST V7 PRO
-                </span>
+              <div className="flex items-center gap-2 px-2 py-1 hover:bg-white/5 rounded transition-colors cursor-pointer group">
+                <span className="font-headline text-xs font-bold text-white uppercase">{selectedPair}</span>
+                <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-white" />
               </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8"><Plus className="h-3.5 w-3.5" /></Button>
             </div>
 
-            {/* QUICK TOOLS */}
-            <div className="hidden lg:flex items-center gap-1">
-              {['M1', 'M5', 'M15', 'H1'].map((tf) => (
+            <div className="h-4 w-px bg-white/10 mx-1" />
+
+            <div className="flex items-center gap-1">
+              {['1m', '30m', '1h'].map((tf) => (
                 <Button 
                   key={tf} 
                   variant="ghost" 
                   size="sm" 
                   onClick={() => setTimeframe(tf)}
                   className={cn(
-                    "h-7 text-[9px] font-bold px-3 rounded-md transition-all",
-                    timeframe === tf ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white"
+                    "h-8 text-[11px] font-bold px-3 rounded hover:bg-white/5",
+                    timeframe === tf ? "text-primary bg-primary/10" : "text-muted-foreground"
                   )}
                 >
                   {tf}
                 </Button>
               ))}
-              <div className="w-px h-4 bg-white/10 mx-2" />
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
-                <BarChart3 className="h-3.5 w-3.5" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
-                <Layers className="h-3.5 w-3.5" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
-                <TrendingUp className="h-3.5 w-3.5" />
-              </Button>
             </div>
+
+            <div className="h-4 w-px bg-white/10 mx-1" />
+
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" className="h-8 w-8"><LineChart className="h-4 w-4 text-muted-foreground" /></Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8"><BarChart3 className="h-4 w-4 text-muted-foreground" /></Button>
+            </div>
+
+            <div className="h-4 w-px bg-white/10 mx-1" />
+
+            <Button variant="ghost" className="h-8 text-[11px] font-bold text-muted-foreground gap-2">
+              <Activity className="h-4 w-4" /> Indicadores
+            </Button>
           </div>
 
           <div className="flex items-center gap-3">
-             <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
-               <div className="flex flex-col items-end">
-                 <span className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest leading-none">LATENCIA</span>
-                 <span className="text-[10px] font-code text-green-500 font-bold">{latency}ms</span>
-               </div>
-               <Wifi className="h-4 w-4 text-green-500" />
+             <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded border border-white/5">
+               <span className="text-[10px] font-code text-green-500 font-bold">{latency}ms</span>
+               <Wifi className="h-3 w-3 text-green-500" />
              </div>
-             {isConnected ? (
-               <Badge className="bg-green-500/10 text-green-500 border-green-500/30 px-3 py-1 text-[9px] font-black uppercase tracking-widest">
-                 LIVE
-               </Badge>
-             ) : (
-               <Badge variant="outline" className="text-muted-foreground border-white/10 px-3 py-1 text-[9px] font-bold uppercase">
-                 STANDBY
-               </Badge>
-             )}
+             <Badge className="bg-primary/20 text-primary border-primary/30 px-3 py-0.5 text-[9px] font-black uppercase tracking-widest">LIVE FEED</Badge>
           </div>
         </header>
 
         <div className="flex-1 flex overflow-hidden">
-          {/* LEFT SIDEBAR: ASSETS */}
-          <aside className="hidden md:flex w-52 border-r border-white/5 bg-[#050505] flex-col shrink-0">
-            <div className="p-4 border-b border-white/5 bg-white/5 flex items-center justify-between">
-              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">Mercados</span>
-              <Filter className="h-3 w-3 text-muted-foreground" />
-            </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar">
-              {configuredPairs.map((pair: string) => (
-                <button
-                  key={pair}
-                  onClick={() => setSelectedPair(pair)}
-                  className={cn(
-                    "w-full text-left px-4 py-3 rounded-xl text-[10px] font-bold transition-all flex items-center justify-between group",
-                    selectedPair === pair 
-                      ? "bg-primary shadow-lg shadow-primary/20 text-white" 
-                      : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className={cn("w-1.5 h-1.5 rounded-full", selectedPair === pair ? "bg-white" : "bg-white/10 group-hover:bg-primary")} />
-                    <span>{pair}</span>
-                  </div>
-                  {selectedPair === pair && <ArrowRight className="h-3 w-3" />}
-                </button>
-              ))}
-            </div>
-            <div className="p-4 border-t border-white/5 bg-white/5">
-               <div className="flex items-center justify-between mb-2">
-                 <span className="text-[9px] text-muted-foreground font-bold">VOLATILIDAD</span>
-                 <span className="text-[9px] text-primary font-bold">ALTA</span>
-               </div>
-               <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
-                 <div className="bg-primary h-full w-[85%] animate-pulse" />
-               </div>
-            </div>
+          {/* LEFT DRAWING TOOLBAR */}
+          <aside className="w-12 border-r border-white/5 bg-[#0a0a0a] flex flex-col items-center py-4 gap-4 shrink-0 overflow-y-auto no-scrollbar">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary bg-primary/10"><MousePointer2 className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><TrendingUp className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><LayoutGrid className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Type className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Pencil className="h-4 w-4" /></Button>
+            <div className="h-px w-6 bg-white/5" />
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Ruler className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Magnet className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Eye className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Lock className="h-4 w-4" /></Button>
+            <div className="flex-1" />
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Trash2 className="h-4 w-4" /></Button>
           </aside>
 
-          {/* CENTRAL AREA: CHARTS */}
-          <main className="flex-1 relative bg-black flex flex-col min-w-0 p-2 gap-2 overflow-hidden">
-            {/* PRICE CHART */}
-            <div className="flex-[7] min-h-0 bg-[#070707] rounded-2xl border border-white/10 overflow-hidden relative shadow-2xl">
-              <div className="absolute top-4 left-5 z-20 flex items-center gap-3 bg-black/80 backdrop-blur-xl px-4 py-2 rounded-xl border border-white/10">
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-black text-white uppercase tracking-tight">{selectedPair} • {timeframe}</span>
-                  <span className="text-[8px] text-primary font-bold">FXCM FEED ACTIVE</span>
+          {/* CENTRAL AREA: TRIPLE CHART SYSTEM */}
+          <main className="flex-1 relative bg-black flex flex-col min-w-0 overflow-hidden">
+             {/* Pane 1: Price + Volume */}
+             <div className="flex-[6] min-h-0 relative border-b border-white/5">
+                <div className="absolute top-4 left-4 z-20 flex items-center gap-2 text-[10px] font-bold text-white/70">
+                   <div className="w-2 h-2 rounded-full bg-green-500" />
+                   {selectedPair} · {timeframe} · FXCM
                 </div>
-                <div className="w-px h-4 bg-white/10" />
-                <Maximize2 className="h-3 w-3 text-muted-foreground hover:text-white cursor-pointer" />
-              </div>
-              <div className="w-full h-full" ref={priceContainerRef} />
-            </div>
+                <div ref={priceContainerRef} className="w-full h-full" />
+             </div>
 
-            {/* RSI CHART */}
-            <div className="flex-[3] min-h-0 bg-[#070707] rounded-2xl border border-white/10 overflow-hidden relative shadow-2xl">
-              <div className="absolute top-4 left-5 z-20 flex items-center gap-2 bg-black/80 backdrop-blur-xl px-3 py-1.5 rounded-lg border border-white/10">
-                <Activity className="h-3 w-3 text-purple-500" />
-                <span className="text-[9px] font-bold text-white uppercase tracking-widest">RSI (14) OSCILLATOR</span>
-              </div>
-              <div className="w-full h-full" ref={rsiContainerRef} />
-            </div>
+             {/* Pane 2: RSI */}
+             <div className="flex-[2] min-h-0 relative border-b border-white/5">
+                <div className="absolute top-2 left-4 z-20 text-[9px] font-bold text-purple-400">RSI 14 close</div>
+                <div ref={rsiContainerRef} className="w-full h-full" />
+             </div>
+
+             {/* Pane 3: Stoch RSI */}
+             <div className="flex-[2] min-h-0 relative">
+                <div className="absolute top-2 left-4 z-20 text-[9px] font-bold text-blue-400">Stoch RSI 3 3 14 14</div>
+                <div ref={stochContainerRef} className="w-full h-full" />
+             </div>
           </main>
 
-          {/* RIGHT SIDEBAR: LIVE FEED & ANALYSIS */}
-          <aside className="hidden xl:flex w-72 border-l border-white/5 bg-[#050505] flex-col shrink-0">
-            <div className="p-4 border-b border-white/5 bg-white/5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-primary animate-ping" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-primary">ANÁLISIS V7</span>
-              </div>
-              <Badge variant="outline" className="text-[8px] border-primary/20 text-primary uppercase px-2">REAL-TIME</Badge>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
-              {/* AI CONSENSUS MINI WIDGET */}
-              <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-[9px] font-bold text-muted-foreground uppercase">CONSENSO IA</span>
-                  <span className="text-xs font-black text-primary">94.2%</span>
+          {/* RIGHT SIDEBAR: ASSETS & ANALYSIS */}
+          <aside className="hidden xl:flex w-64 border-l border-white/5 bg-[#0a0a0a] flex-col shrink-0">
+             <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Analítica V7</span>
+                <Badge variant="outline" className="text-[8px] border-primary/20 text-primary uppercase">Active</Badge>
+             </div>
+             
+             <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                {/* AI Status Card */}
+                <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-2">
+                   <div className="flex justify-between items-center text-[10px] font-bold">
+                      <span className="text-muted-foreground uppercase">CONSENSO</span>
+                      <span className="text-primary">92%</span>
+                   </div>
+                   <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full bg-primary w-[92%]" />
+                   </div>
                 </div>
-                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                  <div className="h-full bg-primary w-[94%]" />
-                </div>
-                <p className="text-[9px] text-muted-foreground italic leading-tight">
-                  Alta probabilidad detectada en el clúster {selectedPair}.
-                </p>
-              </div>
 
-              {/* LIVE SIGNALS FEED */}
-              <div className="space-y-2">
-                <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest block px-1">Últimas Señales</span>
-                {recentTrades.length === 0 ? (
-                  <div className="text-center py-12 text-[9px] text-muted-foreground uppercase tracking-widest opacity-20 flex flex-col items-center gap-3">
-                    <Cpu className="h-8 w-8 animate-pulse" />
-                    <span>Esperando entrada...</span>
-                  </div>
-                ) : (
-                  recentTrades.map((trade: any) => (
-                    <div key={trade.id} className="p-3 bg-white/5 rounded-xl border border-white/5 flex flex-col gap-2 hover:bg-white/10 transition-all group animate-in slide-in-from-right-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-bold text-white group-hover:text-primary transition-colors">{trade.pair}</span>
-                        <span className="text-[8px] text-muted-foreground font-code">
-                          {new Date(trade.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                        </span>
+                <div className="space-y-2">
+                   <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest block">Activos Prioritarios</span>
+                   {['EURUSD-OTC', 'GBPUSD-OTC', 'BTCUSD', 'ETHUSD'].map(p => (
+                      <button 
+                         key={p} 
+                         onClick={() => setSelectedPair(p)}
+                         className={cn(
+                            "w-full p-3 rounded-lg border text-[10px] font-bold flex items-center justify-between transition-all",
+                            selectedPair === p ? "bg-primary/10 border-primary text-white" : "bg-white/5 border-transparent text-muted-foreground hover:bg-white/10"
+                         )}
+                      >
+                         {p}
+                         {selectedPair === p && <ArrowRight className="h-3 w-3" />}
+                      </button>
+                   ))}
+                </div>
+
+                <div className="space-y-2">
+                   <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest block">Últimas Señales</span>
+                   {recentTrades.map((t: any) => (
+                      <div key={t.id} className="p-3 bg-white/5 rounded-lg border border-white/5 flex flex-col gap-1">
+                         <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-bold text-white">{t.pair}</span>
+                            <span className={cn("text-[9px] font-black", t.direction === 'CALL' ? 'text-green-500' : 'text-red-500')}>{t.direction}</span>
+                         </div>
+                         <div className="flex justify-between items-center text-[9px] text-muted-foreground">
+                            <span>${t.amount}</span>
+                            <span className={t.status === 'win' ? 'text-green-500' : 'text-red-500'}>{t.status.toUpperCase()}</span>
+                         </div>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          {trade.direction === 'CALL' ? (
-                            <ArrowUpCircle className="h-4 w-4 text-green-500" />
-                          ) : (
-                            <ArrowDownCircle className="h-4 w-4 text-red-500" />
-                          )}
-                          <span className={cn("text-[10px] font-black uppercase tracking-tighter", trade.direction === 'CALL' ? 'text-green-500' : 'text-red-500')}>
-                            {trade.direction}
-                          </span>
-                        </div>
-                        <Badge className={cn("text-[9px] font-black px-2 py-0.5", trade.status === 'win' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500')}>
-                          {trade.status === 'win' ? 'PROFIT' : 'LOSS'}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* FOOTER STATS */}
-            <div className="p-4 border-t border-white/5 bg-white/5 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold text-muted-foreground uppercase">RIESGO</span>
-                <span className="text-[10px] font-bold text-white uppercase">{botParams?.riskMode || 'FIJO'}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold text-muted-foreground uppercase">BOT STATUS</span>
-                <div className="flex items-center gap-1.5">
-                  <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", botParams?.bot_activo ? "bg-primary" : "bg-red-500")} />
-                  <span className="text-[10px] font-bold text-white uppercase">{botParams?.bot_activo ? "ACTIVE" : "PAUSED"}</span>
+                   ))}
                 </div>
-              </div>
-            </div>
+             </div>
           </aside>
         </div>
       </SidebarInset>
