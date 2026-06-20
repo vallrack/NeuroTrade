@@ -1,4 +1,3 @@
-
 'use client';
 
 import { getFirebase } from '@/firebase';
@@ -49,7 +48,7 @@ export async function executeTrade(userId: string, tradeData: {
     const profit = isWin ? tradeData.amount * payoutRatio : -tradeData.amount;
     const status = isWin ? 'win' : 'loss';
 
-    await addDoc(collection(db, 'users', userId, 'trades'), {
+    addDoc(collection(db, 'users', userId, 'trades'), {
       ...tradeData,
       status,
       profit,
@@ -58,7 +57,7 @@ export async function executeTrade(userId: string, tradeData: {
     });
 
     const statsRef = doc(db, 'dashboard', 'current_stats');
-    await updateDoc(statsRef, {
+    updateDoc(statsRef, {
       balance: increment(profit),
       dailyProfit: increment(profit),
       totalInvestment: increment(tradeData.amount),
@@ -144,7 +143,7 @@ export async function disconnectBroker(userId: string) {
 }
 
 /**
- * Seed inicial con los valores de la imagen V7
+ * Seed inicial con los valores EXACTOS de la imagen V7
  */
 export async function seedDemoData() {
   const { firestore: db } = getFirebase();
