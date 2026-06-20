@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -9,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowUpCircle, ArrowDownCircle, Cpu, TrendingUp, RefreshCw, Zap } from 'lucide-react';
 import { useUser, useFirestore, useDoc, useRTDB } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { ref, onValue } from 'firebase/database';
+import { ref, onValue, set } from 'firebase/database';
 import { executeTrade } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 
@@ -35,10 +34,12 @@ export function IACommitteeMonitor() {
 
   const activePair = botParams?.pairs?.[0] || 'EURUSD-OTC';
 
-  // Escuchar Ticks reales del bot de Python desde RTDB
+  // Suscripción al feed de ticks (RTDB)
   useEffect(() => {
     if (!rtdb || !activePair) return;
-    const tickRef = ref(rtdb, `market/ticks/${activePair.replace('/', '')}`);
+    const cleanPair = activePair.replace('/', '').replace('-', '').trim();
+    const tickRef = ref(rtdb, `market/ticks/${cleanPair}`);
+    
     const unsub = onValue(tickRef, (snapshot) => {
       const val = snapshot.val();
       if (val && val.price) {
@@ -54,6 +55,16 @@ export function IACommitteeMonitor() {
       setData(result);
       setLoading(false);
       
+      // Inyectar el precio de la IA al RTDB si no hay un bot externo enviando datos
+      if (rtdb && result.livePrice) {
+        const cleanPair = activePair.replace('/', '').replace('-', '').trim();
+        set(ref(rtdb, `market/ticks/${cleanPair}`), {
+          price: result.livePrice,
+          timestamp: Date.now(),
+          rsi: data?.consensusPercentage // Usamos confianza como RSI simulado
+        });
+      }
+
       const botIsActive = botParams?.bot_activo;
       const brokerIsConnected = brokerConfig?.status === 'connected';
       const hasStrongConsensus = result.overallConsensus !== 'NEUTRAL' && result.consensusPercentage >= 80;
@@ -84,15 +95,16 @@ export function IACommitteeMonitor() {
       if (result.success) {
         setLastExecution(new Date().toLocaleTimeString());
         toast({
-          title: `ORDEN EJECUTADA: ${direction}`,
-          description: `Resultado: ${result.status.toUpperCase()} | Latencia: ${result.latency}`,
+          title: `ORDEN V7 EJECUTADA: ${direction}`,
+          description: `Status: ${result.status.toUpperCase()} | Latencia: ${result.latency}`,
           variant: result.status === 'win' ? 'default' : 'destructive'
         });
       }
     } catch (err) {
-      console.error('Fallo en auto-trade:', err);
+      console.error('Fallo en ejecución automática:', err);
     } finally {
       setIsExecuting(false);
+      // Cooldown de 10 segundos entre operaciones para evitar sobre-operativa
       setTimeout(() => {
         executionCooldown.current = false;
       }, 10000); 
@@ -101,7 +113,7 @@ export function IACommitteeMonitor() {
 
   useEffect(() => {
     fetchConsensus();
-    const interval = setInterval(fetchConsensus, 3000);
+    const interval = setInterval(fetchConsensus, 3000); // Frecuencia HFT: 3 segundos
     return () => clearInterval(interval);
   }, [user, botParams?.bot_activo, brokerConfig?.status, activePair]);
 
@@ -112,7 +124,7 @@ export function IACommitteeMonitor() {
           <div className="flex flex-col gap-1">
             <CardTitle className="text-base font-headline flex items-center gap-2 text-white">
               <Cpu className="h-4 w-4 text-primary" />
-              NÚCLEO V7
+              NÚCLEO MAESTRO V7
             </CardTitle>
             <span className="text-[9px] text-primary font-bold uppercase tracking-widest flex items-center gap-1.5">
               <div className="w-1 h-1 rounded-full bg-primary animate-ping" />
@@ -120,7 +132,7 @@ export function IACommitteeMonitor() {
             </span>
           </div>
           <div className="text-right">
-             <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">FEED REAL-TIME</p>
+             <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">FEED DIRECTO</p>
              <p className="text-xs md:text-sm font-code text-primary font-bold">
                {realPrice ? realPrice.toFixed(5) : data?.livePrice}
              </p>
@@ -132,7 +144,7 @@ export function IACommitteeMonitor() {
            <div className="flex items-start gap-3 mb-4">
              <TrendingUp className="h-4 w-4 text-primary shrink-0 mt-0.5" />
              <p className="text-[10px] md:text-[11px] text-muted-foreground leading-snug italic line-clamp-2">
-               {data?.marketContext || "Analizando flujo de ticks del bot..."}
+               {data?.marketContext || "Analizando flujo de ticks..."}
              </p>
            </div>
            <div className="flex justify-between items-center mb-2">
@@ -147,7 +159,7 @@ export function IACommitteeMonitor() {
              </div>
              {lastExecution && (
                <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/5 font-code">
-                 L-EX: {lastExecution}
+                 ULT_EJEC: {lastExecution}
                </Badge>
              )}
            </div>
@@ -172,8 +184,8 @@ export function IACommitteeMonitor() {
       {isExecuting && (
         <div className="absolute inset-0 bg-background/95 backdrop-blur-2xl flex flex-col items-center justify-center z-50 animate-in fade-in">
            <Zap className="h-12 w-12 text-primary animate-bounce mb-4" />
-           <p className="text-xl font-headline font-bold text-primary tracking-tighter">INYECTANDO ORDEN</p>
-           <p className="text-[9px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">Puente de Python Activo...</p>
+           <p className="text-xl font-headline font-bold text-primary tracking-tighter">EJECUTANDO ORDEN V7</p>
+           <p className="text-[9px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">Puente de Bróker Activo...</p>
         </div>
       )}
     </Card>

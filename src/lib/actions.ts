@@ -7,15 +7,17 @@ import { signOut } from 'firebase/auth';
 /**
  * Capa de Abstracción de Bróker (Bridge V7).
  * Simula la respuesta de ejecución HFT tras el login v2 y apertura de WebSocket.
+ * Aquí es donde traduciremos tu lógica de conexión de Python.
  */
 async function processBrokerTrade(broker: string, credentials: any, tradeData: any) {
-  // Simulación de latencia de red WSS real
-  const latency = Math.floor(Math.random() * 100) + 50; 
+  // Simulación de latencia de red WSS real (80ms - 150ms)
+  const latency = Math.floor(Math.random() * 70) + 80; 
   await new Promise(resolve => setTimeout(resolve, latency));
 
-  const winProbability = 0.68; // Algoritmo V7 calibrado
+  // Algoritmo de probabilidad V7: En un bot real, esto vendría del resultado del broker
+  const winProbability = 0.65; 
   const isWin = Math.random() < winProbability;
-  const payoutRatio = broker === 'IQ Option' ? 0.85 : 0.92; 
+  const payoutRatio = 0.87; 
   const profit = isWin ? tradeData.amount * payoutRatio : -tradeData.amount;
   const status = isWin ? 'win' : 'loss';
 
@@ -75,7 +77,7 @@ export async function executeTrade(userId: string, tradeData: {
       // 2. Actualizar estadísticas globales del Dashboard
       const statsRef = doc(db, 'dashboard', 'current_stats');
       const statsSnap = await getDoc(statsRef);
-      const currentStats = statsSnap.exists() ? statsSnap.data() : { winRate: 0, totalTrades: 0, wins: 0 };
+      const currentStats = statsSnap.exists() ? statsSnap.data() : { winRate: 0, totalTrades: 0, wins: 0, balance: 10000 };
       
       const newTotalTrades = (currentStats.totalTrades || 0) + 1;
       const newWins = (currentStats.wins || 0) + (execution.status === 'win' ? 1 : 0);
@@ -91,13 +93,14 @@ export async function executeTrade(userId: string, tradeData: {
         updatedAt: serverTimestamp()
       });
 
-      // 3. Actualizar registro de equidad diaria para el gráfico
+      // 3. Actualizar registro de equidad diaria
       const equityRef = doc(db, 'rendimiento_diario', dateId);
       const equitySnap = await getDoc(equityRef);
       if (equitySnap.exists()) {
         await updateDoc(equityRef, { equity: increment(execution.profit) });
       } else {
-        await setDoc(equityRef, { date: timestamp.split('T')[0], equity: 10000 + execution.profit });
+        const currentBalance = currentStats.balance || 10000;
+        await setDoc(equityRef, { date: timestamp.split('T')[0], equity: currentBalance + execution.profit });
       }
 
       return { ...execution, accountType: brokerConfig.accountType };
@@ -110,9 +113,6 @@ export async function executeTrade(userId: string, tradeData: {
   }
 }
 
-/**
- * Actualiza la configuración operativa del bot.
- */
 export async function updateBotConfig(data: any) {
   const { firestore: db } = initializeFirebase();
   try {
@@ -124,14 +124,10 @@ export async function updateBotConfig(data: any) {
 
     return { success: true };
   } catch (error) {
-    console.error('Fallo al actualizar núcleo:', error);
     return { success: false };
   }
 }
 
-/**
- * Protocolo de Apagado de Emergencia.
- */
 export async function triggerKillSwitch() {
   const { firestore: db } = initializeFirebase();
   try {
@@ -181,9 +177,6 @@ export async function disconnectBroker(userId: string) {
   }
 }
 
-/**
- * Inyecta los valores maestros de la imagen V7 para un arranque inmediato.
- */
 export async function seedDemoData() {
   const { firestore: db } = initializeFirebase();
   try {
@@ -216,7 +209,6 @@ export async function seedDemoData() {
       updatedAt: serverTimestamp()
     });
 
-    // Generar curva de equidad ascendente
     const dates = Array.from({length: 15}).map((_, i) => {
       const d = new Date();
       d.setDate(d.getDate() - (15 - i));
@@ -234,7 +226,6 @@ export async function seedDemoData() {
 
     return { success: true };
   } catch (error) {
-    console.error("Error al inyectar datos V7:", error);
     return { success: false };
   }
 }
