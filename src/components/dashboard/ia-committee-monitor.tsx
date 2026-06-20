@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -8,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowUpCircle, ArrowDownCircle, Cpu, TrendingUp, RefreshCw, Zap, Activity } from 'lucide-react';
 import { useUser, useFirestore, useDoc, useRTDB } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { ref, onValue, set, serverTimestamp } from 'firebase/database';
+import { ref, onValue, set } from 'firebase/database';
 import { executeTrade } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 
@@ -36,26 +37,6 @@ export function IACommitteeMonitor() {
   const activePair = botParams?.pairs?.[0] || 'EURUSD-OTC';
   const cleanPair = useMemo(() => activePair.replace('/', '').replace('-', '').trim(), [activePair]);
 
-  // SIMULADOR DE TICKS HFT (Inyector de datos reales para el gráfico)
-  useEffect(() => {
-    if (!rtdb || !botParams?.bot_activo) return;
-
-    const tickInterval = setInterval(() => {
-      // Micro-fluctuación de precio tipo HFT
-      const change = (Math.random() - 0.5) * 0.0002;
-      priceRef.current = parseFloat((priceRef.current + change).toFixed(5));
-      
-      const tickPath = `market/ticks/${cleanPair}`;
-      set(ref(rtdb, tickPath), {
-        price: priceRef.current,
-        timestamp: Date.now(),
-        rsi: 40 + (Math.random() * 20)
-      });
-    }, 1000); // 1 Tick por segundo
-
-    return () => clearInterval(tickInterval);
-  }, [rtdb, cleanPair, botParams?.bot_activo]);
-
   // Suscripción al feed de ticks para la UI
   useEffect(() => {
     if (!rtdb || !cleanPair) return;
@@ -79,7 +60,9 @@ export function IACommitteeMonitor() {
       
       const botIsActive = botParams?.bot_activo;
       const brokerIsConnected = brokerConfig?.status === 'connected';
-      const hasStrongConsensus = result.overallConsensus !== 'NEUTRAL' && result.consensusPercentage >= 80;
+      
+      // Decisión segura pero rápida: Requiere 85% de consenso (subido de 80)
+      const hasStrongConsensus = result.overallConsensus !== 'NEUTRAL' && result.consensusPercentage >= 85;
 
       if (user && botIsActive && brokerIsConnected && hasStrongConsensus && !executionCooldown.current && !isExecuting) {
         handleAutoTrade(result.overallConsensus as 'CALL' | 'PUT');
@@ -107,14 +90,15 @@ export function IACommitteeMonitor() {
       if (result.success) {
         setLastExecution(new Date().toLocaleTimeString());
         toast({
-          title: `ORDEN V7 EJECUTADA: ${direction}`,
-          description: `Status: ${result.status.toUpperCase()} | Latencia: ${result.latency}`,
+          title: `NÚCLEO V7: ${direction} EJECUTADO`,
+          description: `Consenso alcanzado. Status: ${result.status.toUpperCase()}`,
         });
       }
     } catch (err) {
       console.error('Fallo en ejecución automática:', err);
     } finally {
       setIsExecuting(false);
+      // Cooldown de 10 segundos entre trades para evitar spam (seguridad técnica)
       setTimeout(() => {
         executionCooldown.current = false;
       }, 10000); 
@@ -123,7 +107,8 @@ export function IACommitteeMonitor() {
 
   useEffect(() => {
     fetchConsensus();
-    const interval = setInterval(fetchConsensus, 5000); // Análisis de IA cada 5 segundos
+    // Acelerado a 3 segundos para respuesta rápida
+    const interval = setInterval(fetchConsensus, 3000); 
     return () => clearInterval(interval);
   }, [user, botParams?.bot_activo, brokerConfig?.status, activePair]);
 
@@ -132,9 +117,9 @@ export function IACommitteeMonitor() {
       <CardHeader className="pb-4 border-b border-white/5 bg-white/5 px-6">
         <div className="flex justify-between items-center">
           <div className="flex flex-col gap-1">
-            <CardTitle className="text-base font-headline flex items-center gap-2 text-white">
+            <CardTitle className="text-base font-headline flex items-center gap-2 text-white uppercase">
               <Cpu className="h-4 w-4 text-primary" />
-              NÚCLEO MAESTRO V7
+              Consenso Maestro
             </CardTitle>
             <span className="text-[9px] text-primary font-bold uppercase tracking-widest flex items-center gap-1.5">
               <div className="w-1 h-1 rounded-full bg-primary animate-ping" />
@@ -142,23 +127,17 @@ export function IACommitteeMonitor() {
             </span>
           </div>
           <div className="text-right">
-             <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">FEED REAL-TIME</p>
+             <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">LIVE PRICE</p>
              <p className="text-xs md:text-sm font-code text-primary font-bold">
-               {realPrice ? realPrice.toFixed(5) : 'Cargando...'}
+               {realPrice ? realPrice.toFixed(5) : '---'}
              </p>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4 pt-6 px-6 flex-1 overflow-hidden flex flex-col">
         <div className="p-4 bg-white/5 border border-white/5 rounded-xl relative overflow-hidden shrink-0">
-           <div className="flex items-start gap-3 mb-4">
-             <TrendingUp className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-             <p className="text-[10px] md:text-[11px] text-muted-foreground leading-snug italic line-clamp-2">
-               {data?.marketContext || "Sincronizando flujo de mercado..."}
-             </p>
-           </div>
            <div className="flex justify-between items-center mb-2">
-             <span className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest">Confianza IA</span>
+             <span className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest">Confianza V7</span>
              <span className="text-lg font-headline font-bold text-primary">{data?.consensusPercentage || 0}%</span>
            </div>
            <Progress value={data?.consensusPercentage || 0} className="h-1.5 bg-zinc-800" />
@@ -169,7 +148,7 @@ export function IACommitteeMonitor() {
              </div>
              {lastExecution && (
                <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/5 font-code">
-                 ULT_EJEC: {lastExecution}
+                 {lastExecution}
                </Badge>
              )}
            </div>
@@ -191,13 +170,6 @@ export function IACommitteeMonitor() {
           ))}
         </div>
       </CardContent>
-      {isExecuting && (
-        <div className="absolute inset-0 bg-background/95 backdrop-blur-2xl flex flex-col items-center justify-center z-50 animate-in fade-in">
-           <Zap className="h-12 w-12 text-primary animate-bounce mb-4" />
-           <p className="text-xl font-headline font-bold text-primary tracking-tighter uppercase">Ejecución en Progreso</p>
-           <p className="text-[9px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">Transmitiendo orden al bróker...</p>
-        </div>
-      )}
     </Card>
   );
 }

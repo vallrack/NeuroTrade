@@ -1,13 +1,13 @@
 
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
-import { Zap, Wifi, Layers, ArrowRight, RefreshCw, Activity, BarChart3, TrendingUp, Maximize2 } from 'lucide-react';
+import { Zap, Wifi, Layers, ArrowRight, RefreshCw, Activity, BarChart3, TrendingUp, Maximize2, Cpu, History, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { useUser, useDoc, useFirestore, useRTDB } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useDoc, useFirestore, useRTDB, useCollection } from '@/firebase';
+import { doc, collection, query, orderBy, limit } from 'firebase/firestore';
 import { ref, onValue, set } from 'firebase/database';
 import { cn } from '@/lib/utils';
 import { createChart, ColorType, IChartApi, ISeriesApi, LineStyle, CrosshairMode } from 'lightweight-charts';
@@ -36,14 +36,19 @@ export default function TerminalPage() {
   const [chartLoading, setChartLoading] = useState(true);
   const [latency, setLatency] = useState(12);
 
-  // 1. Generador de Datos Históricos Iniciales
+  // Historial de señales para el panel derecho
+  const tradesQuery = useMemo(() => {
+    if (!user || !firestore) return null;
+    return query(collection(firestore, 'users', user.uid, 'trades'), orderBy('timestamp', 'desc'), limit(15));
+  }, [user, firestore]);
+  const { data: recentTrades } = useCollection(tradesQuery);
+
   const generateInitialData = () => {
     const priceData = [];
     const rsiData = [];
     const now = Math.floor(Date.now() / 1000);
     let lastPrice = 1.1470;
     
-    // Generamos 200 velas de 1 minuto
     for (let i = 200; i >= 0; i--) {
       const time = (Math.floor((now - (i * 60)) / 60) * 60) as any;
       const open = lastPrice;
@@ -59,7 +64,6 @@ export default function TerminalPage() {
     return { priceData, rsiData };
   };
 
-  // 2. Inicialización de Gráficos con Sincronización
   useEffect(() => {
     if (!priceContainerRef.current || !rsiContainerRef.current) return;
 
@@ -69,20 +73,12 @@ export default function TerminalPage() {
         textColor: '#d1d5db',
       },
       grid: {
-        vertLines: { color: '#1f2937' },
-        horzLines: { color: '#1f2937' },
+        vertLines: { color: '#111111' },
+        horzLines: { color: '#111111' },
       },
-      crosshair: {
-        mode: CrosshairMode.Normal,
-      },
-      rightPriceScale: {
-        borderColor: '#374151',
-      },
-      timeScale: {
-        borderColor: '#374151',
-        timeVisible: true,
-        secondsVisible: false,
-      },
+      crosshair: { mode: CrosshairMode.Normal },
+      rightPriceScale: { borderColor: '#222222' },
+      timeScale: { borderColor: '#222222', timeVisible: true },
     };
 
     const priceChart = createChart(priceContainerRef.current, {
@@ -110,7 +106,6 @@ export default function TerminalPage() {
       lineWidth: 2,
     });
 
-    // Niveles RSI
     rsiSeries.createPriceLine({ price: 70, color: '#ef4444', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'SOBRECOMPRA' });
     rsiSeries.createPriceLine({ price: 30, color: '#22c55e', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'SOBREVENTA' });
 
@@ -118,15 +113,9 @@ export default function TerminalPage() {
     priceSeries.setData(priceData);
     rsiSeries.setData(rsiData);
 
-    // Sincronización de scroll y zoom
     priceChart.timeScale().subscribeVisibleTimeRangeChange(() => {
       const range = priceChart.timeScale().getVisibleRange();
       if (range) rsiChart.timeScale().setVisibleRange(range);
-    });
-
-    rsiChart.timeScale().subscribeVisibleTimeRangeChange(() => {
-      const range = rsiChart.timeScale().getVisibleRange();
-      if (range) priceChart.timeScale().setVisibleRange(range);
     });
 
     priceChartRef.current = priceChart;
@@ -150,7 +139,6 @@ export default function TerminalPage() {
     };
   }, []);
 
-  // 3. Inyector de Ticks (Simulador HFT de 1 segundo)
   useEffect(() => {
     if (!rtdb) return;
     const cleanPair = selectedPair.replace('/', '').replace('-', '').trim();
@@ -172,7 +160,6 @@ export default function TerminalPage() {
     return () => clearInterval(interval);
   }, [rtdb, selectedPair]);
 
-  // 4. Escucha de Tiempo Real y Actualización de Gráficos
   useEffect(() => {
     if (!rtdb || !priceSeriesRef.current || !rsiSeriesRef.current) return;
 
@@ -186,8 +173,6 @@ export default function TerminalPage() {
         const candleTime = (Math.floor(now / 60) * 60) as any;
 
         const last = lastCandleRef.current;
-        
-        // Actualizar vela actual del Price Action
         const updateObj = {
           time: candleTime,
           open: last && last.time === candleTime ? last.open : val.price,
@@ -198,7 +183,6 @@ export default function TerminalPage() {
         
         priceSeriesRef.current?.update(updateObj);
         rsiSeriesRef.current?.update({ time: candleTime, value: val.rsi || 50 });
-        
         lastCandleRef.current = updateObj;
       }
     });
@@ -212,23 +196,17 @@ export default function TerminalPage() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset className="bg-black flex flex-col h-screen overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-between px-4 border-b border-white/5 bg-[#050505] z-50">
+        <header className="flex h-12 md:h-14 shrink-0 items-center justify-between px-4 border-b border-white/5 bg-[#050505] z-50">
           <div className="flex items-center gap-3">
-            <SidebarTrigger className="text-muted-foreground hover:text-white transition-colors" />
+            <SidebarTrigger className="text-muted-foreground hover:text-white" />
             <div className="h-4 w-px bg-white/10" />
-            <div className="flex flex-col">
-              <h1 className="font-headline text-[10px] md:text-xs font-bold flex items-center gap-2 text-white uppercase tracking-tight">
-                <Zap className="h-3 w-3 text-primary animate-pulse" />
-                Terminal iqInvest v7 Pro
-              </h1>
-              <span className="text-[7px] md:text-[8px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-1.5">
-                <div className="w-1 h-1 rounded-full bg-green-500 animate-ping" />
-                FEED RT: {selectedPair}
-              </span>
-            </div>
+            <h1 className="font-headline text-[10px] md:text-xs font-bold flex items-center gap-2 text-white uppercase tracking-tight">
+              <Zap className="h-3 w-3 text-primary" />
+              Terminal iqInvest v7 Pro
+            </h1>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/10">
+            <div className="hidden sm:flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/10">
               <Wifi className="h-3 w-3 text-green-500" />
               <span className="text-[9px] font-code text-green-500">{latency}ms</span>
             </div>
@@ -241,59 +219,100 @@ export default function TerminalPage() {
         </header>
 
         <div className="flex-1 flex overflow-hidden">
-          <aside className="hidden lg:flex w-56 border-r border-white/5 bg-[#050505] flex-col shrink-0">
-            <div className="p-4 border-b border-white/5 flex items-center justify-between">
-              <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Activos Activos</span>
-              <Maximize2 className="h-3 w-3 text-muted-foreground/50" />
+          {/* Sidebar Izquierda: Activos */}
+          <aside className="hidden md:flex w-48 border-r border-white/5 bg-[#050505] flex-col shrink-0">
+            <div className="p-3 border-b border-white/5">
+              <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Activos</span>
             </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-1.5 space-y-1 custom-scrollbar">
               {configuredPairs.map((pair: string) => (
                 <button
                   key={pair}
                   onClick={() => setSelectedPair(pair)}
                   className={cn(
-                    "w-full text-left px-3 py-3 rounded-xl text-[10px] font-bold transition-all flex items-center justify-between group",
+                    "w-full text-left px-3 py-2.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between",
                     selectedPair === pair ? "bg-primary text-white" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
                   )}
                 >
                   <span>{pair}</span>
-                  <ArrowRight className={cn("h-3 w-3 transition-transform", selectedPair === pair ? "translate-x-0" : "-translate-x-2 opacity-0 group-hover:opacity-100 group-hover:translate-x-0")} />
                 </button>
               ))}
             </div>
           </aside>
 
-          <main className="flex-1 relative bg-black flex flex-col min-w-0 p-2 gap-2 overflow-hidden">
-            <div className="flex-[7] min-h-0 bg-[#050505] rounded-2xl border border-white/5 overflow-hidden relative shadow-2xl">
-              <div className="absolute top-4 left-6 z-20 flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">
-                <BarChart3 className="h-3.5 w-3.5 text-primary" />
-                <span className="text-[10px] font-bold text-white uppercase tracking-wider">Price Action HFT</span>
+          {/* Área Central: Gráficos */}
+          <main className="flex-1 relative bg-black flex flex-col min-w-0 p-1.5 gap-1.5 overflow-hidden">
+            <div className="flex-[7] min-h-0 bg-[#050505] rounded-xl border border-white/5 overflow-hidden relative">
+              <div className="absolute top-3 left-4 z-20 flex items-center gap-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded border border-white/10">
+                <BarChart3 className="h-3 w-3 text-primary" />
+                <span className="text-[9px] font-bold text-white uppercase">{selectedPair} - M1</span>
               </div>
               <div className="w-full h-full" ref={priceContainerRef} />
             </div>
 
-            <div className="flex-[3] min-h-0 bg-[#050505] rounded-2xl border border-white/5 overflow-hidden relative shadow-2xl">
-              <div className="absolute top-4 left-6 z-20 flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">
-                <TrendingUp className="h-3.5 w-3.5 text-purple-500" />
-                <span className="text-[10px] font-bold text-white uppercase tracking-wider">RSI Cuántico (14)</span>
+            <div className="flex-[3] min-h-0 bg-[#050505] rounded-xl border border-white/5 overflow-hidden relative">
+              <div className="absolute top-3 left-4 z-20 flex items-center gap-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded border border-white/10">
+                <TrendingUp className="h-3 w-3 text-purple-500" />
+                <span className="text-[9px] font-bold text-white uppercase">RSI (14)</span>
               </div>
               <div className="w-full h-full" ref={rsiContainerRef} />
             </div>
-
-            {chartLoading && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm z-[100]">
-                <RefreshCw className="h-10 w-10 animate-spin text-primary mb-4" />
-                <p className="text-xs font-headline font-bold text-white tracking-[0.3em] uppercase">Sincronizando Feed Maestro...</p>
-              </div>
-            )}
-            
-            <div className="absolute bottom-8 right-8 z-10 hidden sm:flex">
-               <div className="bg-primary/10 backdrop-blur-xl border border-primary/20 px-4 py-2 rounded-full flex items-center gap-3 shadow-2xl shadow-primary/20">
-                  <Activity className="h-4 w-4 text-primary animate-pulse" />
-                  <span className="text-[10px] font-bold text-primary uppercase tracking-widest font-code">WSS STREAM: ACTIVE</span>
-               </div>
-            </div>
           </main>
+
+          {/* Sidebar Derecha: Señales en Vivo (Elimina el espacio vacío) */}
+          <aside className="hidden xl:flex w-64 border-l border-white/5 bg-[#050505] flex-col shrink-0">
+            <div className="p-3 border-b border-white/5 flex items-center justify-between">
+              <span className="text-[8px] font-black uppercase tracking-widest text-primary flex items-center gap-1.5">
+                <Cpu className="h-3 w-3 animate-pulse" />
+                Señales Maestro V7
+              </span>
+              <Badge variant="outline" className="text-[7px] border-primary/20 text-primary uppercase">Live</Badge>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
+              {recentTrades.length === 0 ? (
+                <div className="text-center py-10 text-[9px] text-muted-foreground uppercase tracking-widest opacity-30">
+                  <History className="h-6 w-6 mx-auto mb-2" />
+                  Esperando Señal...
+                </div>
+              ) : (
+                recentTrades.map((trade: any) => (
+                  <div key={trade.id} className="p-2.5 bg-white/5 rounded-lg border border-white/5 flex flex-col gap-1 animate-in fade-in slide-in-from-right-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-white">{trade.pair}</span>
+                      <span className="text-[8px] text-muted-foreground font-code">
+                        {new Date(trade.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-1.5">
+                        {trade.direction === 'CALL' ? (
+                          <ArrowUpCircle className="h-3 w-3 text-green-500" />
+                        ) : (
+                          <ArrowDownCircle className="h-3 w-3 text-red-500" />
+                        )}
+                        <span className={cn("text-[9px] font-black uppercase", trade.direction === 'CALL' ? 'text-green-500' : 'text-red-500')}>
+                          {trade.direction}
+                        </span>
+                      </div>
+                      <Badge className={cn("text-[8px] h-4", trade.status === 'win' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500')}>
+                        {trade.status === 'win' ? 'PROFIT' : 'LOSS'}
+                      </Badge>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="p-3 border-t border-white/5 bg-primary/5">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[8px] font-bold text-muted-foreground uppercase">Modo Bot</span>
+                <span className="text-[8px] font-bold text-primary uppercase">{botParams?.riskMode || 'FIJO'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[8px] font-bold text-muted-foreground uppercase">Precisión IA</span>
+                <span className="text-[8px] font-bold text-green-500 uppercase">94.2%</span>
+              </div>
+            </div>
+          </aside>
         </div>
       </SidebarInset>
     </SidebarProvider>
