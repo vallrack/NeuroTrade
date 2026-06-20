@@ -2,20 +2,20 @@
 {
   "entities": {
     "UserProfile": {
-      "title": "User Profile",
-      "description": "Stores basic information about the trading platform operators.",
+      "title": "Perfil de Usuario",
+      "description": "Almacena información básica de los operadores y administradores de la plataforma.",
       "type": "object",
       "properties": {
         "email": { "type": "string", "format": "email" },
         "displayName": { "type": "string" },
-        "role": { "type": "string", "enum": ["operator", "admin"] },
+        "role": { "type": "string", "enum": ["operator", "admin", "super-admin"] },
         "lastActive": { "type": "string", "format": "date-time" }
       },
       "required": ["email"]
     },
     "BotParams": {
-      "title": "Bot Parameters",
-      "description": "Operational configuration for the AI trading bot.",
+      "title": "Parámetros del Bot",
+      "description": "Configuración operativa para el bot de trading de IA.",
       "type": "object",
       "properties": {
         "investmentPerTrade": { "type": "number" },
@@ -27,8 +27,8 @@
       }
     },
     "DailyEquity": {
-      "title": "Daily Equity",
-      "description": "Daily performance tracking record.",
+      "title": "Rendimiento Diario",
+      "description": "Registro de seguimiento de rendimiento diario.",
       "type": "object",
       "properties": {
         "date": { "type": "string", "format": "date" },
@@ -36,8 +36,8 @@
       }
     },
     "DashboardStats": {
-      "title": "Dashboard Stats",
-      "description": "Snapshot of current trading statistics.",
+      "title": "Estadísticas del Dashboard",
+      "description": "Resumen de las estadísticas actuales de trading.",
       "type": "object",
       "properties": {
         "balance": { "type": "number" },
@@ -53,19 +53,19 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "User profile data."
+      "description": "Datos del perfil de usuario."
     },
     "/configuracion/bot_params": {
       "schema": "BotParams",
-      "description": "Global bot configuration parameters."
+      "description": "Configuración global de los parámetros del bot."
     },
     "/rendimiento_diario/{recordId}": {
       "schema": "DailyEquity",
-      "description": "Time-series data for equity chart."
+      "description": "Datos temporales para el gráfico de equidad."
     },
     "/dashboard/current_stats": {
       "schema": "DashboardStats",
-      "description": "Real-time summary stats for the dashboard."
+      "description": "Resumen de estadísticas en tiempo real para el dashboard."
     }
   }
 }

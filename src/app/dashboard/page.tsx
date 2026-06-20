@@ -1,4 +1,7 @@
 
+'use client';
+
+import { useMemo } from 'react';
 import { StatsGrid } from '@/components/dashboard/stats-grid';
 import { IACommitteeMonitor } from '@/components/dashboard/ia-committee-monitor';
 import { EquityChart } from '@/components/dashboard/equity-chart';
@@ -6,11 +9,23 @@ import { LogConsole } from '@/components/dashboard/log-console';
 import { KillSwitch } from '@/components/dashboard/kill-switch';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
-import { Bell, Search, Settings } from 'lucide-react';
+import { Bell, Search, Settings, ShieldCheck, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { useUser, useDoc, useFirestore } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { SuperAdminTools } from '@/components/dashboard/super-admin-tools';
+import { Badge } from '@/components/ui/badge';
 
 export default function DashboardPage() {
+  const { user } = useUser();
+  const firestore = useFirestore();
+  
+  const profileRef = useMemo(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
+  const { data: profile } = useDoc(profileRef);
+
+  const isSuperAdmin = profile?.role === 'super-admin';
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -19,7 +34,15 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <SidebarTrigger />
             <Separator orientation="vertical" className="mr-2 h-4" />
-            <h1 className="font-headline text-xl font-bold tracking-tight text-foreground">Centro de Comando</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="font-headline text-xl font-bold tracking-tight text-foreground">Centro de Comando</h1>
+              {isSuperAdmin && (
+                <Badge variant="outline" className="border-primary/50 text-primary gap-1">
+                  <Crown className="h-3 w-3" />
+                  MAESTRO
+                </Badge>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <div className="hidden md:flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-md border border-white/5">
@@ -48,8 +71,12 @@ export default function DashboardPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <IACommitteeMonitor />
                 <div className="space-y-6">
+                  {isSuperAdmin && <SuperAdminTools />}
                   <div className="p-6 bg-card/50 border border-white/5 rounded-xl">
-                    <h3 className="font-headline font-bold mb-4">Protocolos de Emergencia</h3>
+                    <h3 className="font-headline font-bold mb-4 flex items-center gap-2">
+                      <ShieldCheck className="h-5 w-5 text-destructive" />
+                      Protocolos de Emergencia
+                    </h3>
                     <KillSwitch />
                   </div>
                   <div className="p-6 bg-primary/10 border border-primary/20 rounded-xl">
@@ -57,7 +84,7 @@ export default function DashboardPage() {
                     <p className="text-sm text-primary/80 mb-4">El motor está procesando patrones de EUR/USD y BTC/USD a través del Clúster Neuronal A1.</p>
                     <div className="flex gap-2">
                       <div className="h-1 flex-1 bg-primary/30 rounded-full overflow-hidden">
-                        <div className="h-full bg-primary w-2/3" />
+                        <div className="h-full bg-primary w-2/3 shadow-[0_0_8px_rgba(var(--primary),0.8)]" />
                       </div>
                     </div>
                   </div>

@@ -1,3 +1,4 @@
+
 'use server';
 
 import { db } from '@/firebase/admin';
@@ -37,6 +38,25 @@ export async function triggerKillSwitch() {
     return { success: true };
   } catch (error) {
     console.error('Panic button failed:', error);
+    return { success: false };
+  }
+}
+
+/**
+ * Promueve a un usuario al rango de Super Administrador (Maestro).
+ * Solo debería ser accesible por administradores existentes o en el primer setup.
+ */
+export async function promoteToSuperAdmin(userId: string) {
+  try {
+    await db.collection('users').doc(userId).set({
+      role: 'super-admin',
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    
+    revalidatePath('/dashboard');
+    return { success: true };
+  } catch (error) {
+    console.error('Error promoting to super admin:', error);
     return { success: false };
   }
 }
