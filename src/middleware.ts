@@ -6,7 +6,7 @@ export function middleware(request: NextRequest) {
   const session = request.cookies.get('session');
   const { pathname } = request.nextUrl;
 
-  // 1. Rutas públicas que no requieren sesión
+  // 1. Rutas públicas y recursos estáticos
   const isPublicPath = 
     pathname === '/login' || 
     pathname.startsWith('/_next') || 
@@ -17,14 +17,18 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Si no hay sesión y la ruta es privada, redirigir al login
+  // 2. Protección de rutas privadas
+  // Si no hay cookie de sesión, redirigimos al login
   if (!session) {
     const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('from', pathname);
-    return NextResponse.redirect(loginUrl);
+    // Solo añadimos el redirect si no estamos ya en una redirección
+    if (!pathname.startsWith('/login')) {
+      loginUrl.searchParams.set('from', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
   }
 
-  // 3. Permitir el paso si hay sesión
+  // 3. Permitir el paso si hay sesión o es una ruta permitida
   return NextResponse.next();
 }
 

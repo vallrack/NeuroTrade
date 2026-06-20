@@ -29,20 +29,10 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
-  // Escuchar cambios de auth para limpiar errores
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        // Si ya hay usuario, intentar ir al dashboard
-        const from = searchParams.get('from') || '/dashboard';
-        user.getIdToken().then(token => {
-          document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
-          router.push(from);
-        });
-      }
-    });
-    return () => unsubscribe();
-  }, [auth, router, searchParams]);
+  // Función para establecer la cookie de sesión
+  const setSessionCookie = (token: string) => {
+    document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,8 +58,8 @@ export default function LoginPage() {
           lastActive: serverTimestamp(),
         };
 
-        // Crear perfil inicial (no bloqueante)
-        setDoc(userRef, userData, { merge: true }).catch(async (serverError) => {
+        // Crear perfil inicial (esperamos a que se cree para evitar errores de permisos en dashboard)
+        await setDoc(userRef, userData, { merge: true }).catch(async (serverError) => {
           const permissionError = new FirestorePermissionError({
             path: userRef.path,
             operation: 'create',
@@ -89,15 +79,14 @@ export default function LoginPage() {
 
       if (user) {
         const token = await user.getIdToken();
-        // Establecer cookie con mayor compatibilidad
-        document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
+        setSessionCookie(token);
         
         const from = searchParams.get('from') || '/dashboard';
         
-        // Pequeña espera para asegurar que la cookie se procese
+        // Usamos window.location.href para forzar al servidor a reconocer la nueva cookie
         setTimeout(() => {
           window.location.href = from;
-        }, 800);
+        }, 500);
       }
     } catch (err: any) {
       console.error(err);
