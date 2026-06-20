@@ -25,9 +25,6 @@ export function StatsGrid() {
       if (docSnapshot.exists()) {
         setStats(docSnapshot.data() as any);
       }
-    }, (error) => {
-      // Si hay error de permisos o no existe, mantenemos los valores en 0
-      console.warn("Dashboard stats not available yet.");
     });
     return () => unsub();
   }, [firestore]);

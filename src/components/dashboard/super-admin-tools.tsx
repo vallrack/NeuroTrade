@@ -5,8 +5,8 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Crown, ShieldCheck, Database, Users, Settings2, RefreshCw, Trash2 } from 'lucide-react';
-import { promoteToSuperAdmin, clearSystemLogs } from '@/lib/actions';
+import { Crown, ShieldCheck, Database, Users, Settings2, RefreshCw, Trash2, Zap } from 'lucide-react';
+import { promoteToSuperAdmin, clearSystemLogs, seedDemoData } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/firebase';
 
@@ -14,6 +14,7 @@ export function SuperAdminTools() {
   const { user } = useUser();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [seeding, setSeeding] = useState(false);
 
   const handleSelfPromotion = async () => {
     if (!user) return;
@@ -26,11 +27,18 @@ export function SuperAdminTools() {
         title: "PRIVILEGIOS MAESTROS ACTIVADOS",
         description: "Tu cuenta ahora tiene acceso total a la infraestructura cuántica.",
       });
-    } else {
+    }
+  };
+
+  const handleSeedData = async () => {
+    setSeeding(true);
+    const result = await seedDemoData();
+    setSeeding(false);
+    
+    if (result.success) {
       toast({
-        variant: "destructive",
-        title: "FALLO DE PROTOCOLO",
-        description: "No se pudieron establecer privilegios maestros.",
+        title: "DATOS INICIALIZADOS",
+        description: "El dashboard ha sido poblado con métricas en tiempo real.",
       });
     }
   };
@@ -62,9 +70,14 @@ export function SuperAdminTools() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
-          <Button variant="outline" className="justify-start gap-2 border-primary/20 hover:bg-primary/10 h-12 text-xs">
-            <Users className="h-4 w-4 text-primary" />
-            Gestionar Nodos
+          <Button 
+            onClick={handleSeedData}
+            disabled={seeding}
+            variant="outline" 
+            className="justify-start gap-2 border-primary/20 hover:bg-primary/10 h-12 text-xs"
+          >
+            <Zap className={`h-4 w-4 text-primary ${seeding ? 'animate-pulse' : ''}`} />
+            Inicializar Datos
           </Button>
           <Button 
             onClick={handleClearLogs}
@@ -75,8 +88,8 @@ export function SuperAdminTools() {
             Limpiar Memoria
           </Button>
           <Button variant="outline" className="justify-start gap-2 border-primary/20 hover:bg-primary/10 h-12 text-xs">
-            <Settings2 className="h-4 w-4 text-primary" />
-            Bypass AI
+            <Database className="h-4 w-4 text-primary" />
+            Bypass DB
           </Button>
           <Button 
             onClick={handleSelfPromotion} 

@@ -2,7 +2,8 @@
 'use client';
 
 import { getFirebase } from '@/firebase';
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
 
 /**
  * Actualiza la configuración global del bot.
@@ -18,6 +19,7 @@ export async function updateBotConfig(data: {
     const configRef = doc(db, 'configuracion', 'bot_params');
     await setDoc(configRef, {
       ...data,
+      bot_activo: true,
       updatedAt: new Date().toISOString(),
     }, { merge: true });
 
@@ -63,6 +65,70 @@ export async function promoteToSuperAdmin(userId: string) {
     return { success: true };
   } catch (error) {
     console.error('Error promoting to super admin:', error);
+    return { success: false };
+  }
+}
+
+/**
+ * Cierra la sesión del usuario.
+ */
+export async function signOutUser() {
+  const { auth } = getFirebase();
+  try {
+    await signOut(auth);
+    return { success: true };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+/**
+ * Inicializa datos demo para el Dashboard.
+ */
+export async function seedDemoData() {
+  const { db } = getFirebase();
+  try {
+    // 1. Estadísticas actuales
+    const statsRef = doc(db, 'dashboard', 'current_stats');
+    await setDoc(statsRef, {
+      balance: 12450.75,
+      dailyProfit: 342.12,
+      winRate: 72,
+      totalInvestment: 85400,
+      updatedAt: serverTimestamp()
+    });
+
+    // 2. Datos de gráfico (Rendimiento diario)
+    const rendimientoRef = collection(db, 'rendimiento_diario');
+    const days = 7;
+    const baseValue = 10000;
+    
+    for (let i = 0; i < days; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - (days - i));
+      const dateStr = date.toISOString().split('T')[0];
+      
+      await addDoc(rendimientoRef, {
+        date: dateStr,
+        equity: baseValue + (Math.random() * 2000),
+        timestamp: serverTimestamp()
+      });
+    }
+
+    // 3. Parámetros del bot
+    const configRef = doc(db, 'configuracion', 'bot_params');
+    await setDoc(configRef, {
+      investmentPerTrade: 10,
+      stopLoss: 50,
+      martingale: false,
+      pairs: ['EUR/USD', 'BTC/USD', 'GBP/JPY'],
+      bot_activo: true,
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error seeding data:', error);
     return { success: false };
   }
 }

@@ -2,6 +2,7 @@
 'use client';
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   LayoutDashboard,
   Settings,
@@ -26,6 +27,8 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from "@/components/ui/sidebar"
+import { signOutUser } from "@/lib/actions"
+import { useToast } from "@/hooks/use-toast"
 
 const data = {
   navMain: [
@@ -84,6 +87,20 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const handleLogout = async () => {
+    const res = await signOutUser();
+    if (res.success) {
+      toast({
+        title: "CONEXIÓN CERRADA",
+        description: "El operador ha sido desconectado del sistema.",
+      });
+      router.push('/login');
+    }
+  };
+
   return (
     <Sidebar collapsible="icon" {...props} className="border-r border-white/5 bg-card/80 backdrop-blur-xl">
       <SidebarHeader className="p-4">
@@ -92,7 +109,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <Zap className="h-6 w-6 text-white" />
           </div>
           <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-            <span className="font-headline font-bold text-lg leading-none tracking-tight">NeuroTrade</span>
+            <span className="font-headline font-bold text-lg leading-none tracking-tight text-foreground">NeuroTrade</span>
             <span className="text-[10px] text-primary font-bold uppercase tracking-widest mt-0.5">Motor Cuántico</span>
           </div>
         </div>
@@ -126,7 +143,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarFooter className="p-4">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton className="px-4 py-6 text-red-400 hover:text-red-300 hover:bg-red-500/10">
+            <SidebarMenuButton 
+              onClick={handleLogout}
+              className="px-4 py-6 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+            >
               <LogOut />
               <span>Cerrar Sesión</span>
             </SidebarMenuButton>
