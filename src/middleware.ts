@@ -6,7 +6,7 @@ export function middleware(request: NextRequest) {
   const session = request.cookies.get('session');
   const { pathname } = request.nextUrl;
 
-  // Solo protegemos las rutas que empiezan con /dashboard
+  // Proteger solo el dashboard
   if (pathname.startsWith('/dashboard')) {
     if (!session) {
       const loginUrl = new URL('/login', request.url);
@@ -15,7 +15,7 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Si el usuario ya tiene sesión y trata de ir al login, lo mandamos al dashboard
+  // Si ya tiene sesión, evitar el login
   if (pathname === '/login' && session) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }

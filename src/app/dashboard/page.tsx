@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { StatsGrid } from '@/components/dashboard/stats-grid';
 import { IACommitteeMonitor } from '@/components/dashboard/ia-committee-monitor';
 import { EquityChart } from '@/components/dashboard/equity-chart';
@@ -24,6 +24,11 @@ export default function DashboardPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [initLoading, setInitLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
   const profileRef = useMemo(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: profile, loading: profileLoading } = useDoc(profileRef);
@@ -53,7 +58,7 @@ export default function DashboardPage() {
     }
   };
 
-  if (authLoading || (user && profileLoading)) {
+  if (!mounted || authLoading || (user && profileLoading)) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center gap-4 bg-background">
         <Loader2 className="h-10 w-10 text-primary animate-spin" />
@@ -63,7 +68,7 @@ export default function DashboardPage() {
   }
 
   if (!user) {
-    return null; // El middleware se encarga de la redirección
+    return null; 
   }
 
   return (

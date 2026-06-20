@@ -16,6 +16,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 export default function LoginPage() {
+  const [mounted, setMounted] = useState(false);
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,22 +30,27 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
-  // Gestión de sesión automática
+  // Evitar errores de hidratación
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Gestión de sesión y redirección
+  useEffect(() => {
+    if (!mounted) return;
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const token = await user.getIdToken();
+        // Establecer cookie de sesión de forma robusta
         document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
         
-        // Pequeña espera para asegurar que la cookie se grabe antes de la redirección
-        setTimeout(() => {
-          const from = searchParams.get('from') || '/dashboard';
-          router.push(from);
-        }, 300);
+        const from = searchParams.get('from') || '/dashboard';
+        router.replace(from);
       }
     });
     return () => unsubscribe();
-  }, [auth, router, searchParams]);
+  }, [auth, router, searchParams, mounted]);
 
   const ensureUserProfile = async (user: any, name?: string) => {
     const userRef = doc(firestore, 'users', user.uid);
@@ -68,7 +74,7 @@ export default function LoginPage() {
         });
       }
     } catch (err) {
-      console.error("Error al verificar perfil:", err);
+      // Silencioso, manejado por el listener global si es error de permisos
     }
   };
 
@@ -89,6 +95,7 @@ export default function LoginPage() {
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         user = userCredential.user;
+        // Asegurar que el perfil existe incluso si ya estaba registrado
         await ensureUserProfile(user);
       }
 
@@ -102,7 +109,6 @@ export default function LoginPage() {
         });
       }
     } catch (err: any) {
-      console.error(err);
       let message = 'Fallo en la conexión cuántica.';
       if (err.code === 'auth/email-already-in-use') {
         message = 'El ID ya existe. Por favor, inicia sesión.';
@@ -117,10 +123,13 @@ export default function LoginPage() {
     }
   };
 
+  if (!mounted) return null;
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-background font-body text-foreground">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background font-body text-foreground overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/10 via-background to-background opacity-50" />
-      <Card className="w-full max-w-md bg-card/50 border-white/5 backdrop-blur-xl relative z-10 shadow-2xl">
+      
+      <Card className="w-full max-w-md bg-card/50 border-white/5 backdrop-blur-xl relative z-10 shadow-2xl border">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-6">
             <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20 rotate-3">
