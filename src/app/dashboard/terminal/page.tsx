@@ -8,7 +8,8 @@ import {
   TrendingUp, Cpu, ArrowUpCircle, ArrowDownCircle,
   Clock, LineChart, ChevronDown,
   Plus, MousePointer2, Type, Pencil, Magnet,
-  Lock, Trash2, LayoutGrid, Ruler, Eye
+  Lock, Trash2, LayoutGrid, Ruler, Eye,
+  Info, ShieldCheck, Gauge
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -95,8 +96,8 @@ export default function TerminalPage() {
         fontSize: 11,
       },
       grid: {
-        vertLines: { color: 'rgba(42, 46, 57, 0.05)' },
-        horzLines: { color: 'rgba(42, 46, 57, 0.05)' },
+        vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
+        horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
       },
       crosshair: { mode: CrosshairMode.Normal },
       timeScale: { 
@@ -122,7 +123,7 @@ export default function TerminalPage() {
     });
     const volumeSeries = priceChart.addHistogramSeries({
       priceFormat: { type: 'volume' },
-      priceScaleId: '', // Separate scale
+      priceScaleId: '', 
     });
     volumeSeries.priceScale().applyOptions({
       scaleMargins: { top: 0.8, bottom: 0 },
@@ -147,14 +148,14 @@ export default function TerminalPage() {
     const stochKSeries = stochChart.addLineSeries({ color: '#2196f3', lineWidth: 1.5 });
     const stochDSeries = stochChart.addLineSeries({ color: '#ff9800', lineWidth: 1.5 });
 
-    // Syncronization - FIXED: Added deeper null checks and try-catch to prevent "Value is null" error
+    // Synchronization logic with robust null checks
     priceChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
-      if (range && rsiChart && stochChart) {
+      if (range) {
         try {
-          rsiChart.timeScale().setVisibleRange(range);
-          stochChart.timeScale().setVisibleRange(range);
+          if (rsiChartRef.current) rsiChartRef.current.timeScale().setVisibleRange(range);
+          if (stochChartRef.current) stochChartRef.current.timeScale().setVisibleRange(range);
         } catch (e) {
-          // Ignore synchronization errors if charts are not ready
+          // Ignore synchronization errors during transitions
         }
       }
     });
@@ -176,10 +177,14 @@ export default function TerminalPage() {
     stochDSeriesRef.current = stochDSeries;
 
     const handleResize = () => {
-      if (priceContainerRef.current && rsiContainerRef.current && stochContainerRef.current) {
-        priceChart.applyOptions({ width: priceContainerRef.current.clientWidth, height: priceContainerRef.current.clientHeight });
-        rsiChart.applyOptions({ width: rsiContainerRef.current.clientWidth, height: rsiContainerRef.current.clientHeight });
-        stochChart.applyOptions({ width: stochContainerRef.current.clientWidth, height: stochContainerRef.current.clientHeight });
+      if (priceContainerRef.current && priceChartRef.current) {
+        priceChartRef.current.applyOptions({ width: priceContainerRef.current.clientWidth, height: priceContainerRef.current.clientHeight });
+      }
+      if (rsiContainerRef.current && rsiChartRef.current) {
+        rsiChartRef.current.applyOptions({ width: rsiContainerRef.current.clientWidth, height: rsiContainerRef.current.clientHeight });
+      }
+      if (stochContainerRef.current && stochChartRef.current) {
+        stochChartRef.current.applyOptions({ width: stochContainerRef.current.clientWidth, height: stochContainerRef.current.clientHeight });
       }
     };
 
@@ -192,6 +197,7 @@ export default function TerminalPage() {
     };
   }, []);
 
+  // Data injection and simulation
   useEffect(() => {
     if (!rtdb) return;
     const cleanPair = selectedPair.replace('/', '').replace('-', '').trim();
@@ -213,8 +219,9 @@ export default function TerminalPage() {
     return () => clearInterval(interval);
   }, [rtdb, selectedPair]);
 
+  // Real-time chart updates
   useEffect(() => {
-    if (!rtdb || !priceSeriesRef.current || !rsiSeriesRef.current) return;
+    if (!rtdb || !priceSeriesRef.current) return;
 
     const cleanPair = selectedPair.replace('/', '').replace('-', '').trim();
     const tickRef = ref(rtdb, `market/ticks/${cleanPair}`);
@@ -327,7 +334,6 @@ export default function TerminalPage() {
 
           {/* CENTRAL AREA: TRIPLE CHART SYSTEM */}
           <main className="flex-1 relative bg-black flex flex-col min-w-0 overflow-hidden">
-             {/* Pane 1: Price + Volume */}
              <div className="flex-[6] min-h-0 relative border-b border-white/5">
                 <div className="absolute top-4 left-4 z-20 flex items-center gap-2 text-[10px] font-bold text-white/70">
                    <div className="w-2 h-2 rounded-full bg-green-500" />
@@ -336,20 +342,22 @@ export default function TerminalPage() {
                 <div ref={priceContainerRef} className="w-full h-full" />
              </div>
 
-             {/* Pane 2: RSI */}
              <div className="flex-[2] min-h-0 relative border-b border-white/5">
-                <div className="absolute top-2 left-4 z-20 text-[9px] font-bold text-purple-400">RSI 14 close</div>
+                <div className="absolute top-2 left-4 z-20 text-[9px] font-bold text-purple-400 uppercase tracking-tighter flex items-center gap-2">
+                  <Gauge className="h-3 w-3" /> RSI 14 Close
+                </div>
                 <div ref={rsiContainerRef} className="w-full h-full" />
              </div>
 
-             {/* Pane 3: Stoch RSI */}
              <div className="flex-[2] min-h-0 relative">
-                <div className="absolute top-2 left-4 z-20 text-[9px] font-bold text-blue-400">Stoch RSI 3 3 14 14</div>
+                <div className="absolute top-2 left-4 z-20 text-[9px] font-bold text-blue-400 uppercase tracking-tighter flex items-center gap-2">
+                  <Activity className="h-3 w-3" /> Stoch RSI 3 3 14 14
+                </div>
                 <div ref={stochContainerRef} className="w-full h-full" />
              </div>
           </main>
 
-          {/* RIGHT SIDEBAR: ASSETS & ANALYSIS */}
+          {/* RIGHT SIDEBAR: ANALYTICS & SIGNALS */}
           <aside className="hidden xl:flex w-64 border-l border-white/5 bg-[#0a0a0a] flex-col shrink-0">
              <div className="p-4 border-b border-white/5 flex items-center justify-between">
                 <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Analítica V7</span>
@@ -357,7 +365,6 @@ export default function TerminalPage() {
              </div>
              
              <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                {/* AI Status Card */}
                 <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-2">
                    <div className="flex justify-between items-center text-[10px] font-bold">
                       <span className="text-muted-foreground uppercase">CONSENSO</span>
@@ -392,7 +399,8 @@ export default function TerminalPage() {
                 <div className="space-y-2">
                    <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest block">Señales Maestro V7</span>
                    {recentTrades && recentTrades.length === 0 ? (
-                     <div className="text-center py-8 text-muted-foreground text-[10px] italic">
+                     <div className="text-center py-8 text-muted-foreground text-[10px] italic flex flex-col items-center gap-2">
+                       <Clock className="h-4 w-4 opacity-20" />
                        Esperando confirmación...
                      </div>
                    ) : recentTrades?.map((t: any) => (
@@ -407,6 +415,16 @@ export default function TerminalPage() {
                          </div>
                       </div>
                    ))}
+                </div>
+
+                <div className="p-4 bg-zinc-900/50 rounded-xl border border-white/5 space-y-2">
+                  <h4 className="text-[9px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                    <ShieldCheck className="h-3 w-3 text-primary" /> Failsafe Status
+                  </h4>
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-muted-foreground">Trailing Stop</span>
+                    <span className="text-primary font-bold">Activo 65%</span>
+                  </div>
                 </div>
              </div>
           </aside>

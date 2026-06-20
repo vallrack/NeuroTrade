@@ -40,7 +40,6 @@ function isSessionActive(schedules: {start: string, end: string}[]) {
   return schedules.some(s => {
     const start = parseInt(s.start);
     const end = parseInt(s.end);
-    // Manejo de rangos que cruzan la medianoche
     if (start <= end) {
       return currentHour >= start && currentHour < end;
     } else {
@@ -79,6 +78,7 @@ export async function executeTrade(userId: string, tradeData: {
     }
 
     // 3. Check de Seguridad: Trailing Stop (Python Logic)
+    // Si llevamos más del 30% del TP en ganancias, aseguramos el 65% de ese pico
     const tp = botParams.takeProfit || 60000;
     const peakPnl = botParams.peakPnl || 0;
     const dailyProfit = currentStats.dailyProfit || 0;
@@ -94,9 +94,9 @@ export async function executeTrade(userId: string, tradeData: {
     // 4. Lógica de Monto (Martingala / Interés Compuesto)
     let finalAmount = tradeData.amount;
     if (botParams.riskMode === 'Martingala' && botParams.lastTradeStatus === 'loss') {
-      finalAmount = tradeData.amount * 2.2; // Factor Python
+      finalAmount = tradeData.amount * 2.2; // Factor Python iqInvest
     } else if (botParams.riskMode === 'Interés Compuesto' && dailyProfit > 0) {
-      finalAmount = tradeData.amount + (dailyProfit * 0.1); // Reinvierte 10%
+      finalAmount = tradeData.amount + (dailyProfit * 0.1); // Reinvierte 10% de ganancia
     }
 
     // 5. Ejecución Real en el Bridge
@@ -121,7 +121,7 @@ export async function executeTrade(userId: string, tradeData: {
         balance: increment(execution.profit),
         dailyProfit: increment(execution.profit),
         totalInvestment: increment(finalAmount),
-        winRate: increment(0) // Se recalcula en el frontend usualmente o vía cloud functions
+        winRate: increment(0) 
       });
 
       // Actualizar Parámetros del Bot (Last Status y Pico)
