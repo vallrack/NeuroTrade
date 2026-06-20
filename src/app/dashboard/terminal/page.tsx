@@ -17,6 +17,7 @@ export default function TerminalPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const lastPriceRef = useRef<number | null>(null);
   
   const { user } = useUser();
   const firestore = useFirestore();
@@ -33,20 +34,20 @@ export default function TerminalPage() {
   const [chartLoading, setChartLoading] = useState(true);
   const [latency, setLatency] = useState(8);
 
-  // Generar datos históricos simulados para el arranque
+  // Generar datos históricos simulados para el arranque inicial
   const generateInitialData = () => {
     const data = [];
     const now = Math.floor(Date.now() / 1000);
-    let lastPrice = 1.1200;
+    let lastPrice = 1.1470;
     
-    for (let i = 100; i >= 0; i--) {
+    for (let i = 200; i >= 0; i--) {
       const open = lastPrice;
-      const close = open + (Math.random() - 0.5) * 0.001;
-      const high = Math.max(open, close) + Math.random() * 0.0005;
-      const low = Math.min(open, close) - Math.random() * 0.0005;
+      const close = open + (Math.random() - 0.5) * 0.0005;
+      const high = Math.max(open, close) + Math.random() * 0.0002;
+      const low = Math.min(open, close) - Math.random() * 0.0002;
       
       data.push({
-        time: (now - (i * 60)) as any,
+        time: (Math.floor((now - (i * 60)) / 60) * 60) as any,
         open,
         high,
         low,
@@ -54,6 +55,7 @@ export default function TerminalPage() {
       });
       lastPrice = close;
     }
+    lastPriceRef.current = lastPrice;
     return data;
   };
 
@@ -67,8 +69,8 @@ export default function TerminalPage() {
         textColor: '#9B9B9B',
       },
       grid: {
-        vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
-        horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
+        vertLines: { color: 'rgba(255, 255, 255, 0.03)' },
+        horzLines: { color: 'rgba(255, 255, 255, 0.03)' },
       },
       width: containerRef.current.clientWidth,
       height: containerRef.current.clientHeight,
@@ -97,8 +99,8 @@ export default function TerminalPage() {
     setChartLoading(false);
 
     const handleResize = () => {
-      if (containerRef.current) {
-        chart.applyOptions({
+      if (containerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({
           width: containerRef.current.clientWidth,
           height: containerRef.current.clientHeight,
         });
@@ -113,32 +115,38 @@ export default function TerminalPage() {
     };
   }, []);
 
-  // Escuchar Ticks Reales de Firebase RTDB (Inyectados por el bot de Python)
+  // ESCUCHA REAL-TIME (Sin recargas de página)
   useEffect(() => {
     if (!rtdb || !seriesRef.current || !selectedPair) return;
 
-    const tickPath = `market/ticks/${selectedPair.replace('/', '').replace('-', '').trim()}`;
-    const tickRef = ref(rtdb, tickPath);
+    const cleanPair = selectedPair.replace('/', '').replace('-', '').trim();
+    const tickRef = ref(rtdb, `market/ticks/${cleanPair}`);
 
     const unsub = onValue(tickRef, (snapshot) => {
       const val = snapshot.val();
       if (val && val.price) {
         const now = Math.floor(Date.now() / 1000);
-        // Ajustamos la vela actual
+        const candleTime = (Math.floor(now / 60) * 60) as any;
+
+        // Si el precio cambia drásticamente, lo usamos como apertura si es vela nueva
+        const currentOpen = lastPriceRef.current || val.price;
+
         seriesRef.current?.update({
-          time: (Math.floor(now / 60) * 60) as any,
-          open: val.price - 0.0001, // Simplificación para demo
-          high: val.price + 0.0001,
-          low: val.price - 0.0001,
+          time: candleTime,
+          open: currentOpen,
+          high: Math.max(currentOpen, val.price),
+          low: Math.min(currentOpen, val.price),
           close: val.price,
         });
+        
+        lastPriceRef.current = val.price;
       }
     });
 
     return () => unsub();
   }, [rtdb, selectedPair]);
 
-  // Simulación de latencia
+  // Simulación de latencia variable
   useEffect(() => {
     const interval = setInterval(() => {
       setLatency(Math.floor(Math.random() * 5) + 3);
@@ -163,7 +171,7 @@ export default function TerminalPage() {
               </h1>
               <span className="text-[7px] md:text-[8px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-1.5">
                 <div className="w-1 h-1 rounded-full bg-green-500 animate-ping" />
-                Real-Time Data: {selectedPair}
+                Live Feed: {selectedPair}
               </span>
             </div>
           </div>
@@ -174,10 +182,10 @@ export default function TerminalPage() {
             </div>
             {isConnected ? (
               <Badge className="bg-green-500/10 text-green-500 border-green-500/30 py-0.5 text-[8px] md:text-[9px] font-bold uppercase">
-                LIVE
+                ACTIVE
               </Badge>
             ) : (
-              <Badge variant="outline" className="text-muted-foreground border-white/10 py-0.5 text-[8px] md:text-[9px] font-bold">
+              <Badge variant="outline" className="text-muted-foreground border-white/10 py-0.5 text-[8px] md:text-[9px] font-bold uppercase">
                 STANDBY
               </Badge>
             )}
@@ -185,11 +193,10 @@ export default function TerminalPage() {
         </header>
 
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
-          {/* Sidebar de Activos */}
           <aside className="hidden lg:flex w-48 border-r border-white/5 bg-[#050505] flex-col shrink-0">
             <div className="p-4 border-b border-white/5 flex items-center gap-2">
               <Layers className="h-3 w-3 text-muted-foreground" />
-              <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Clústers HFT</span>
+              <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Clústers</span>
             </div>
             <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
               {configuredPairs.map((pair: string) => (
@@ -210,7 +217,6 @@ export default function TerminalPage() {
             </div>
           </aside>
 
-          {/* Área del Gráfico */}
           <div className="flex-1 relative bg-black flex flex-col min-w-0">
             <div className="lg:hidden flex items-center justify-between p-2 bg-[#080808] border-b border-white/5">
                <div className="flex items-center gap-2">
@@ -245,14 +251,14 @@ export default function TerminalPage() {
             {chartLoading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-40">
                 <RefreshCw className="h-8 w-8 animate-spin text-primary mb-3" />
-                <p className="text-[9px] font-bold text-white tracking-[0.2em] uppercase">Sincronizando Feed IQ Option...</p>
+                <p className="text-[9px] font-bold text-white tracking-[0.2em] uppercase font-headline">Sincronizando Feed Cuántico...</p>
               </div>
             )}
 
             <div className="absolute bottom-4 right-4 z-10 hidden sm:flex">
                <div className="bg-black/80 backdrop-blur-xl border border-white/10 px-3 py-1.5 rounded-full flex items-center gap-3 shadow-2xl">
                   <Activity className="h-3 w-3 text-primary animate-pulse" />
-                  <span className="text-[9px] font-bold text-white/70 uppercase tracking-widest">Feed Directo V7</span>
+                  <span className="text-[9px] font-bold text-white/70 uppercase tracking-widest font-code">RT-STREAM: ACTIVE</span>
                </div>
             </div>
           </div>

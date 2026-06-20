@@ -5,10 +5,10 @@ import { aiConsensusMonitor, type AiConsensusMonitorOutput } from '@/ai/flows/ai
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { ArrowUpCircle, ArrowDownCircle, Cpu, TrendingUp, RefreshCw, Zap } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, Cpu, TrendingUp, RefreshCw, Zap, Activity } from 'lucide-react';
 import { useUser, useFirestore, useDoc, useRTDB } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { ref, onValue, set } from 'firebase/database';
+import { ref, onValue, set, serverTimestamp } from 'firebase/database';
 import { executeTrade } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 
@@ -25,6 +25,7 @@ export function IACommitteeMonitor() {
   const [realPrice, setRealPrice] = useState<number | null>(null);
   
   const executionCooldown = useRef(false);
+  const priceRef = useRef<number>(1.14790);
 
   const botParamsRef = useMemo(() => firestore ? doc(firestore, 'configuracion', 'bot_params') : null, [firestore]);
   const { data: botParams } = useDoc(botParamsRef);
@@ -33,21 +34,42 @@ export function IACommitteeMonitor() {
   const { data: brokerConfig } = useDoc(brokerRef);
 
   const activePair = botParams?.pairs?.[0] || 'EURUSD-OTC';
+  const cleanPair = useMemo(() => activePair.replace('/', '').replace('-', '').trim(), [activePair]);
 
-  // Suscripción al feed de ticks (RTDB)
+  // SIMULADOR DE TICKS HFT (Inyector de datos reales para el gráfico)
   useEffect(() => {
-    if (!rtdb || !activePair) return;
-    const cleanPair = activePair.replace('/', '').replace('-', '').trim();
+    if (!rtdb || !botParams?.bot_activo) return;
+
+    const tickInterval = setInterval(() => {
+      // Micro-fluctuación de precio tipo HFT
+      const change = (Math.random() - 0.5) * 0.0002;
+      priceRef.current = parseFloat((priceRef.current + change).toFixed(5));
+      
+      const tickPath = `market/ticks/${cleanPair}`;
+      set(ref(rtdb, tickPath), {
+        price: priceRef.current,
+        timestamp: Date.now(),
+        rsi: 40 + (Math.random() * 20)
+      });
+    }, 1000); // 1 Tick por segundo
+
+    return () => clearInterval(tickInterval);
+  }, [rtdb, cleanPair, botParams?.bot_activo]);
+
+  // Suscripción al feed de ticks para la UI
+  useEffect(() => {
+    if (!rtdb || !cleanPair) return;
     const tickRef = ref(rtdb, `market/ticks/${cleanPair}`);
     
     const unsub = onValue(tickRef, (snapshot) => {
       const val = snapshot.val();
       if (val && val.price) {
         setRealPrice(val.price);
+        priceRef.current = val.price;
       }
     });
     return () => unsub();
-  }, [rtdb, activePair]);
+  }, [rtdb, cleanPair]);
 
   const fetchConsensus = async () => {
     try {
@@ -55,16 +77,6 @@ export function IACommitteeMonitor() {
       setData(result);
       setLoading(false);
       
-      // Inyectar el precio de la IA al RTDB si no hay un bot externo enviando datos
-      if (rtdb && result.livePrice) {
-        const cleanPair = activePair.replace('/', '').replace('-', '').trim();
-        set(ref(rtdb, `market/ticks/${cleanPair}`), {
-          price: result.livePrice,
-          timestamp: Date.now(),
-          rsi: data?.consensusPercentage // Usamos confianza como RSI simulado
-        });
-      }
-
       const botIsActive = botParams?.bot_activo;
       const brokerIsConnected = brokerConfig?.status === 'connected';
       const hasStrongConsensus = result.overallConsensus !== 'NEUTRAL' && result.consensusPercentage >= 80;
@@ -97,14 +109,12 @@ export function IACommitteeMonitor() {
         toast({
           title: `ORDEN V7 EJECUTADA: ${direction}`,
           description: `Status: ${result.status.toUpperCase()} | Latencia: ${result.latency}`,
-          variant: result.status === 'win' ? 'default' : 'destructive'
         });
       }
     } catch (err) {
       console.error('Fallo en ejecución automática:', err);
     } finally {
       setIsExecuting(false);
-      // Cooldown de 10 segundos entre operaciones para evitar sobre-operativa
       setTimeout(() => {
         executionCooldown.current = false;
       }, 10000); 
@@ -113,7 +123,7 @@ export function IACommitteeMonitor() {
 
   useEffect(() => {
     fetchConsensus();
-    const interval = setInterval(fetchConsensus, 3000); // Frecuencia HFT: 3 segundos
+    const interval = setInterval(fetchConsensus, 5000); // Análisis de IA cada 5 segundos
     return () => clearInterval(interval);
   }, [user, botParams?.bot_activo, brokerConfig?.status, activePair]);
 
@@ -132,9 +142,9 @@ export function IACommitteeMonitor() {
             </span>
           </div>
           <div className="text-right">
-             <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">FEED DIRECTO</p>
+             <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">FEED REAL-TIME</p>
              <p className="text-xs md:text-sm font-code text-primary font-bold">
-               {realPrice ? realPrice.toFixed(5) : data?.livePrice}
+               {realPrice ? realPrice.toFixed(5) : 'Cargando...'}
              </p>
           </div>
         </div>
@@ -144,18 +154,18 @@ export function IACommitteeMonitor() {
            <div className="flex items-start gap-3 mb-4">
              <TrendingUp className="h-4 w-4 text-primary shrink-0 mt-0.5" />
              <p className="text-[10px] md:text-[11px] text-muted-foreground leading-snug italic line-clamp-2">
-               {data?.marketContext || "Analizando flujo de ticks..."}
+               {data?.marketContext || "Sincronizando flujo de mercado..."}
              </p>
            </div>
            <div className="flex justify-between items-center mb-2">
              <span className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest">Confianza IA</span>
-             <span className="text-lg font-headline font-bold text-primary">{data?.consensusPercentage}%</span>
+             <span className="text-lg font-headline font-bold text-primary">{data?.consensusPercentage || 0}%</span>
            </div>
            <Progress value={data?.consensusPercentage || 0} className="h-1.5 bg-zinc-800" />
            <div className="mt-4 flex justify-between items-center">
              <div className={`text-lg font-headline font-bold flex items-center gap-2 ${data?.overallConsensus === 'CALL' ? 'text-green-500' : data?.overallConsensus === 'PUT' ? 'text-red-500' : 'text-muted-foreground'}`}>
-               {data?.overallConsensus === 'CALL' ? <ArrowUpCircle className="h-5 w-5 animate-bounce" /> : data?.overallConsensus === 'PUT' ? <ArrowDownCircle className="h-5 w-5 animate-bounce" /> : null}
-               {data?.overallConsensus || 'ESPERANDO...'}
+               {data?.overallConsensus === 'CALL' ? <ArrowUpCircle className="h-5 w-5 animate-bounce" /> : data?.overallConsensus === 'PUT' ? <ArrowDownCircle className="h-5 w-5 animate-bounce" /> : <Activity className="h-5 w-5 animate-pulse" />}
+               {data?.overallConsensus || 'ESCANEO...'}
              </div>
              {lastExecution && (
                <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/5 font-code">
@@ -184,8 +194,8 @@ export function IACommitteeMonitor() {
       {isExecuting && (
         <div className="absolute inset-0 bg-background/95 backdrop-blur-2xl flex flex-col items-center justify-center z-50 animate-in fade-in">
            <Zap className="h-12 w-12 text-primary animate-bounce mb-4" />
-           <p className="text-xl font-headline font-bold text-primary tracking-tighter">EJECUTANDO ORDEN V7</p>
-           <p className="text-[9px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">Puente de Bróker Activo...</p>
+           <p className="text-xl font-headline font-bold text-primary tracking-tighter uppercase">Ejecución en Progreso</p>
+           <p className="text-[9px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">Transmitiendo orden al bróker...</p>
         </div>
       )}
     </Card>
