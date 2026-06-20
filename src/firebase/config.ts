@@ -8,5 +8,6 @@ export const firebaseConfig = {
   storageBucket: "botinvest-bfa58.firebasestorage.app",
   messagingSenderId: "994913565688",
   appId: "1:994913565688:web:ac9d91a2d0e85a4790740d",
+  measurementId: "G-EHYSE6YZZP",
   databaseURL: "https://botinvest-bfa58-default-rtdb.firebaseio.com",
 };

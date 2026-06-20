@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -5,14 +6,21 @@ export function middleware(request: NextRequest) {
   const session = request.cookies.get('session');
   const { pathname } = request.nextUrl;
 
-  // Paths that don't require authentication
-  if (pathname === '/login' || pathname.startsWith('/_next') || pathname.startsWith('/api/auth')) {
+  // Rutas que no requieren autenticación
+  if (
+    pathname === '/login' || 
+    pathname.startsWith('/_next') || 
+    pathname.startsWith('/api/') ||
+    pathname.includes('.') // Archivos estáticos
+  ) {
     return NextResponse.next();
   }
 
-  // Redirect to login if no session is present
+  // Redirigir al login si no hay sesión
   if (!session) {
     const loginUrl = new URL('/login', request.url);
+    // Preservar la URL a la que intentaba acceder el operador
+    loginUrl.searchParams.set('from', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
@@ -20,5 +28,6 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/settings/:path*'],
+  // Coincidir con todas las rutas excepto las de sistema
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 };

@@ -1,9 +1,10 @@
+
 'use client';
 
 import { useState } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +26,7 @@ export default function LoginPage() {
   const auth = useAuth();
   const firestore = useFirestore();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -63,34 +65,35 @@ export default function LoginPage() {
           });
 
         toast({
-          title: "CUENTA CREADA",
-          description: "Bienvenido al sistema NeuroTrade. Inicializa tu rango en el dashboard.",
+          title: "OPERADOR REGISTRADO",
+          description: "Bienvenido al sistema NeuroTrade.",
         });
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         user = userCredential.user;
       }
 
-      // Establecer cookie de sesión para el middleware
+      // Establecer cookie de sesión de forma segura
       if (user) {
         const token = await user.getIdToken();
-        document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
+        // Cookie caduca en 1 hora
+        document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax; Secure`;
         
-        // Pequeña espera para asegurar que la cookie se procese
-        setTimeout(() => {
-          router.push('/dashboard');
-          router.refresh();
-        }, 100);
+        // Redirección forzada para asegurar que el middleware vea la cookie
+        const from = searchParams.get('from') || '/dashboard';
+        window.location.href = from;
       }
     } catch (err: any) {
-      let message = 'Error de conexión con el núcleo central.';
+      let message = 'Fallo en el protocolo de autenticación.';
       
       if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-        message = 'Credenciales inválidas. Por favor, verifica tu ID y protocolo.';
+        message = 'ID o Protocolo de Seguridad incorrecto.';
       } else if (err.code === 'auth/email-already-in-use') {
-        message = 'Este ID de operador ya está activo en el sistema.';
+        message = 'El ID de operador ya está activo.';
       } else if (err.code === 'auth/weak-password') {
-        message = 'El protocolo de seguridad es demasiado débil (mín. 6 caracteres).';
+        message = 'Seguridad insuficiente (mín. 6 caracteres).';
+      } else if (err.code === 'auth/too-many-requests') {
+        message = 'Demasiados intentos. Terminal bloqueada temporalmente.';
       }
       
       setError(message);
@@ -125,7 +128,7 @@ export default function LoginPage() {
                   placeholder="Ej. Comandante Alpha" 
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="bg-background/50 border-white/5"
+                  className="bg-background/50 border-white/5 focus:border-primary/50"
                 />
               </div>
             )}
@@ -138,7 +141,7 @@ export default function LoginPage() {
                 required 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="bg-background/50 border-white/5"
+                className="bg-background/50 border-white/5 focus:border-primary/50"
               />
             </div>
             <div className="space-y-2">
@@ -149,18 +152,18 @@ export default function LoginPage() {
                 required 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="bg-background/50 border-white/5"
+                className="bg-background/50 border-white/5 focus:border-primary/50"
               />
             </div>
             {error && (
-              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-[11px] flex items-center gap-2 font-bold uppercase">
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-[11px] flex items-center gap-2 font-bold uppercase animate-in fade-in slide-in-from-top-1">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{error}</span>
               </div>
             )}
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full h-12 font-headline text-lg bg-primary hover:bg-primary/90" disabled={loading}>
+            <Button type="submit" className="w-full h-12 font-headline text-lg bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20" disabled={loading}>
               {loading ? (
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
               ) : isRegister ? (
@@ -173,7 +176,7 @@ export default function LoginPage() {
             <Button 
               type="button" 
               variant="ghost" 
-              className="w-full text-xs text-muted-foreground" 
+              className="w-full text-xs text-muted-foreground hover:text-foreground" 
               onClick={() => {
                 setIsRegister(!isRegister);
                 setError('');
