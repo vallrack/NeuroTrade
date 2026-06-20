@@ -44,17 +44,18 @@ export default function LoginPage() {
           await updateProfile(user, { displayName });
         }
 
-        // Crear perfil inicial
+        // Crear perfil inicial en Firestore
         const userRef = doc(firestore, 'users', user.uid);
         const userData = {
           email: user.email,
           displayName: displayName || user.email?.split('@')[0],
-          role: null,
+          role: null, // Sin rol inicial para permitir inicialización manual
           createdAt: serverTimestamp(),
           lastActive: serverTimestamp(),
         };
 
-        await setDoc(userRef, userData, { merge: true }).catch(async (serverError) => {
+        // Mutation no bloqueante siguiendo directrices
+        setDoc(userRef, userData, { merge: true }).catch(async (serverError) => {
           const permissionError = new FirestorePermissionError({
             path: userRef.path,
             operation: 'create',
@@ -65,7 +66,7 @@ export default function LoginPage() {
 
         toast({
           title: "OPERADOR REGISTRADO",
-          description: "Bienvenido al sistema NeuroTrade.",
+          description: "Perfil cuántico creado. Iniciando sesión...",
         });
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -74,14 +75,14 @@ export default function LoginPage() {
 
       if (user) {
         const token = await user.getIdToken();
-        // Establecer cookie con parámetros compatibles para desarrollo
+        // Establecer cookie de sesión para el middleware
         document.cookie = `session=${token}; path=/; max-age=3600; SameSite=Lax`;
         
-        // Pequeña pausa para asegurar que la cookie se guarde
+        // Redirección forzada para asegurar que el middleware detecte la cookie
+        const from = searchParams.get('from') || '/dashboard';
         setTimeout(() => {
-          const from = searchParams.get('from') || '/dashboard';
           window.location.href = from;
-        }, 100);
+        }, 500);
       }
     } catch (err: any) {
       console.error(err);

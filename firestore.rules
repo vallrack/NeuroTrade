@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -19,9 +20,9 @@ service cloud.firestore {
     // Reglas para perfiles de usuario
     match /users/{userId} {
       allow read: if isSignedIn() && (isOwner(userId) || isSuperAdmin());
-      // Permitir creación inicial si es su propio perfil
+      // Permitir creación inicial si es su propio perfil durante el registro
       allow create: if isOwner(userId);
-      // Permitir actualización si es el dueño o super administrador
+      // Permitir actualización si es el dueño (para inicialización) o super administrador
       allow update: if isOwner(userId) || isSuperAdmin();
       allow delete: if isSuperAdmin();
     }

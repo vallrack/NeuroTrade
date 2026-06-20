@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -28,6 +29,7 @@ export default function DashboardPage() {
   const { data: profile, loading: profileLoading } = useDoc(profileRef);
 
   const isSuperAdmin = profile?.role === 'super-admin';
+  // El botón de inicialización aparece si el perfil existe pero no tiene rol asignado
   const hasNoRole = profile && !profile.role;
 
   const handleInitialSetup = async () => {
@@ -144,41 +146,33 @@ export default function DashboardPage() {
             
             <div className="space-y-6">
               <LogConsole />
-              <CardWithRecentTrades />
+              <div className="bg-card/50 border border-white/5 rounded-xl p-4 shadow-sm backdrop-blur-sm">
+                <h3 className="font-headline font-bold text-xs mb-4 px-2 text-muted-foreground tracking-widest uppercase">EJECUCIONES RECIENTES</h3>
+                <div className="space-y-3">
+                  {[
+                    { pair: 'EUR/USD', type: 'COMPRA', price: '1.0842', result: 'WIN', time: 'hace 2m', profit: '+85%' },
+                    { pair: 'BTC/USD', type: 'VENTA', price: '94,231', result: 'WIN', time: 'hace 8m', profit: '+120%' },
+                  ].map((trade, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-1 h-8 rounded-full ${trade.result === 'WIN' ? 'bg-green-500' : 'bg-red-500'}`} />
+                        <div>
+                          <p className="text-sm font-bold">{trade.pair}</p>
+                          <p className="text-[10px] text-muted-foreground">{trade.type} @ {trade.price}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-sm font-bold ${trade.result === 'WIN' ? 'text-green-500' : 'text-red-500'}`}>{trade.profit}</p>
+                        <p className="text-[10px] text-muted-foreground">{trade.time}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </main>
       </SidebarInset>
     </SidebarProvider>
-  );
-}
-
-function CardWithRecentTrades() {
-  return (
-    <div className="bg-card/50 border border-white/5 rounded-xl p-4 shadow-sm backdrop-blur-sm">
-      <h3 className="font-headline font-bold text-xs mb-4 px-2 text-muted-foreground tracking-widest uppercase">EJECUCIONES DE ALTA FRECUENCIA</h3>
-      <div className="space-y-3">
-        {[
-          { pair: 'EUR/USD', type: 'COMPRA', price: '1.0842', result: 'WIN', time: 'hace 2m', profit: '+85%' },
-          { pair: 'BTC/USD', type: 'VENTA', price: '94,231', result: 'WIN', time: 'hace 8m', profit: '+120%' },
-          { pair: 'GBP/JPY', type: 'COMPRA', price: '190.12', result: 'LOSS', time: 'hace 15m', profit: '-100%' },
-        ].map((trade, i) => (
-          <div key={i} className="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all border border-transparent hover:border-white/5">
-            <div className="flex items-center gap-3">
-              <div className={`w-1 h-10 rounded-full ${trade.result === 'WIN' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`} />
-              <div>
-                <p className="text-sm font-bold">{trade.pair}</p>
-                <p className="text-[10px] text-muted-foreground font-code">{trade.type} @ {trade.price}</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className={`text-sm font-bold ${trade.result === 'WIN' ? 'text-green-500' : 'text-red-500'}`}>{trade.profit}</p>
-              <p className="text-[10px] text-muted-foreground">{trade.time}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-      <Button variant="ghost" className="w-full mt-4 text-[10px] font-bold text-primary/70 hover:text-primary">VER TODO EL HISTORIAL</Button>
-    </div>
   );
 }
