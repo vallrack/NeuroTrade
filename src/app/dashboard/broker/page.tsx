@@ -41,6 +41,8 @@ function BrokerContent() {
   const [password, setPassword] = useState('');
   const [isReal, setIsReal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [bridgeSource, setBridgeSource] = useState<'cloud' | 'local'>('cloud');
+  const [customCloudUrl, setCustomCloudUrl] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -58,6 +60,11 @@ function BrokerContent() {
       setEmail(brokerConfig.email || '');
       setIsReal(brokerConfig.accountType === 'real');
     }
+    // Cargar preferencia de bridge desde localStorage
+    const savedSource = localStorage.getItem('nt_bridge_source');
+    if (savedSource) setBridgeSource(savedSource as 'cloud' | 'local');
+    const savedUrl = localStorage.getItem('nt_custom_cloud_url');
+    if (savedUrl) setCustomCloudUrl(savedUrl);
   }, [brokerConfig]);
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -81,9 +88,15 @@ function BrokerContent() {
       // 2. Llamar al bridge para obtener el balance REAL de IQ Option
       let realBalance = 0;
       try {
-        const bridgeUrl = process.env.NEXT_PUBLIC_BRIDGE_URL || 'https://dprogramadores.com.co/nt-bridge';
-        const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'quantum_v7_secure_key_123';
+        const defaultCloudUrl = process.env.NEXT_PUBLIC_BRIDGE_URL || 'https://eurotrade-bridge.onrender.com';
+        const bridgeUrl = bridgeSource === 'local' 
+          ? 'http://localhost:5000' 
+          : (customCloudUrl || defaultCloudUrl);
+          
+        const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'neurotrade-secret-2024';
         
+        console.log(`Intentando conectar a Bridge en: ${bridgeUrl} (${bridgeSource})`);
+
         // Timeout de 15 segundos para no quedarse colgado
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -259,44 +272,103 @@ function BrokerContent() {
              </div>
 
              <div className="lg:col-span-5 space-y-6">
-               <Card className="bg-primary/5 border-primary/20">
-                 <CardHeader>
-                   <CardTitle className="text-sm font-headline font-bold flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4 text-primary" />
-                      Protocolo de Seguridad
-                   </CardTitle>
-                 </CardHeader>
-                 <CardContent className="space-y-4">
-                    <p className="text-[10px] text-muted-foreground leading-relaxed uppercase font-bold tracking-tight">
-                      Sus credenciales nunca se almacenan en texto plano en la nube. Solo se utilizan para que el puente local establezca la sesión WebSocket con los servidores del broker.
-                    </p>
-                    <div className="space-y-2 pt-2">
-                       <div className="flex items-center gap-2 text-[10px] text-green-500 font-bold italic">
-                          <CheckCircle2 className="h-3 w-3" />
-                          RSA SHA-256 ENCRYPTED
-                       </div>
-                       <div className="flex items-center gap-2 text-[10px] text-green-500 font-bold italic">
-                          <CheckCircle2 className="h-3 w-3" />
-                          DPI BYPASS ACTIVE
-                       </div>
-                    </div>
-                 </CardContent>
-               </Card>
-
-               <Card className="bg-yellow-500/5 border-yellow-500/20">
-                 <CardHeader className="pb-2">
-                    <CardTitle className="text-xs font-bold flex items-center gap-2 text-yellow-500">
-                      <AlertCircle className="h-4 w-4" />
-                      REQUERIMIENTO
+                <Card className="bg-card/50 border-white/5 backdrop-blur-xl border-primary/20">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-headline font-bold flex items-center gap-2">
+                       <Settings className="h-4 w-4 text-primary" />
+                       Configuración del Servidor
                     </CardTitle>
-                 </CardHeader>
-                 <CardContent>
-                    <p className="text-[10px] text-muted-foreground leading-relaxed">
-                      Para que el vínculo sea efectivo, el script <span className="text-yellow-500 font-code">automatic_bridge.py</span> debe estar ejecutándose en su terminal local con el entorno de Python activo.
-                    </p>
-                 </CardContent>
-               </Card>
-             </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex p-1 bg-white/5 rounded-lg border border-white/5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBridgeSource('cloud');
+                          localStorage.setItem('nt_bridge_source', 'cloud');
+                        }}
+                        className={cn(
+                          "flex-1 py-2 px-3 rounded-md text-[10px] font-bold transition-all flex items-center justify-center gap-2",
+                          bridgeSource === 'cloud' ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        <Globe className="h-3 w-3" />
+                        NUBE (RENDER)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBridgeSource('local');
+                          localStorage.setItem('nt_bridge_source', 'local');
+                        }}
+                        className={cn(
+                          "flex-1 py-2 px-3 rounded-md text-[10px] font-bold transition-all flex items-center justify-center gap-2",
+                          bridgeSource === 'local' ? 'bg-amber-500 text-black shadow-lg' : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        <Database className="h-3 w-3" />
+                        PUENTE LOCAL
+                      </button>
+                    </div>
+
+                    {bridgeSource === 'cloud' && (
+                      <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground font-mono">URL de Render</Label>
+                        <Input 
+                          value={customCloudUrl}
+                          onChange={(e) => {
+                            setCustomCloudUrl(e.target.value);
+                            localStorage.setItem('nt_custom_cloud_url', e.target.value);
+                          }}
+                          className="h-8 text-xs bg-background/50 border-white/10"
+                          placeholder="https://su-bridge.onrender.com"
+                        />
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-primary/5 border-primary/20">
+                  <CardHeader>
+                    <CardTitle className="text-sm font-headline font-bold flex items-center gap-2">
+                       <ShieldCheck className="h-4 w-4 text-primary" />
+                       Protocolo de Seguridad
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                     <p className="text-[10px] text-muted-foreground leading-relaxed uppercase font-bold tracking-tight">
+                       Sus credenciales nunca se almacenan en texto plano en la nube. Solo se utilizan para que el puente local establezca la sesión WebSocket con los servidores del broker.
+                     </p>
+                     <div className="space-y-2 pt-2">
+                        <div className="flex items-center gap-2 text-[10px] text-green-500 font-bold italic">
+                           <CheckCircle2 className="h-3 w-3" />
+                           RSA SHA-256 ENCRYPTED
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] text-green-500 font-bold italic">
+                           <CheckCircle2 className="h-3 w-3" />
+                           DPI BYPASS ACTIVE
+                        </div>
+                     </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-yellow-500/5 border-yellow-500/20">
+                  <CardHeader className="pb-2">
+                     <CardTitle className="text-xs font-bold flex items-center gap-2 text-yellow-500">
+                       <AlertCircle className="h-4 w-4" />
+                       REQUERIMIENTO
+                     </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                     <p className="text-[10px] text-muted-foreground leading-relaxed">
+                       {bridgeSource === 'local' 
+                        ? 'Usted está en MODO LOCAL. Asegúrese de que bridge_server.py esté corriendo en su PC actual en el puerto 5000.'
+                        : 'Usted está en MODO NUBE. El servidor de Render gestionará la conexión permanentemente sin necesidad de su PC.'
+                       }
+                     </p>
+                  </CardContent>
+                </Card>
+              </div>
           </div>
         </main>
       </SidebarInset>
