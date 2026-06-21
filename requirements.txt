@@ -2,4 +2,4 @@ flask
 flask-cors
 requests
 websocket-client
-iqoptionapi
+https://github.com/iqoptionapi/iqoptionapi/archive/master.zip

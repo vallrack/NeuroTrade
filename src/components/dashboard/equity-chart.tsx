@@ -2,44 +2,59 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useFirestore } from '@/firebase';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { useFirestore, useUser, useDoc } from '@/firebase';
+import { collection, query, orderBy, limit, onSnapshot, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 export function EquityChart() {
+  const { user } = useUser();
   const firestore = useFirestore();
   const [data, setData] = useState<any[]>([]);
 
-  useEffect(() => {
-    if (!firestore) return;
+  const brokerRef = user && firestore ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
+  const { data: brokerConfig } = useDoc(brokerRef as any);
+  const accountType = brokerConfig?.accountType || 'demo';
 
-    const q = query(collection(firestore, 'rendimiento_diario'), orderBy('date', 'asc'), limit(30));
+  // Obtener estadísticas para el balance actual
+  const statsRef = user && firestore ? doc(firestore, 'users', user.uid, 'trading_stats', accountType) : null;
+  const { data: tradingStats } = useDoc(statsRef as any);
+
+  useEffect(() => {
+    if (!firestore || !user) return;
+
+    // Consultamos el rendimiento específico del usuario y del tipo de cuenta
+    const q = query(
+      collection(firestore, 'users', user.uid, `rendimiento_${accountType}`), 
+      orderBy('date', 'asc'), 
+      limit(30)
+    );
     
     const unsub = onSnapshot(
       q, 
       (snapshot) => {
-        const records = snapshot.docs.map(docSnapshot => {
+        let records = snapshot.docs.map(docSnapshot => {
           const docData = docSnapshot.data();
           return {
             date: new Date(docData.date).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }),
             equity: docData.equity
           };
         });
+        
+        // Si el historial está vacío (cuenta nueva), mostrar al menos el balance actual como punto de partida
+        if (records.length === 0 && tradingStats?.balance !== undefined) {
+            records = [{ date: 'Inicio', equity: tradingStats.balance }];
+        }
+        
         setData(records);
       },
-      async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: 'rendimiento_diario',
-          operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
+      (serverError) => {
+        console.warn("Esperando datos de rendimiento...");
       }
     );
     return () => unsub();
-  }, [firestore]);
+  }, [firestore, user, accountType, tradingStats?.balance]);
 
   return (
     <Card className="col-span-1 lg:col-span-2 bg-card/50 border-white/5 backdrop-blur-md">
