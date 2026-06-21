@@ -85,17 +85,27 @@ export function IACommitteeMonitor() {
     let isMounted = true;
 
     const fetchData = async () => {
+      // Protector contra re-ejecución accidental
       const now = Date.now();
-      if (now - lastFetchTime.current < 4500) return;
+      if (now - lastFetchTime.current < 4000) return;
       lastFetchTime.current = now;
 
       try {
-        const bridgeUrl = process.env.NEXT_PUBLIC_BRIDGE_URL || 'https://dprogramadores.com.co/nt-bridge';
+        // Obtener la URL configurada por el usuario en la página del Broker
+        const savedSource = localStorage.getItem('nt_bridge_source') || 'cloud';
+        const savedRender = localStorage.getItem('nt_render_url') || 'https://eurotrade-bridge.onrender.com';
+        const savedTunnel = localStorage.getItem('nt_tunnel_url') || 'https://huge-clubs-float.loca.lt';
+        
+        const bridgeUrl = savedSource === 'cloud' ? savedRender : savedTunnel;
+        const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'neurotrade-secret-2024';
+
+        console.log(`[IA Monitor] Consultando Bridge en: ${bridgeUrl}`);
+        
         const res = await fetch(`${bridgeUrl}/analyze`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Bridge-Token': process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'quantum_v7_secure_key_123',
+            'X-Bridge-Token': bridgeToken,
           },
           body: JSON.stringify({
             email: brokerConfig.email,
