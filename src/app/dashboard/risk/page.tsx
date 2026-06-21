@@ -1,8 +1,9 @@
+
 'use client';
 
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -17,11 +18,20 @@ import { useFirestore, useDoc } from '@/firebase';
 import { doc } from 'firebase/firestore';
 
 export default function RiskPage() {
+  const [mounted, setMounted] = useState(false);
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const firestore = useFirestore();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
-  const botParamsRef = doc(firestore, 'configuracion', 'bot_params');
+  const botParamsRef = useMemo(() => {
+    if (!mounted || !firestore) return null;
+    return doc(firestore, 'configuracion', 'bot_params');
+  }, [mounted, firestore]);
+
   const { data: botParams, loading: paramsLoading } = useDoc(botParamsRef);
 
   const [investment, setInvestment] = useState('10');
@@ -61,6 +71,14 @@ export default function RiskPage() {
         description: "El motor ha sincronizado los nuevos límites de seguridad.",
       });
     }
+  }
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-primary">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
   }
 
   return (
