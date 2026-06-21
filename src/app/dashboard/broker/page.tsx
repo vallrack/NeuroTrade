@@ -84,7 +84,7 @@ function BrokerContent() {
 
       await fetch(`${bridgeUrl}/disconnect`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Bridge-Token': bridgeToken },
+        headers: { 'Content-Type': 'application/json', 'X-Bridge-Token': bridgeToken, 'Bypass-Tunnel-Reminder': 'true' },
         body: JSON.stringify({ 
            email: brokerConfig.email, 
            accountType: brokerConfig.accountType 
@@ -123,7 +123,7 @@ function BrokerContent() {
         
         const response = await fetch(`${bridgeUrl}/connect`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Bridge-Token': bridgeToken },
+          headers: { 'Content-Type': 'application/json', 'X-Bridge-Token': bridgeToken, 'Bypass-Tunnel-Reminder': 'true' },
           body: JSON.stringify({ email, password, accountType })
         });
         
