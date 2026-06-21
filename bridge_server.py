@@ -6,33 +6,42 @@ from flask_cors import CORS
 from iqoptionapi.stable_api import IQ_Option
 
 app = Flask(__name__)
-CORS(app)
+# Permitir CORS para que Vercel y Localtunnel no tengan problemas
+CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Almacen de sesiones
+# Almacen de sesiones: { "email_accountType": iq_object }
 sessions = {}
 
 def get_iq_connection(email, password, account_type='demo'):
+    # Crear una llave única para esta combinación de correo y tipo de cuenta
+    session_key = f"{email}_{account_type.lower()}"
     target_mode = "PRACTICE" if account_type.lower() == 'demo' else "REAL"
+    
     try:
-        if email in sessions:
-            iq = sessions[email]
+        # Si ya existe la sesión y está conectada, la usamos
+        if session_key in sessions:
+            iq = sessions[session_key]
             if iq.check_connect():
+                # Nos aseguramos que esté en el modo correcto (Real/Demo)
                 iq.change_balance(target_mode)
                 return iq, None
+            else:
+                # Si se desconectó, la removemos para crear una nueva
+                del sessions[session_key]
         
+        # Crear nueva conexión
         iq = IQ_Option(email, password)
         check, reason = iq.connect()
         
+        if not check:
+            return None, f"Error de conexión: {reason}"
+            
         iq.change_balance(target_mode)
         
-        # Esperar hasta 3 segundos a que el saldo se sincronice
-        for _ in range(3):
-            balance = iq.get_balance()
-            if balance is not None and balance > 0:
-                break
-            time.sleep(1)
-
-        sessions[email] = iq
+        # Esperar sincronización de saldo (vital para no mostrar $0 previos)
+        time.sleep(2) 
+        
+        sessions[session_key] = iq
         return iq, None
     except Exception as e:
         return None, str(e)
@@ -41,8 +50,8 @@ def get_iq_connection(email, password, account_type='demo'):
 def health():
     return jsonify({
         "status": "ONLINE",
-        "sessions_active": len(sessions),
-        "sdk": "READY"
+        "sessions_active": list(sessions.keys()),
+        "server_time": time.time()
     })
 
 @app.route('/connect', methods=['POST'])
@@ -55,11 +64,13 @@ def connect():
         
         iq, error = get_iq_connection(email, password, acc_type)
         if not iq:
-            return jsonify({"success": False, "error": f"Login Fail: {error}"}), 401
+            return jsonify({"success": False, "error": error}), 401
             
         return jsonify({
             "success": True, 
             "balance": iq.get_balance(),
+            "account": email,
+            "type": acc_type,
             "status": "connected"
         })
     except Exception as e:
@@ -76,28 +87,31 @@ def analyze():
 
         iq, error = get_iq_connection(email, password, acc_type)
         if not iq:
-            return jsonify({"success": False, "error": "Session lost"}), 401
+            return jsonify({"success": False, "error": "Sesión no disponible. Re-conecte."}), 401
 
-        # Obtener velas (OHLC)
+        # Obtener velas actualizadas
         candles = iq.get_candles(pair, 60, 30, time.time())
         
-        # Analisis simple de tendencia (Sin PANDAS)
+        # Dirección basada en última vela
+        direction = "NEUTRAL"
         if len(candles) > 1:
             last_close = candles[-1]['close']
             prev_close = candles[-2]['close']
-            direction = "CALL" if last_close > prev_close else "PUT"
-        else:
-            direction = "NEUTRAL"
+            if last_close > prev_close: direction = "CALL"
+            if last_close < prev_close: direction = "PUT"
 
         return jsonify({
             "success": True,
             "balance": iq.get_balance(),
             "direction": direction,
             "pair": pair,
-            "candles": candles[-20:] # Ultimas 20 para el grafico
+            "account": email,
+            "candles": candles[-20:] 
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(port=5000)
+    # Usar puerto 5000 por defecto
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
