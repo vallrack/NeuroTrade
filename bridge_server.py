@@ -42,26 +42,35 @@ def health():
 
 @app.route('/connect', methods=['POST'])
 def connect():
+    print("--- NUEVA SOLICITUD DE CONEXIÓN ---")
     try:
         data = request.json
         email = data.get('email')
         password = data.get('password')
         account_type = data.get('accountType', 'demo')
         
+        print(f"Intento de conexión para: {email} en modo {account_type}")
+        
         iq, error = get_iq_connection(email, password, account_type)
         if not iq:
+            print(f"ERROR DE AUTENTICACIÓN: {error}")
             return jsonify({"success": False, "error": f"Auth Fail: {error}"}), 401
             
+        balance = iq.get_balance()
+        print(f"CONEXIÓN EXITOSA. Balance obtenido: {balance}")
+        
         return jsonify({
             "success": True, 
-            "balance": iq.get_balance(),
+            "balance": balance,
             "status": "connected"
         })
     except Exception as e:
+        print(f"EXCEPCIÓN EN /CONNECT: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
+    # print(f"Analizando {request.json.get('pair')}...") # Comentado para no saturar logs
     try:
         data = request.json
         email = data.get('email')
