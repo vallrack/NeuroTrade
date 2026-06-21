@@ -5,6 +5,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useAuth, useUser } from '@/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -122,6 +123,12 @@ function LoginContent() {
               {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
               Autenticar Identidad
             </Button>
+            <p className="text-xs text-center text-muted-foreground mt-2">
+              ¿No tienes cuenta?{' '}
+              <Link href="/signup" className="text-primary hover:underline font-bold">
+                Crea una aquí
+              </Link>
+            </p>
           </CardFooter>
         </form>
       </Card>
