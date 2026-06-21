@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 import { playSuccessChime, playTechBeep, playAlarm } from '@/lib/sounds';
+import { TradingChart } from './trading-chart';
 
 export function IACommitteeMonitor() {
   const [mounted, setMounted] = useState(false);
@@ -288,6 +289,18 @@ export function IACommitteeMonitor() {
              <span className="text-lg font-headline font-bold text-primary">{data?.consensusPercentage || 0}%</span>
            </div>
            <Progress value={data?.consensusPercentage || 0} className="h-1.5 bg-zinc-800" />
+           
+           {/* GRÁFICO DE VELAS REALES */}
+           <div className="mt-4 h-[180px] w-full">
+              {data?.candles ? (
+                <TradingChart data={data.candles} pair={activePair} />
+              ) : (
+                <div className="h-full w-full bg-black/40 rounded-xl flex items-center justify-center border border-white/5 animate-pulse">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Sincronizando Velas...</p>
+                </div>
+              )}
+           </div>
+
            <div className="mt-4 flex justify-between items-center">
              <div className={cn(
                "text-lg font-headline font-bold flex items-center gap-2",

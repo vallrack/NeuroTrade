@@ -64,48 +64,72 @@ def health():
 @app.route('/analyze', methods=['POST'])
 def analyze():
     import time
+    import pandas as pd
     try:
         data = request.json
         email = data.get('email')
         password = data.get('password')
         pair = data.get('pair', 'EURUSD-OTC')
         
-        # Reconectar / Usar sesión persistente
         iq, error = get_iq_connection(email, password)
         if not iq:
             return jsonify({"success": False, "error": error}), 401
             
-        # Extraer el mercado real (Velas de 1 Minuto, ultimas 10)
-        # IQ Option format: get_candles(ACTIVO, TIEMPO_SEGUNDOS, CANTIDAD, HORA_FIN)
-        candles = iq.get_candles(pair, 60, 10, time.time())
-        logs = []
+        # Obtenemos 50 velas para análisis técnico serio
+        raw_candles = iq.get_candles(pair, 60, 50, time.time())
+        if not raw_candles:
+            return jsonify({"success": False, "error": "No se pudieron obtener velas"}), 500
+
+        df = pd.DataFrame(raw_candles)
         
-        if candles and len(candles) > 0:
-            last_candle = candles[-1]
-            prev_candle = candles[-2] if len(candles) > 1 else last_candle
-            
-            # Simple Action Price logic for POC
-            trend = "ALCISTA" if last_candle['close'] > last_candle['open'] else "BAJISTA"
-            reversal_prob = abs(last_candle['close'] - last_candle['open']) * 1000
-            
-            direction = 'CALL' if last_candle['close'] > prev_candle['close'] else 'PUT'
-            
-            logs.append({"timestamp": time.time(), "message": f"[SYSTEM] Obteniendo telemetría oficial de {pair}. Latencia: OK", "level": "info"})
-            logs.append({"timestamp": time.time() + 1, "message": f"[QUANTUM] Analizando últimas {len(candles)} velas. Precio final: {last_candle['close']}", "level": "info"})
-            logs.append({"timestamp": time.time() + 2, "message": f"[SENTINEL] Tendencia actual {trend}. Índice de volatilidad base: {reversal_prob:.2f}", "level": "warning"})
-            logs.append({"timestamp": time.time() + 3, "message": f"[IA MAIN] Consenso calculado. Inclinación hacia {direction}.", "level": "success"})
-        else:
-            direction = 'NONE'
-            logs.append({"timestamp": time.time(), "message": "[SYSTEM] Mercado cerrado o sin datos para graficar.", "level": "error"})
+        # INDICADORES REALES (Como en iqInvest7)
+        # RSI
+        delta = df['close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        df['rsi'] = 100 - (100 / (1 + rs))
+        
+        # Bollinger Bands
+        df['ma20'] = df['close'].rolling(window=20).mean()
+        df['std20'] = df['close'].rolling(window=20).std()
+        df['upper'] = df['ma20'] + (df['std20'] * 2)
+        df['lower'] = df['ma20'] - (df['std20'] * 2)
+
+        last = df.iloc[-1]
+        rsi_val = float(last['rsi'])
+        
+        # Lógica de decisión técnica pura
+        tech_direction = 'NONE'
+        if rsi_val < 30: tech_direction = 'CALL'
+        elif rsi_val > 70: tech_direction = 'PUT'
+        
+        # Formatear velas para el gráfico (Frontend)
+        chart_data = []
+        for index, row in df.iterrows():
+            chart_data.append({
+                "time": int(row['at']),
+                "open": float(row['open']),
+                "high": float(row['high']),
+                "low": float(row['low']),
+                "close": float(row['close'])
+            })
+
+        logs = []
+        logs.append({"timestamp": time.time(), "message": f"[SYSTEM] Escaneo de {pair} completado. RSI: {rsi_val:.2f}", "level": "info"})
+        if tech_direction != 'NONE':
+            logs.append({"timestamp": time.time(), "message": f"[SENTINEL] ¡ALERTA! Sobrecompra/Venta detectada. Sugerencia: {tech_direction}", "level": "warning"})
         
         return jsonify({
             "success": True,
             "pair": pair,
-            "direction": direction,
+            "direction": tech_direction,
+            "rsi": rsi_val,
+            "candles": chart_data,
             "logs": logs
         })
     except Exception as e:
-        return jsonify({"success": False, "logs": [{"timestamp": time.time(), "message": f"Fallo interno: {str(e)}", "level": "error"}]}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/connect', methods=['POST'])
 def connect():
