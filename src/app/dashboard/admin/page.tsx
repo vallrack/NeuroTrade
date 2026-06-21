@@ -14,19 +14,16 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useUser, useFirestore, useCollection } from '@/firebase';
-import { collection, query, doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, doc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Shield, UserPlus, Loader2, Users, CheckCircle, XCircle, Crown, Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function AdminPage() {
+  const [mounted, setMounted] = useState(false);
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
-
-  // Protección: solo super-admin puede ver esta página
-  const profileRef = useMemo(() => user ? doc(firestore, 'users', user.uid) : null, [user, firestore]);
-  const { data: profile } = useCollection(query(collection(firestore, 'users')));
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -38,16 +35,25 @@ export default function AdminPage() {
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState('operator');
 
-  const usersQuery = useMemo(() => query(collection(firestore, 'users')), [firestore]);
-  const { data: users } = useCollection(usersQuery);
+  // AISLAMIENTO DE FIREBASE PARA COMPATIBILIDAD CON BUILD
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const usersQuery = useMemo(() => {
+    if (!mounted || !firestore) return null;
+    return query(collection(firestore, 'users'));
+  }, [mounted, firestore]);
+
+  const { data: users, loading: usersLoading } = useCollection(usersQuery);
 
   // Verificar si el usuario actual es admin
   useEffect(() => {
-    if (users && user) {
+    if (mounted && users && user) {
       const me = users.find((u: any) => u.id === user.uid);
       setIsAdmin(me?.role === 'super-admin' || me?.role === 'admin');
     }
-  }, [users, user]);
+  }, [mounted, users, user]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,7 +61,6 @@ export default function AdminPage() {
     setCreating(true);
 
     try {
-      // Llamada a una API Route para crear el usuario con Firebase Admin SDK
       const res = await fetch('/api/admin/create-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -78,12 +83,20 @@ export default function AdminPage() {
   };
 
   const toggleUserAccess = async (userId: string, currentStatus: boolean) => {
-    if (!isAdmin || userId === user?.uid) return;
+    if (!mounted || !isAdmin || userId === user?.uid) return;
     await updateDoc(doc(firestore, 'users', userId), { disabled: !currentStatus });
     toast({ title: !currentStatus ? '🔒 Acceso Desactivado' : '🔓 Acceso Restaurado', description: `El acceso del operador fue ${!currentStatus ? 'suspendido' : 'restaurado'}.` });
   };
 
-  if (!isAdmin) {
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAdmin && !usersLoading) {
     return (
       <SidebarProvider>
         <AppSidebar />

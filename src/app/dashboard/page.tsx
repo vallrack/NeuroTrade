@@ -1,3 +1,4 @@
+
 'use client';
 
 export const dynamic = 'force-dynamic';
@@ -22,29 +23,38 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
+  const [mounted, setMounted] = useState(false);
   const { user, loading: authLoading } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
   const [initLoading, setInitLoading] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
   
-  const brokerRef = useMemo(() => user ? doc(firestore, 'users', user.uid, 'config', 'broker') : null, [user, firestore]);
+  // AISLAMIENTO DE REFERENCIAS DE FIRESTORE
+  const brokerRef = useMemo(() => {
+    if (!mounted || !user || !firestore) return null;
+    return doc(firestore, 'users', user.uid, 'config', 'broker');
+  }, [mounted, user, firestore]);
+  
   const { data: brokerConfig } = useDoc(brokerRef);
 
-  const profileRef = useMemo(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
+  const profileRef = useMemo(() => {
+    if (!mounted || !user || !firestore) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [mounted, firestore, user]);
+  
   const { data: profile } = useDoc(profileRef);
 
-  const botParamsRef = useMemo(() => doc(firestore, 'configuracion', 'bot_params'), [firestore]);
+  const botParamsRef = useMemo(() => {
+    if (!mounted || !firestore) return null;
+    return doc(firestore, 'configuracion', 'bot_params');
+  }, [mounted, firestore]);
+  
   const { data: botParams } = useDoc(botParamsRef);
-
-  // CANAL ACTIVO: Identificado automáticamente por el Puente
-  const currentChannel = brokerConfig?.accountType || 'demo';
-  const isBrokerConnected = brokerConfig?.status === 'connected';
 
   useEffect(() => {
     if (mounted && !authLoading && !user) {
@@ -52,11 +62,19 @@ export default function DashboardPage() {
     }
   }, [mounted, authLoading, user, router]);
 
+  const currentChannel = brokerConfig?.accountType || 'demo';
+  const isBrokerConnected = brokerConfig?.status === 'connected';
   const isSuperAdmin = profile?.role === 'super-admin';
   const hasNoRole = mounted && user && profile && !profile.role;
   const isBotActive = botParams?.bot_activo;
 
-  if (!mounted) return null;
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-10 w-10 text-primary animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>
@@ -94,7 +112,7 @@ export default function DashboardPage() {
           <div className={`flex flex-col sm:flex-row gap-4 items-center justify-between p-4 rounded-2xl border ${currentChannel === 'real' ? 'bg-secondary/5 border-secondary/10' : 'bg-primary/5 border-primary/10'}`}>
              <div className="flex items-center gap-3 w-full sm:w-auto">
                 <div className={`p-2.5 rounded-xl ${isBotActive && isBrokerConnected ? 'bg-green-500/20 text-green-500' : 'bg-destructive/20 text-destructive'}`}>
-                  <Activity className={`h-5 w-5 ${isBotActive && isBrokerConnected ? 'animate-pulse' : ''}`} />
+                   <Activity className={`h-5 w-5 ${isBotActive && isBrokerConnected ? 'animate-pulse' : ''}`} />
                 </div>
                 <div>
                    <h2 className="font-headline font-bold text-sm md:text-base leading-none uppercase">
