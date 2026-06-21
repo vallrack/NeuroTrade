@@ -76,6 +76,24 @@ def connect():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route('/disconnect', methods=['POST'])
+def disconnect():
+    try:
+        data = request.json
+        email = data.get('email')
+        acc_type = data.get('accountType', 'demo')
+        session_key = f"{email}_{acc_type.lower()}"
+        
+        if session_key in sessions:
+            iq = sessions[session_key]
+            iq.logout() # Cerramos conexión oficial
+            del sessions[session_key]
+            return jsonify({"success": True, "message": "Sesión cerrada correctamente"})
+        
+        return jsonify({"success": True, "message": "No había sesión activa"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/analyze', methods=['POST'])
 def analyze():
     try:
