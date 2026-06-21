@@ -61,8 +61,24 @@ export function TradingChart({ data, pair }: TradingChartProps) {
 
   useEffect(() => {
     if (seriesRef.current && data && data.length > 0) {
-      seriesRef.current.setData(data);
-      // No ajustamos el contenido en cada tick para que el usuario pueda hacer zoom
+      // Traducir formato IQ Option a formato Lightweight Charts
+      const formattedData = data.map(candle => ({
+        time: candle.from,
+        open: candle.open,
+        high: candle.max,
+        low: candle.min,
+        close: candle.close,
+      }));
+
+      // Ordenar por tiempo (vital para lightweight-charts)
+      formattedData.sort((a, b) => (a.time as number) - (b.time as number));
+
+      seriesRef.current.setData(formattedData);
+      
+      // Ajustar el gráfico al contenido la primera vez que llegan datos
+      if (data.length > 0) {
+        chartRef.current?.timeScale().fitContent();
+      }
     }
   }, [data]); // Solo actualiza las velas cuando el data cambia
 
