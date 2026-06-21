@@ -64,69 +64,51 @@ def health():
 @app.route('/analyze', methods=['POST'])
 def analyze():
     import time
-    import pandas as pd
     try:
         data = request.json
         email = data.get('email')
         password = data.get('password')
         pair = data.get('pair', 'EURUSD-OTC')
         
+        if not email or not password:
+            return jsonify({"success": False, "error": "Faltan credenciales"}), 400
+
+        # Conexión directa
         iq, error = get_iq_connection(email, password)
         if not iq:
-            return jsonify({"success": False, "error": error}), 401
+            return jsonify({"success": False, "error": f"Error de conexión: {error}"}), 401
             
-        # Obtenemos 50 velas para análisis técnico serio
-        raw_candles = iq.get_candles(pair, 60, 50, time.time())
+        # Pedir velas (Ligero: 30 velas)
+        raw_candles = iq.get_candles(pair, 60, 30, time.time())
         if not raw_candles:
-            return jsonify({"success": False, "error": "No se pudieron obtener velas"}), 500
+            return jsonify({"success": False, "error": "No hay datos del mercado"}), 500
 
-        df = pd.DataFrame(raw_candles)
-        
-        # INDICADORES REALES (Como en iqInvest7)
-        # RSI
-        delta = df['close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = gain / loss
-        df['rsi'] = 100 - (100 / (1 + rs))
-        
-        # Bollinger Bands
-        df['ma20'] = df['close'].rolling(window=20).mean()
-        df['std20'] = df['close'].rolling(window=20).std()
-        df['upper'] = df['ma20'] + (df['std20'] * 2)
-        df['lower'] = df['ma20'] - (df['std20'] * 2)
-
-        last = df.iloc[-1]
-        rsi_val = float(last['rsi'])
-        
-        # Lógica de decisión técnica pura
-        tech_direction = 'NONE'
-        if rsi_val < 30: tech_direction = 'CALL'
-        elif rsi_val > 70: tech_direction = 'PUT'
-        
-        # Formatear velas para el gráfico (Frontend)
+        # Formateo ultra-simple para el gráfico
         chart_data = []
-        for index, row in df.iterrows():
+        for c in raw_candles:
             chart_data.append({
-                "time": int(row['at']),
-                "open": float(row['open']),
-                "high": float(row['high']),
-                "low": float(row['low']),
-                "close": float(row['close'])
+                "time": int(c['at']),
+                "open": float(c['open']),
+                "high": float(c['high']),
+                "low": float(c['low']),
+                "close": float(c['close'])
             })
-
-        logs = []
-        logs.append({"timestamp": time.time(), "message": f"[SYSTEM] Escaneo de {pair} completado. RSI: {rsi_val:.2f}", "level": "info"})
-        if tech_direction != 'NONE':
-            logs.append({"timestamp": time.time(), "message": f"[SENTINEL] ¡ALERTA! Sobrecompra/Venta detectada. Sugerencia: {tech_direction}", "level": "warning"})
         
+        # Decisiones simples para evitar errores de librerías
+        last_close = raw_candles[-1]['close']
+        prev_close = raw_candles[-2]['close'] if len(raw_candles) > 1 else last_close
+        direction = 'CALL' if last_close > prev_close else 'PUT'
+
         return jsonify({
             "success": True,
+            "status": "V7_BRIDGE_ONLINE",
             "pair": pair,
-            "direction": tech_direction,
-            "rsi": rsi_val,
+            "direction": direction,
             "candles": chart_data,
-            "logs": logs
+            "logs": [
+                {"timestamp": time.time(), "message": f"Conexión exitosa a IQ Option ({pair})", "level": "success"},
+                {"timestamp": time.time(), "message": f"Precio actual: {last_close}", "level": "info"}
+            ]
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
