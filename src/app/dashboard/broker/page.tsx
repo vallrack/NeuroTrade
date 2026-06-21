@@ -70,10 +70,10 @@ export default function BrokerPage() {
         });
         router.push('/dashboard');
       } else {
-        throw new Error(syncResult.error);
+        toast({ title: "FALLO EN EL PUENTE", description: syncResult.error, variant: "destructive" });
       }
     } catch (err: any) {
-      toast({ title: "FALLO EN EL PUENTE", description: err.message, variant: "destructive" });
+      toast({ title: "ERROR DEL SISTEMA", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }

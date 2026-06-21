@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { useUser, useCollection, useFirestore, useDoc } from '@/firebase';
 import { collection, query, orderBy, limit, where } from 'firebase/firestore';
-import { History, ArrowUpRight, ArrowDownRight, Clock, DollarSign } from 'lucide-react';
+import { History, ArrowUpRight, ArrowDownRight, Clock, Download } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export default function HistoryPage() {
   const { user } = useUser();
@@ -21,7 +22,6 @@ export default function HistoryPage() {
 
   const tradesQuery = useMemo(() => {
     if (!user || !firestore) return null;
-    // FILTRO DINÁMICO: Solo mostramos trades del canal activo (Demo o Real)
     return query(
       collection(firestore, 'users', user.uid, 'trades'),
       where('accountType', '==', currentAccountType),
@@ -31,6 +31,28 @@ export default function HistoryPage() {
   }, [user, firestore, currentAccountType]);
 
   const { data: trades, loading } = useCollection(tradesQuery);
+
+  const exportToCSV = () => {
+    if (!trades || trades.length === 0) return;
+    const headers = ['Fecha', 'Activo', 'Direccion', 'Inversion', 'Resultado', 'Beneficio'];
+    const rows = trades.map((t: any) => [
+      new Date(t.timestamp).toLocaleString(),
+      t.pair,
+      t.direction,
+      t.amount,
+      t.status.toUpperCase(),
+      t.profit
+    ].join(','));
+    
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', `NeuroTrade_Export_${currentAccountType}_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <SidebarProvider>
@@ -46,13 +68,17 @@ export default function HistoryPage() {
 
         <main className="p-6 space-y-6">
           <div className="flex flex-col gap-1">
-            <h2 className="text-2xl font-headline font-bold">Registro de Ejecución</h2>
-            <p className="text-sm text-muted-foreground italic">Auditoría transparente del canal {currentAccountType.toUpperCase()}.</p>
+            <h2 className="text-2xl font-headline font-bold text-primary animate-pulse">Registro Cuántico de Ejecución</h2>
+            <p className="text-sm text-muted-foreground italic">Auditoría transparente e inmutable del canal {currentAccountType.toUpperCase()}.</p>
           </div>
 
-          <Card className="bg-card/50 border-white/5 backdrop-blur-xl">
-            <CardHeader>
+          <Card className="bg-card/30 border border-primary/20 shadow-[0_0_15px_rgba(38,166,154,0.1)] backdrop-blur-xl">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-white/5">
               <CardTitle className="text-lg">Últimas 50 Operaciones ({currentAccountType.toUpperCase()})</CardTitle>
+              <Button variant="outline" size="sm" onClick={exportToCSV} className="border-primary/50 text-primary hover:bg-primary/10 gap-2 font-bold text-xs uppercase tracking-widest">
+                <Download className="h-3 w-3" />
+                Exportar CSV
+              </Button>
             </CardHeader>
             <CardContent>
               {loading ? (

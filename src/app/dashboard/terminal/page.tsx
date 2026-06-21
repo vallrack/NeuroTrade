@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { KillSwitch } from '@/components/dashboard/kill-switch';
 import { useUser, useDoc, useFirestore, useRTDB, useCollection } from '@/firebase';
 import { doc, collection, query, orderBy, limit } from 'firebase/firestore';
 import { ref, onValue, set } from 'firebase/database';
@@ -29,7 +30,7 @@ export default function TerminalPage() {
   const rsiChartRef = useRef<IChartApi | null>(null);
   const stochChartRef = useRef<IChartApi | null>(null);
   
-  const priceSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const priceSeriesRef = useRef<ISeriesApi<any> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const rsiSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const stochKSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
@@ -44,9 +45,20 @@ export default function TerminalPage() {
   const botParamsRef = doc(firestore, 'configuracion', 'bot_params');
   const { data: botParams } = useDoc(botParamsRef);
 
-  const [selectedPair, setSelectedPair] = useState('EUR/USD');
+  const [selectedPair, setSelectedPair] = useState('EURUSD-OTC');
   const [latency, setLatency] = useState(12);
   const [timeframe, setTimeframe] = useState('1m');
+  const [chartType, setChartType] = useState<'candles' | 'line'>('candles');
+  const [showIndicators, setShowIndicators] = useState(true);
+  const [showPairSearch, setShowPairSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const AVAILABLE_PAIRS = [
+    'EURUSD-OTC', 'GBPUSD-OTC', 'AUDUSD-OTC', 'NZDUSD-OTC', 'USDCAD-OTC', 'USDCHF-OTC', 'USDJPY-OTC',
+    'BTCUSD', 'ETHUSD', 'SOLUSD', 'ADAUSD', 'XRPUSD', 'DOTUSD', 'DOGEUSD', 'BNBUSD', 'LINKUSD'
+  ];
+
+  const filteredPairs = AVAILABLE_PAIRS.filter(p => p.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const tradesQuery = useMemo(() => {
     if (!user || !firestore) return null;
@@ -70,7 +82,10 @@ export default function TerminalPage() {
       const high = Math.max(open, close) + Math.random() * 0.0003;
       const low = Math.min(open, close) - Math.random() * 0.0003;
       
-      priceData.push({ time, open, high, low, close });
+      const linePayload = { time, value: close };
+      const candlePayload = { time, open, high, low, close };
+      
+      priceData.push(chartType === 'line' ? linePayload : candlePayload);
       volumeData.push({ 
         time, 
         value: Math.random() * 100, 
@@ -82,7 +97,7 @@ export default function TerminalPage() {
       
       lastPrice = close;
     }
-    lastCandleRef.current = priceData[priceData.length - 1];
+    lastCandleRef.current = chartType === 'line' ? { time: priceData[199].time, open: lastPrice, high: lastPrice, low: lastPrice, close: lastPrice } : priceData[199];
     return { priceData, volumeData, rsiData, stochK, stochD };
   };
 
@@ -114,13 +129,23 @@ export default function TerminalPage() {
       width: priceContainerRef.current.clientWidth,
       height: priceContainerRef.current.clientHeight,
     });
-    const priceSeries = priceChart.addCandlestickSeries({
-      upColor: '#26a69a',
-      downColor: '#ef5350',
-      borderVisible: false,
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
-    });
+    
+    let priceSeries: any;
+    if (chartType === 'candles') {
+      priceSeries = priceChart.addCandlestickSeries({
+        upColor: '#26a69a',
+        downColor: '#ef5350',
+        borderVisible: false,
+        wickUpColor: '#26a69a',
+        wickDownColor: '#ef5350',
+      });
+    } else {
+      priceSeries = priceChart.addLineSeries({
+        color: '#26a69a',
+        lineWidth: 2,
+      });
+    }
+    
     const volumeSeries = priceChart.addHistogramSeries({
       priceFormat: { type: 'volume' },
       priceScaleId: '', 
@@ -145,8 +170,8 @@ export default function TerminalPage() {
       width: stochContainerRef.current.clientWidth,
       height: stochContainerRef.current.clientHeight,
     });
-    const stochKSeries = stochChart.addLineSeries({ color: '#2196f3', lineWidth: 1.5 });
-    const stochDSeries = stochChart.addLineSeries({ color: '#ff9800', lineWidth: 1.5 });
+    const stochKSeries = stochChart.addLineSeries({ color: '#2196f3', lineWidth: 2 });
+    const stochDSeries = stochChart.addLineSeries({ color: '#ff9800', lineWidth: 2 });
 
     // Synchronization logic with robust null checks
     priceChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
@@ -154,9 +179,7 @@ export default function TerminalPage() {
         try {
           if (rsiChartRef.current) rsiChartRef.current.timeScale().setVisibleRange(range);
           if (stochChartRef.current) stochChartRef.current.timeScale().setVisibleRange(range);
-        } catch (e) {
-          // Ignore synchronization errors during transitions
-        }
+        } catch (e) { }
       }
     });
 
@@ -195,29 +218,16 @@ export default function TerminalPage() {
       rsiChart.remove();
       stochChart.remove();
     };
-  }, []);
+  }, [chartType, showIndicators]); // Remount on chart switch or indicators toggle
 
   // Data injection and simulation
   useEffect(() => {
     if (!rtdb) return;
-    const cleanPair = selectedPair.replace('/', '').replace('-', '').trim();
-    const tickRef = ref(rtdb, `market/ticks/${cleanPair}`);
-
     const interval = setInterval(() => {
-      const lastPrice = lastCandleRef.current?.close || 1.1470;
-      const noise = (Math.random() - 0.5) * 0.0002;
-      const newPrice = lastPrice + noise;
-      
-      set(tickRef, {
-        price: parseFloat(newPrice.toFixed(5)),
-        timestamp: Date.now(),
-        rsi: 30 + (Math.random() * 40)
-      });
-      setLatency(Math.floor(Math.random() * 8) + 4);
-    }, 1000);
-
+      setLatency(Math.floor(Math.random() * 5) + 2); 
+    }, 2000);
     return () => clearInterval(interval);
-  }, [rtdb, selectedPair]);
+  }, [rtdb]);
 
   // Real-time chart updates
   useEffect(() => {
@@ -241,36 +251,81 @@ export default function TerminalPage() {
           close: val.price,
         };
         
-        priceSeriesRef.current?.update(updateObj);
+        if (chartType === 'line') {
+          priceSeriesRef.current?.update({ time: candleTime, value: val.price });
+        } else {
+          priceSeriesRef.current?.update(updateObj);
+        }
+        
         volumeSeriesRef.current?.update({ 
           time: candleTime, 
           value: Math.random() * 100,
           color: updateObj.close >= updateObj.open ? 'rgba(38, 166, 154, 0.3)' : 'rgba(239, 83, 80, 0.3)'
         });
-        rsiSeriesRef.current?.update({ time: candleTime, value: val.rsi || 50 });
-        stochKSeriesRef.current?.update({ time: candleTime, value: 50 + (Math.sin(now/5) * 10) });
-        stochDSeriesRef.current?.update({ time: candleTime, value: 50 + (Math.sin(now/6) * 9) });
+        
+        if (showIndicators) {
+          rsiSeriesRef.current?.update({ time: candleTime, value: val.rsi || 50 });
+          stochKSeriesRef.current?.update({ time: candleTime, value: 50 + (Math.sin(now/5) * 10) });
+          stochDSeriesRef.current?.update({ time: candleTime, value: 50 + (Math.sin(now/6) * 9) });
+        }
+        
         lastCandleRef.current = updateObj;
       }
     });
 
     return () => unsub();
-  }, [rtdb, selectedPair]);
+  }, [rtdb, selectedPair, chartType, showIndicators]);
 
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="bg-black flex flex-col h-screen overflow-hidden">
+      <SidebarInset className="bg-black flex flex-col h-screen overflow-hidden relative">
         {/* TOP TOOLBAR */}
-        <header className="flex h-12 shrink-0 items-center justify-between px-3 border-b border-white/5 bg-[#0a0a0a] z-50">
+        <header className="flex h-12 shrink-0 items-center justify-between px-3 border-b border-white/5 bg-[#0a0a0a] z-50 relative">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 relative">
               <SidebarTrigger className="text-muted-foreground hover:text-white" />
-              <div className="flex items-center gap-2 px-2 py-1 hover:bg-white/5 rounded transition-colors cursor-pointer group">
+              <div 
+                className="flex items-center gap-2 px-2 py-1 hover:bg-white/5 rounded transition-colors cursor-pointer group"
+                onClick={() => setShowPairSearch(!showPairSearch)}
+              >
                 <span className="font-headline text-xs font-bold text-white uppercase">{selectedPair}</span>
                 <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-white" />
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8"><Plus className="h-3.5 w-3.5" /></Button>
+              <Button onClick={() => setShowPairSearch(!showPairSearch)} variant="ghost" size="icon" className="h-8 w-8"><Plus className="h-3.5 w-3.5" /></Button>
+              
+              {/* Buscador Flotante de Divisas */}
+              {showPairSearch && (
+                <div className="absolute top-12 left-8 w-64 bg-card border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 flex flex-col">
+                  <div className="p-3 border-b border-white/5">
+                    <input 
+                      type="text" 
+                      placeholder="Buscar divisas, cripto..." 
+                      className="w-full bg-black/50 border border-white/10 rounded px-3 py-1.5 text-xs text-white outline-none focus:border-primary/50"
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="max-h-64 overflow-y-auto custom-scrollbar">
+                    {filteredPairs.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-muted-foreground">Sin resultados</div>
+                    ) : filteredPairs.map(p => (
+                      <button 
+                        key={p} 
+                        className="w-full text-left px-4 py-2 text-xs font-bold hover:bg-white/5 flex items-center justify-between"
+                        onClick={() => {
+                          setSelectedPair(p);
+                          setShowPairSearch(false);
+                        }}
+                      >
+                       {p}
+                       {selectedPair === p && <Zap className="h-3 w-3 text-primary" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="h-4 w-px bg-white/10 mx-1" />
@@ -295,13 +350,17 @@ export default function TerminalPage() {
             <div className="h-4 w-px bg-white/10 mx-1" />
 
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8"><LineChart className="h-4 w-4 text-muted-foreground" /></Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8"><BarChart3 className="h-4 w-4 text-muted-foreground" /></Button>
+              <Button variant="ghost" size="icon" className={cn("h-8 w-8", chartType === 'line' ? "bg-white/10 text-white" : "text-muted-foreground")} onClick={() => setChartType('line')}>
+                <LineChart className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className={cn("h-8 w-8", chartType === 'candles' ? "bg-white/10 text-white" : "text-muted-foreground")} onClick={() => setChartType('candles')}>
+                <BarChart3 className="h-4 w-4" />
+              </Button>
             </div>
 
             <div className="h-4 w-px bg-white/10 mx-1" />
 
-            <Button variant="ghost" className="h-8 text-[11px] font-bold text-muted-foreground gap-2">
+            <Button onClick={() => setShowIndicators(!showIndicators)} variant="ghost" className={cn("h-8 text-[11px] font-bold gap-2", showIndicators ? "text-primary bg-primary/5" : "text-muted-foreground")}>
               <Activity className="h-4 w-4" /> Indicadores
             </Button>
           </div>
@@ -342,14 +401,14 @@ export default function TerminalPage() {
                 <div ref={priceContainerRef} className="w-full h-full" />
              </div>
 
-             <div className="flex-[2] min-h-0 relative border-b border-white/5">
+             <div className={cn("flex-[2] min-h-0 relative border-b border-white/5", !showIndicators && "hidden")}>
                 <div className="absolute top-2 left-4 z-20 text-[9px] font-bold text-purple-400 uppercase tracking-tighter flex items-center gap-2">
                   <Gauge className="h-3 w-3" /> RSI 14 Close
                 </div>
                 <div ref={rsiContainerRef} className="w-full h-full" />
              </div>
 
-             <div className="flex-[2] min-h-0 relative">
+             <div className={cn("flex-[2] min-h-0 relative", !showIndicators && "hidden")}>
                 <div className="absolute top-2 left-4 z-20 text-[9px] font-bold text-blue-400 uppercase tracking-tighter flex items-center gap-2">
                   <Activity className="h-3 w-3" /> Stoch RSI 3 3 14 14
                 </div>
@@ -417,14 +476,11 @@ export default function TerminalPage() {
                    ))}
                 </div>
 
-                <div className="p-4 bg-zinc-900/50 rounded-xl border border-white/5 space-y-2">
+                <div className="p-4 bg-zinc-900/50 rounded-xl border border-white/5 space-y-4">
                   <h4 className="text-[9px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                    <ShieldCheck className="h-3 w-3 text-primary" /> Failsafe Status
+                    <ShieldCheck className="h-3 w-3 text-primary" /> Protocolo de Emergencia
                   </h4>
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-muted-foreground">Trailing Stop</span>
-                    <span className="text-primary font-bold">Activo 65%</span>
-                  </div>
+                  <KillSwitch />
                 </div>
              </div>
           </aside>

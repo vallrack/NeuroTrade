@@ -96,7 +96,7 @@ export default function RiskPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="stopLoss" className="text-xs uppercase font-bold text-muted-foreground">Stop Loss Diario ($)</Label>
+                    <Label htmlFor="stopLoss" className="text-xs uppercase font-bold text-muted-foreground">Stop Loss Diario (COP)</Label>
                     <Input 
                       id="stopLoss" 
                       type="number" 
@@ -124,7 +124,7 @@ export default function RiskPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="takeProfit" className="text-xs uppercase font-bold text-muted-foreground">Take Profit Diario ($)</Label>
+                    <Label htmlFor="takeProfit" className="text-xs uppercase font-bold text-muted-foreground">Take Profit Diario (COP)</Label>
                     <Input 
                       id="takeProfit" 
                       type="number" 
@@ -158,7 +158,7 @@ export default function RiskPage() {
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                   <div className="space-y-3">
-                    <Label htmlFor="investment" className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground">Monto por Operación ($)</Label>
+                    <Label htmlFor="investment" className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground">Monto por Operación (COP)</Label>
                     <Input 
                       id="investment" 
                       type="number" 

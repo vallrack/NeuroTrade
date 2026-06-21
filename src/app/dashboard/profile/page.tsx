@@ -7,6 +7,8 @@ import { AppSidebar } from '@/components/dashboard/app-sidebar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { UserCircle, Crown, ShieldCheck, Mail, Calendar, Activity, Zap, Award } from 'lucide-react';

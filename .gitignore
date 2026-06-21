@@ -43,3 +43,8 @@ next-env.d.ts
 # firebase
 firebase-debug.log
 firestore-debug.log
+
+# python bridge
+bridge/__pycache__/
+bridge/*.pyc
+bridge_errors.log

@@ -279,7 +279,7 @@ export default function SettingsV7Page() {
                     </CardHeader>
                     <CardContent className="pt-6 space-y-6">
                       <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl space-y-2">
-                        <Label className="text-[10px] uppercase text-primary font-black tracking-widest">Inversión Maestro ($)</Label>
+                        <Label className="text-[10px] uppercase text-primary font-black tracking-widest">Inversión Maestro (COP)</Label>
                         <Input 
                           type="number" 
                           value={investment} 

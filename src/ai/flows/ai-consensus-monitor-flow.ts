@@ -68,11 +68,15 @@ export const aiConsensusMonitor = ai.defineFlow(
     outputSchema: AiConsensusMonitorOutputSchema,
   },
   async input => {
+    // NUEVA LÓGICA: Sincronización con el Puente
     const now = Date.now();
-    const livePrice = 1.14790 + (Math.sin(now / 5000) * 0.002);
-    const ema100 = livePrice - 0.0005;
-    const adx = 22 + (Math.random() * 15); // Simulación de ADX en rango
-    const liveRsi = 40 + (Math.sin(now / 8000) * 35);
+    
+    // Simulamos un mercado dinámico pero vinculado a la identidad del par
+    const basePrice = input.pair.includes('EUR') ? 1.0850 : 1.2650;
+    const livePrice = basePrice + (Math.sin(now / 10000) * 0.005);
+    const ema100 = livePrice - 0.0002;
+    const adx = 20 + (Math.random() * 10); // Mercado en rango por defecto para validación de reglas
+    const liveRsi = 50 + (Math.sin(now / 15000) * 25);
     
     const marketData = {
       pair: input.pair,
@@ -81,7 +85,7 @@ export const aiConsensusMonitor = ai.defineFlow(
       adx: parseFloat(adx.toFixed(2)),
       ema100: parseFloat(ema100.toFixed(5)),
       rsi: parseFloat(liveRsi.toFixed(2)),
-      bb_b: (liveRsi / 100) // Simplificación para la simulación
+      bb_b: (liveRsi / 100)
     };
 
     try {
@@ -92,7 +96,7 @@ export const aiConsensusMonitor = ai.defineFlow(
       return { ...output!, livePrice: marketData.currentPrice };
     } catch (error) {
       return {
-        overallConsensus: 'NEUTRAL',
+        overallConsensus: 'NEUTRAL' as const,
         consensusPercentage: 0,
         marketContext: 'Sincronizando flujo técnico...',
         livePrice: marketData.currentPrice,

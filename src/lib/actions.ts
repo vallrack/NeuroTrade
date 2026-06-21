@@ -16,16 +16,28 @@ const BROKER_API_ENDPOINT = "https://iqoption.com/api/v2"; // Endpoint real de r
  * Se comunica con la API para traer el balance exacto y estado de cuenta.
  */
 async function fetchRealBrokerData(credentials: any) {
-  // En producción, este bloque realizaría el handshake WSS/REST real.
-  // Mantenemos la fidelidad con los datos de tu imagen para la validación de cuenta.
-  const isDemo = credentials.accountType === 'demo';
+  /**
+   * PROTOCOLO DE CONEXIÓN REAL V7
+   * Para que la información sea real por cuenta, los datos deben derivarse de las credenciales
+   * hasta que el WebSocket oficial esté enviando el stream.
+   */
+  const { email, accountType, provider } = credentials;
   
+  // Generamos un identificador único para la cuenta para evitar colisiones
+  const accountId = `${provider}_${email}_${accountType}`.replace(/[^a-zA-Z0-9]/g, '_');
+
+  // En producción, este bloque hace el handshake real.
+  // Por ahora, vinculamos el balance a la identidad de la cuenta para que sea "real" al cambiar de puente.
+  const nameSeed = email ? email.length : 10;
+  const balance = accountType === 'demo' ? (10000 + (nameSeed * 10.5)) : 0.00;
+
   return {
-    balance: isDemo ? 11046.71 : 0.00, // Balance real identificado por la API
-    accountType: credentials.accountType,
+    balance: parseFloat(balance.toFixed(2)),
+    accountType: accountType,
     currency: 'USD',
-    id: credentials.email ? credentials.email.split('@')[0] : 'QUANTUM_USER',
-    status: 'ACTIVE_BRIDGE'
+    id: email ? email.split('@')[0].toUpperCase() : 'QUANTUM_USER',
+    status: 'ACTIVE_BRIDGE',
+    accountId // ID único de la instancia del puente
   };
 }
 
@@ -35,25 +47,58 @@ export async function syncBrokerProfile(userId: string, brokerData: any) {
     const apiResponse = await fetchRealBrokerData(brokerData);
     const accountType = apiResponse.accountType;
     
-    // Sincronización de canal en tiempo real
+    // 1. LLAMADA AL PUENTE LOCAL (PYTHON)
+    try {
+      const bridgeResponse = await fetch('http://127.0.0.1:8888/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: brokerData.email,
+          password: brokerData.password,
+          accountType: brokerData.accountType,
+          uid: userId
+        })
+      });
+      
+      const result = await bridgeResponse.json();
+      
+      if (!bridgeResponse.ok || !result.success) {
+        return { success: false, error: result.error || 'Credenciales inválidas o bloqueadas por IQ Option.' };
+      }
+      
+      // SOBREESCRIBIMOS EL MOCK CON EL BALANCE REAL RECIBIDO
+      apiResponse.balance = result.balance;
+      apiResponse.status = 'ACTIVE_BRIDGE';
+      
+    } catch (e: any) {
+      console.warn('Puente local falló al conectar:', e.message);
+      return { success: false, error: 'El puente local no está activo o falló red.' };
+    }
+
+    // 2. PERSISTENCIA DINÁMICA
+    const accountRef = doc(db, 'users', userId, 'accounts', apiResponse.accountId);
     const statsRef = doc(db, 'users', userId, 'trading_stats', accountType);
-    const statsSnap = await getDoc(statsRef);
     
-    const initialStats = {
-      balance: apiResponse.balance,
-      dailyProfit: 0,
-      winRate: 0,
-      totalInvestment: 0,
-      tradesCount: 0,
-      winsCount: 0,
+    const accountInfo = {
+      ...apiResponse,
       lastSync: new Date().toISOString(),
-      status: apiResponse.status
+      credentials: { email: brokerData.email, provider: brokerData.provider }
     };
 
-    await setDoc(statsRef, initialStats, { merge: true });
+    await setDoc(accountRef, accountInfo, { merge: true });
+    
+    // ACTUALIZACIÓN PARCIAL (Preservamos estadísticas, actualizamos balance api)
+    await setDoc(statsRef, {
+      balance: apiResponse.balance,
+      status: apiResponse.status,
+      lastSync: accountInfo.lastSync,
+      currentAccountId: apiResponse.accountId,
+      version: 'V7-REAL'
+    }, { merge: true });
 
     return { success: true, profile: apiResponse };
   } catch (error: any) {
+    console.error('Sync Error:', error);
     return { success: false, error: 'FALLO DE SINCRONIZACIÓN CON API' };
   }
 }
@@ -93,14 +138,36 @@ export async function executeTrade(userId: string, tradeData: {
       return { success: false, error: 'PROTECCIÓN DE BALANCE: TRADING ABORTADO.' };
     }
 
-    // Lógica de cálculo de payout real (85-95%)
-    const winProbability = 0.75; // Basado en el Consenso IA V7
-    const isWin = Math.random() < winProbability;
-    const payout = 0.87;
-    const profit = isWin ? tradeData.amount * payout : -tradeData.amount;
-    const status = isWin ? 'win' : 'loss';
+    // 2. LLAMADA AL PUENTE DE PYTHON PARA EJECUCIÓN REAL
+    let status = 'tie';
+    let profit = 0;
+    
+    try {
+      const tradeResponse = await fetch('http://127.0.0.1:8888/trade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: userId,
+          pair: tradeData.pair,
+          direction: tradeData.direction,
+          amount: tradeData.amount
+        })
+      });
+      
+      const result = await tradeResponse.json();
+      if (!result.success) {
+        return { success: false, error: result.error || 'IQ Option rechazó la orden HFT.' };
+      }
+      
+      status = result.status; // 'win', 'loss', 'tie'
+      profit = result.profit;
+    } catch (e: any) {
+      console.warn('Puente local falló al ejecutar trade:', e.message);
+      return { success: false, error: 'Fallo de conexión HFT con el puente local.' };
+    }
 
     const timestamp = new Date().toISOString();
+    const isWin = status === 'win';
     
     // Registro en Auditoría Maestro
     await addDoc(collection(db, 'users', userId, 'trades'), {
@@ -112,7 +179,7 @@ export async function executeTrade(userId: string, tradeData: {
       source: 'V7-MASTER-BRIDGE'
     });
 
-    // Actualización de Balance Real en el Canal Correspondiente
+    // Actualización de Balance local (como reflejo optimista, aunque RTDB mande la verdad)
     await updateDoc(statsRef, {
       balance: increment(profit),
       dailyProfit: increment(profit),

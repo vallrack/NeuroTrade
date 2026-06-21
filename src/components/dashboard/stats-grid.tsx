@@ -3,7 +3,9 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useFirestore, useUser, useDoc } from '@/firebase';
+import { useRTDB } from '@/firebase/provider';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { ref as rtdbRef, onValue } from 'firebase/database';
 import { Card, CardContent } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Wallet, Target, Activity, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -13,6 +15,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 export function StatsGrid() {
   const { user } = useUser();
   const firestore = useFirestore();
+  const rtdb = useRTDB();
   const [stats, setStats] = useState({
     balance: 0,
     dailyProfit: 0,
@@ -25,12 +28,12 @@ export function StatsGrid() {
   const accountType = brokerConfig?.accountType || 'demo';
 
   useEffect(() => {
-    if (!firestore || !user) return;
+    if (!firestore || !rtdb || !user) return;
     
-    // ESCUCHA DINÁMICA ABSOLUTA: Cambia de documento según el canal activo
+    // ESCUCHA DINÁMICA FIRESTORE (Estadísticas como P/L, trades, etc.)
     const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', accountType);
     
-    const unsub = onSnapshot(
+    const unsubFirestore = onSnapshot(
       statsRef, 
       (docSnapshot) => {
         if (docSnapshot.exists()) {
@@ -39,32 +42,46 @@ export function StatsGrid() {
           const wins = data.winsCount || 0;
           const winRate = trades > 0 ? Math.round((wins / trades) * 100) : 0;
           
-          setStats({
-            balance: data.balance || 0,
+          setStats(prev => ({
+            ...prev,
             dailyProfit: data.dailyProfit || 0,
             totalInvestment: data.totalInvestment || 0,
-            winRate: winRate
-          });
+            winRate: winRate,
+            // Inicializar balance con Firestore por si RTDB tarda o no existe
+            balance: prev.balance === 0 ? (data.balance || (accountType === 'demo' ? 11046.71 : 0)) : prev.balance
+          }));
         } else {
-          // Valores por defecto: Demo hereda los $11,046.71 de tu imagen
-          setStats({
+          setStats(prev => ({
+             ...prev,
             balance: accountType === 'demo' ? 11046.71 : 0,
             dailyProfit: 0,
             winRate: 0,
             totalInvestment: 0
-          });
+          }));
         }
       },
-      async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: statsRef.path,
-          operation: 'get',
-        });
+      (error) => {
+        const permissionError = new FirestorePermissionError({ path: statsRef.path, operation: 'get' });
         errorEmitter.emit('permission-error', permissionError);
       }
     );
-    return () => unsub();
-  }, [firestore, user, accountType]);
+
+    // ESCUCHA DIRECA AL PUENTE (RTDB) - SOLO PARA BALANCE EN TIEMPO REAL
+    const bridgeRef = rtdbRef(rtdb, `users/${user.uid}/trading_stats/${accountType}`);
+    const unsubRTDB = onValue(bridgeRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const bridgeData = snapshot.val();
+        if (bridgeData && bridgeData.balance !== undefined) {
+          setStats(prev => ({ ...prev, balance: bridgeData.balance }));
+        }
+      }
+    });
+
+    return () => {
+      unsubFirestore();
+      unsubRTDB();
+    };
+  }, [firestore, rtdb, user, accountType]);
 
   const winRateColor = stats.winRate >= 65 ? 'text-green-500' : stats.winRate < 55 ? 'text-red-500' : 'text-yellow-500';
 

@@ -2,52 +2,74 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Protocolo de seguridad NeuroTrade V7
-    // Despliegue automático activado
-    
+    // ── FUNCIONES HELPER ────────────────────────────────────────
     function isSignedIn() {
       return request.auth != null;
-    }
-
-    function isSuperAdmin() {
-      return isSignedIn() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super-admin';
     }
 
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function getRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && getRole() in ['admin', 'super-admin'];
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && getRole() == 'super-admin';
+    }
+
+    // ── USUARIOS ─────────────────────────────────────────────────
     match /users/{userId} {
-      allow read, write: if isOwner(userId) || isSuperAdmin();
-      
+      // Solo el propio usuario o un admin puede leer el perfil
+      allow read: if isOwner(userId) || isAdmin();
+
+      // El usuario puede actualizar su propio perfil
+      // PERO no puede cambiar: role, disabled, createdByAdmin
+      allow update: if isOwner(userId)
+                    && !request.resource.data.diff(resource.data)
+                        .affectedKeys().hasAny(['role', 'disabled', 'createdByAdmin']);
+
+      // Solo admins pueden crear o eliminar perfiles (o cambiar roles)
+      allow create, delete: if isAdmin();
+      allow write: if isAdmin();
+
+      // Sub-colecciones del usuario
       match /config/broker {
-        allow read, write: if isOwner(userId) || isSuperAdmin();
+        allow read, write: if isOwner(userId) || isAdmin();
       }
-
       match /trades/{tradeId} {
-        allow read, write: if isOwner(userId) || isSuperAdmin();
+        allow read, write: if isOwner(userId) || isAdmin();
       }
-
       match /trading_stats/{docId} {
-        allow read, write: if isOwner(userId) || isSuperAdmin();
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+      match /accounts/{accountId} {
+        allow read, write: if isOwner(userId) || isAdmin();
       }
     }
 
+    // ── CONFIGURACIÓN DEL BOT ────────────────────────────────────
     match /configuracion/{docId} {
-      allow read: if true;
-      allow write: if isSuperAdmin();
+      // Cualquier usuario autenticado puede leer la config del bot
+      allow read: if isSignedIn();
+      // Solo admins pueden cambiar la configuración del bot
+      allow write: if isAdmin();
     }
 
+    // ── DATOS DEL DASHBOARD ──────────────────────────────────────
     match /rendimiento_diario/{docId} {
-      allow read: if true;
-      allow write: if isSuperAdmin();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /dashboard/{docId} {
-      allow read: if true;
-      allow write: if isSuperAdmin();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
   }
 }

@@ -6,6 +6,7 @@ import { triggerKillSwitch } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { PowerOff, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { playAlarm } from '@/lib/sounds';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,6 +25,7 @@ export function KillSwitch() {
 
   const handleKill = async () => {
     setIsKilling(true);
+    playAlarm();
     const result = await triggerKillSwitch();
     setIsKilling(false);
     
@@ -47,10 +49,10 @@ export function KillSwitch() {
       <AlertDialogTrigger asChild>
         <Button 
           variant="destructive" 
-          className="w-full h-14 font-headline text-lg gap-2 shadow-lg shadow-red-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+          className="w-full h-12 md:h-14 font-headline text-[10px] md:text-xs font-black tracking-widest gap-2 shadow-lg shadow-red-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
         >
-          <PowerOff className="h-5 w-5" />
-          BOTÓN DE PÁNICO GLOBAL
+          <PowerOff className="h-4 w-4" />
+          ABORTO DE EMERGENCIA
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent className="bg-card border-white/10">
