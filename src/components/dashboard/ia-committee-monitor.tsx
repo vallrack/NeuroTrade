@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { playSuccessChime, playAlarm } from '@/lib/sounds';
 import { TradingChart } from './trading-chart';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export function IACommitteeMonitor() {
   const [mounted, setMounted] = useState(false);
@@ -40,7 +41,10 @@ export function IACommitteeMonitor() {
   }, [mounted, user, firestore]);
   const { data: brokerConfig } = useDoc(brokerRef);
 
-  const activePair = botParams?.pairs?.[0] || 'EURUSD-OTC';
+  const [selectedPair, setSelectedPair] = useState<string | null>(null);
+  
+  const activePair = selectedPair || botParams?.pairs?.[0] || 'EURUSD-OTC';
+  const availablePairs = ["EURUSD-OTC", "GBPUSD-OTC", "USDJPY-OTC", "AUDCAD-OTC", "EURGBP-OTC", "NZDUSD-OTC"];
   const currentAccountType = brokerConfig?.accountType || 'demo';
 
   const statsRef = useMemo(() => {
@@ -153,7 +157,16 @@ export function IACommitteeMonitor() {
               </CardTitle>
               <div className="flex items-center gap-2 mt-1 font-mono text-[9px]">
                 <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] py-0">BRIDGE HFT ONLINE</Badge>
-                <span className="text-slate-500 uppercase tracking-widest">{activePair}</span>
+                <Select value={activePair} onValueChange={setSelectedPair}>
+                  <SelectTrigger className="h-5 border-0 bg-white/5 hover:bg-white/10 text-[9px] uppercase tracking-widest text-slate-300 px-2 focus:ring-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-white/10">
+                    {availablePairs.map(p => (
+                      <SelectItem key={p} value={p} className="text-[10px] uppercase font-mono">{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
