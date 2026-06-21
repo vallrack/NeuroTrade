@@ -246,8 +246,11 @@ export function IACommitteeMonitor() {
         </CardHeader>
         
         <CardContent className="pt-6">
-          <div className="h-[300px] w-full mb-6 rounded-xl border border-slate-800/50 overflow-hidden bg-slate-900/20">
-            <TradingChart data={data?.candles || []} />
+          <div className="h-[450px] w-full mb-6 rounded-2xl border border-indigo-500/10 overflow-hidden bg-slate-950 shadow-2xl relative">
+             <div className="absolute top-4 left-4 z-10 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/5 pointer-events-none">
+                <span className="text-[10px] font-bold text-indigo-400 font-mono tracking-widest uppercase">Live Telemetry Feed</span>
+             </div>
+             <TradingChart data={data?.candles || []} pair={activePair} />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
