@@ -34,12 +34,23 @@ export default function TerminalPage() {
   const brokerRef = user && firestore ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
   const { data: brokerConfig } = useDoc(brokerRef as any);
 
+  const brokerConfigRef = useRef(brokerConfig);
+  useEffect(() => {
+    brokerConfigRef.current = brokerConfig;
+  }, [brokerConfig]);
+
   useEffect(() => {
     setMounted(true);
-    if (!user || !brokerConfig) return;
+    if (!user) return;
     
+    let isFetching = false;
+
     // Iniciar el pool de consulta real
     const fetchRealLogs = async () => {
+      const config = brokerConfigRef.current;
+      if (!config || !config.email || isFetching) return;
+      
+      isFetching = true;
       try {
         const bridgeUrl = process.env.NEXT_PUBLIC_BRIDGE_URL || 'https://dprogramadores.com.co/nt-bridge';
         const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'quantum_v7_secure_key_123';
@@ -52,10 +63,10 @@ export default function TerminalPage() {
             'X-Bridge-Token': bridgeToken
           },
           body: JSON.stringify({ 
-            email: brokerConfig.email,
-            password: brokerConfig.password,
+            email: config.email,
+            password: config.password,
             pair: 'EURUSD-OTC',
-            accountType: brokerConfig.accountType || 'demo'
+            accountType: config.accountType || 'demo'
           })
         });
 
@@ -63,7 +74,6 @@ export default function TerminalPage() {
           const data = await response.json();
           if (data.success && data.logs) {
             setLogs(prev => {
-               // Agregar los nuevos logs reales a la pantalla
                const combined = [...prev, ...data.logs.map((l: any) => ({
                  id: Math.random().toString(36),
                  timestamp: new Date(l.timestamp * 1000), 
@@ -73,17 +83,21 @@ export default function TerminalPage() {
                return combined.slice(-100); // Mantener 100 lineas max
             });
           }
+        } else {
+            console.error("Bridge retornó código:", response.status);
         }
       } catch (err) {
-        setLogs(prev => [...prev.slice(-99), { id: Math.random().toString(), timestamp: new Date(), message: 'Error de red consultando Bridge.', level: 'error'}]);
+        setLogs(prev => [...prev.slice(-99), { id: Math.random().toString(), timestamp: new Date(), message: 'Error de red consultando Bridge (Timeout o CORS).', level: 'error'}]);
+      } finally {
+        isFetching = false;
       }
     };
 
     fetchRealLogs(); // Llamada inicial
-    const interval = setInterval(fetchRealLogs, 15000); // Poll cada 15s
+    const interval = setInterval(fetchRealLogs, 15000); // Poll estrictamente cada 15s
 
     return () => clearInterval(interval);
-  }, [user, brokerConfig]);
+  }, [user]);
 
 
   useEffect(() => {
