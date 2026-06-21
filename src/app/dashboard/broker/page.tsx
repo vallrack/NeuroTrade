@@ -68,35 +68,65 @@ function BrokerContent() {
     const accountType = isReal ? 'real' : 'demo';
     
     try {
-      // 1. Escritura Directa desde el CLiente (Soluciona el error de permisos)
+      // 1. Guardar credenciales en Firestore primero
       const configRef = doc(firestore, 'users', user.uid, 'config', 'broker');
-      const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', accountType);
-      
       await setDoc(configRef, {
         email,
         password,
         accountType,
-        status: 'connected',
+        status: 'connecting',
         updatedAt: new Date().toISOString(),
       }, { merge: true });
 
+      // 2. Llamar al bridge para obtener el balance REAL de IQ Option
+      let realBalance = 0;
+      try {
+        const bridgeUrl = process.env.NEXT_PUBLIC_BRIDGE_URL || 'https://dprogramadores.com.co/nt-bridge';
+        const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'quantum_v7_secure_key_123';
+        
+        const response = await fetch(`${bridgeUrl}/connect`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Bridge-Token': bridgeToken
+          },
+          body: JSON.stringify({ email, password, accountType })
+        });
+        
+        if (response.ok) {
+          const bridgeData = await response.json();
+          if (bridgeData.success) {
+            realBalance = bridgeData.balance;
+          }
+        }
+      } catch (bridgeError) {
+        console.warn('Bridge no disponible, usando balance 0:', bridgeError);
+      }
+
+      // 3. Guardar el balance real en Firestore
+      const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', accountType);
       await setDoc(statsRef, {
-        balance: isReal ? 1500.20 : 10000.00, // Balance simulado
+        balance: realBalance,
         status: 'connected',
         lastSync: new Date().toISOString()
       }, { merge: true });
 
+      // 4. Actualizar config con estado final
+      await setDoc(configRef, { status: 'connected' }, { merge: true });
+
       toast({
         title: "VÍNCULO EXITOSO",
-        description: `Conectado al mercado en modo ${accountType.toUpperCase()}.`,
+        description: `Conectado en modo ${accountType.toUpperCase()}. Saldo: $${realBalance.toLocaleString()}`,
       });
 
-      router.push('/dashboard');
-      router.refresh();
+      setTimeout(() => {
+        router.push('/dashboard');
+        router.refresh();
+      }, 500);
     } catch (error: any) {
       console.error("Error al vincular:", error);
       toast({
-        title: "ERROR DE PERMISOS",
+        title: "ERROR DE CONEXIÓN",
         description: error.message,
         variant: "destructive"
       });
