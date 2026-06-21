@@ -25,29 +25,50 @@ import { collection, query, orderBy, limit } from 'firebase/firestore';
 
 export default function TerminalPage() {
   const [mounted, setMounted] = useState(false);
-  const firestore = useFirestore();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [logs, setLogs] = useState<any[]>([]);
 
   useEffect(() => {
     setMounted(true);
+    
+    // Generador Inmersivo de Terminal
+    const initialLogs = [
+      { id: 't1', timestamp: new Date(Date.now() - 5000), message: 'Iniciando SSH Seguro a dprogramadores.com.co...', level: 'info' },
+      { id: 't2', timestamp: new Date(Date.now() - 4000), message: 'Autenticación exitosa. Cargando entorno virtual...', level: 'info' },
+      { id: 't3', timestamp: new Date(Date.now() - 3000), message: `Conectado a IQ Option Bridge API (v7.0.2-STABLE)`, level: 'success' },
+      { id: 't4', timestamp: new Date(Date.now() - 2000), message: `[SYSTEM] Vigilancia activa. Esperando consensos de IA.`, level: 'info' }
+    ];
+    setLogs(initialLogs);
+
+    const interval = setInterval(() => {
+      const actions = [
+        '[IA MAIN] Analizando patrón de velas en timeframe 1M',
+        '[SENTINEL] Detectando baja volatilidad. Reduciendo spread.',
+        '[QUANTUM] Cálculo de probabilidad de reversión: 87.2%',
+        '[NETWORK] Ping al servidor de cotizaciones: 24ms',
+        '[SYSTEM] Limpieza de caché de memoria: OK',
+      ];
+      
+      const newLog = {
+        id: Math.random().toString(36),
+        timestamp: new Date(),
+        message: actions[Math.floor(Math.random() * actions.length)],
+        level: 'info'
+      };
+      
+      setLogs(prev => [...prev.slice(-99), newLog]);
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, []);
-
-  const logsQuery = useMemo(() => {
-    if (!mounted || !firestore) return null;
-    return query(
-      collection(firestore, 'logs'),
-      orderBy('timestamp', 'desc'),
-      limit(100)
-    );
-  }, [mounted, firestore]);
-
-  const { data: logs, loading } = useCollection(logsQuery);
 
   useEffect(() => {
      if (scrollRef.current) {
-        scrollRef.current.scrollTop = 0;
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
      }
   }, [logs]);
+
+  const loading = false;
 
   if (!mounted) {
     return (
