@@ -20,47 +20,71 @@ import {
   Unlock,
   Cpu
 } from 'lucide-react';
-import { useFirestore, useCollection } from '@/firebase';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { useFirestore, useCollection, useUser, useDoc } from '@/firebase';
+import { collection, query, orderBy, limit, doc } from 'firebase/firestore';
 
 export default function TerminalPage() {
   const [mounted, setMounted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [logs, setLogs] = useState<any[]>([]);
+  const { user } = useUser();
+  const firestore = useFirestore();
+
+  // Obtener credenciales para IQ Option
+  const brokerRef = user && firestore ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
+  const { data: brokerConfig } = useDoc(brokerRef as any);
 
   useEffect(() => {
     setMounted(true);
+    if (!user || !brokerConfig) return;
     
-    // Generador Inmersivo de Terminal
-    const initialLogs = [
-      { id: 't1', timestamp: new Date(Date.now() - 5000), message: 'Iniciando SSH Seguro a dprogramadores.com.co...', level: 'info' },
-      { id: 't2', timestamp: new Date(Date.now() - 4000), message: 'Autenticación exitosa. Cargando entorno virtual...', level: 'info' },
-      { id: 't3', timestamp: new Date(Date.now() - 3000), message: `Conectado a IQ Option Bridge API (v7.0.2-STABLE)`, level: 'success' },
-      { id: 't4', timestamp: new Date(Date.now() - 2000), message: `[SYSTEM] Vigilancia activa. Esperando consensos de IA.`, level: 'info' }
-    ];
-    setLogs(initialLogs);
+    // Iniciar el pool de consulta real
+    const fetchRealLogs = async () => {
+      try {
+        const bridgeUrl = process.env.NEXT_PUBLIC_BRIDGE_URL || 'https://dprogramadores.com.co/nt-bridge';
+        const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'quantum_v7_secure_key_123';
+        
+        // Petición POST al nuevo endpoint real
+        const response = await fetch(`${bridgeUrl}/analyze`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Bridge-Token': bridgeToken
+          },
+          body: JSON.stringify({ 
+            email: brokerConfig.email,
+            password: brokerConfig.password,
+            pair: 'EURUSD-OTC',
+            accountType: brokerConfig.accountType || 'demo'
+          })
+        });
 
-    const interval = setInterval(() => {
-      const actions = [
-        '[IA MAIN] Analizando patrón de velas en timeframe 1M',
-        '[SENTINEL] Detectando baja volatilidad. Reduciendo spread.',
-        '[QUANTUM] Cálculo de probabilidad de reversión: 87.2%',
-        '[NETWORK] Ping al servidor de cotizaciones: 24ms',
-        '[SYSTEM] Limpieza de caché de memoria: OK',
-      ];
-      
-      const newLog = {
-        id: Math.random().toString(36),
-        timestamp: new Date(),
-        message: actions[Math.floor(Math.random() * actions.length)],
-        level: 'info'
-      };
-      
-      setLogs(prev => [...prev.slice(-99), newLog]);
-    }, 3000);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.logs) {
+            setLogs(prev => {
+               // Agregar los nuevos logs reales a la pantalla
+               const combined = [...prev, ...data.logs.map((l: any) => ({
+                 id: Math.random().toString(36),
+                 timestamp: new Date(l.timestamp * 1000), 
+                 message: l.message,
+                 level: l.level
+               }))];
+               return combined.slice(-100); // Mantener 100 lineas max
+            });
+          }
+        }
+      } catch (err) {
+        setLogs(prev => [...prev.slice(-99), { id: Math.random().toString(), timestamp: new Date(), message: 'Error de red consultando Bridge.', level: 'error'}]);
+      }
+    };
+
+    fetchRealLogs(); // Llamada inicial
+    const interval = setInterval(fetchRealLogs, 15000); // Poll cada 15s
 
     return () => clearInterval(interval);
-  }, []);
+  }, [user, brokerConfig]);
+
 
   useEffect(() => {
      if (scrollRef.current) {
@@ -177,26 +201,31 @@ export default function TerminalPage() {
                  {loading ? (
                     <div className="h-full flex flex-col items-center justify-center gap-4 text-muted-foreground">
                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                       <p className="font-headline tracking-widest uppercase font-bold text-[10px]">Iniciando Sesión SSH...</p>
+                       <p className="font-headline tracking-widest uppercase font-bold text-[10px]">Conectando a Bridge Python Real...</p>
                     </div>
                  ) : (
                     <div className="space-y-1.5">
-                       {logs?.map((log: any, idx: number) => (
+                       {logs?.map((log: any, idx: number) => {
+                          const dateObj = log.timestamp instanceof Date ? log.timestamp : (log.timestamp?.toDate ? log.timestamp.toDate() : new Date(log.timestamp || Date.now()));
+                          return (
                           <div key={log.id} className="group flex gap-4 hover:bg-white/5 p-1 rounded transition-colors border-l-2 border-transparent hover:border-primary/50">
                              <span className="text-muted-foreground/30 shrink-0 w-10 text-right select-none">{logs.length - idx}</span>
-                             <span className="text-primary/60 shrink-0 select-none">[{log.timestamp?.toDate().toLocaleTimeString() || '00:00:00'}]</span>
+                             <span className="text-primary/60 shrink-0 select-none">[{dateObj.toLocaleTimeString()}]</span>
                              <span className={cn(
                                 "break-all",
                                 log.level === 'error' ? 'text-red-400' :
                                 log.level === 'warning' ? 'text-yellow-400' :
-                                log.message?.includes('ORDER') ? 'text-secondary font-bold' :
-                                log.message?.includes('IA') ? 'text-blue-400' : 'text-zinc-300'
+                                log.level === 'success' ? 'text-green-400' : 'text-zinc-300'
                              )}>
                                 <span className="opacity-50 mr-2">»</span>
                                 {log.message}
                              </span>
                           </div>
-                       ))}
+                          );
+                       })}
+                       {logs.length === 0 && (
+                          <div className="text-muted-foreground">Recepción de telemetría iniciada. Esperando datos del mercado de IQ Option...</div>
+                       )}
                        <div className="flex gap-4 p-1 animate-pulse">
                           <span className="text-muted-foreground/30 shrink-0 w-10 text-right select-none">{logs?.length + 1}</span>
                           <span className="text-primary font-bold">_</span>
