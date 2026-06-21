@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useRTDB, useDoc, useFirestore } from '@/firebase';
+import { useRTDB, useDoc, useFirestore, useUser } from '@/firebase';
 import { ref, onValue, query, limitToLast } from 'firebase/database';
 import { doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,44 +18,84 @@ export function LogConsole() {
   const { data: botParams } = useDoc(botParamsRef);
   const activePairs = useMemo(() => botParams?.pairs || ['EURUSD-OTC'], [botParams]);
 
+  const { user } = useUser();
+  const brokerRef = user && firestore ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
+  const { data: brokerConfig } = useDoc(brokerRef as any);
+  const brokerConfigRef = useRef(brokerConfig);
+
   useEffect(() => {
-    if (logs.length > 0) return;
+    brokerConfigRef.current = brokerConfig;
+  }, [brokerConfig]);
 
-    // Logs iniciales de sistema
-    const initialLogs = [
-      { id: 's1', timestamp: Date.now() - 5000, message: 'Inicializando Núcleo Cuántico V7...', direction: 'NONE', agentId: 'SYSTEM' },
-      { id: 's2', timestamp: Date.now() - 4000, message: 'Sincronizando puente de datos WSS...', direction: 'NONE', agentId: 'NETWORK' },
-      { id: 's3', timestamp: Date.now() - 3000, message: `Vigilancia activa en clúster: ${activePairs[0]}`, direction: 'NONE', agentId: 'SENTINEL' }
-    ];
-    setLogs(initialLogs);
-
-    // Generador de Pensamientos de IA cada 2 segundos para máxima interactividad
-    const interval = setInterval(() => {
-      const agents = ['GEMINI-HFT', 'QUANTUM-X', 'V7-MAESTRO', 'DEEP-NEURO', 'CYBER-SENTINEL'];
-      const actions = [
-        'Escaneando micro-ticks en',
-        'Cálculo de RSI Cuántico en',
-        'Evaluando clúster de liquidez en',
-        'Filtro de volatilidad aplicado a',
-        'Detectada reversión probabilística en',
-        'Sincronizando latencia buyV3 en'
-      ];
-      const directions = ['CALL', 'PUT', 'NONE'];
-      const randomPair = activePairs[Math.floor(Math.random() * activePairs.length)];
-      const randomAction = actions[Math.floor(Math.random() * actions.length)];
+  useEffect(() => {
+    if (!user) return;
+    
+    let isFetching = false;
+    
+    const fetchRealLogs = async () => {
+      const config = brokerConfigRef.current;
+      if (!config || !config.email || isFetching) return;
       
-      const newLog = {
-        id: Math.random().toString(36),
-        timestamp: Date.now(),
-        message: `${randomAction} ${randomPair}. Confianza: ${(Math.random() * 0.10 + 0.85).toFixed(2)}`,
-        direction: directions[Math.floor(Math.random() * directions.length)],
-        agentId: agents[Math.floor(Math.random() * agents.length)]
-      };
-      setLogs(prev => [...prev.slice(-99), newLog]);
-    }, 2000);
+      const pair = activePairs[0] || 'EURUSD-OTC';
+      isFetching = true;
+
+      try {
+        const bridgeUrl = process.env.NEXT_PUBLIC_BRIDGE_URL || 'https://dprogramadores.com.co/nt-bridge';
+        const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'quantum_v7_secure_key_123';
+        
+        const response = await fetch(`${bridgeUrl}/analyze`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Bridge-Token': bridgeToken
+          },
+          body: JSON.stringify({ 
+            email: config.email,
+            password: config.password,
+            pair: pair,
+            accountType: config.accountType || 'demo'
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.logs) {
+            setLogs(prev => {
+               const combined = [...prev, ...data.logs.map((l: any) => {
+                 // Adaptamos el formato del backend al diseño de LogConsole
+                 let agent = 'SYSTEM';
+                 if (l.message.includes('[QUANTUM]')) agent = 'QUANTUM-X';
+                 if (l.message.includes('[SENTINEL]')) agent = 'CYBER-SENTINEL';
+                 if (l.message.includes('[IA MAIN]')) agent = 'V7-MAESTRO';
+                 
+                 let direction = 'NONE';
+                 if (l.message.includes('CALL')) direction = 'CALL';
+                 if (l.message.includes('PUT')) direction = 'PUT';
+
+                 return {
+                   id: Math.random().toString(36),
+                   timestamp: l.timestamp * 1000, 
+                   message: l.message.replace(/\[.*?\]\s*/, ''), // Limpiamos el prefijo para la visual pequeña
+                   direction: direction,
+                   agentId: agent
+                 };
+               })];
+               return combined.slice(-100);
+            });
+          }
+        }
+      } catch (err) {
+        // Silencioso en la consola para no spoilar la estética
+      } finally {
+        isFetching = false;
+      }
+    };
+
+    fetchRealLogs(); // Inicial
+    const interval = setInterval(fetchRealLogs, 15000); // 15 segundos
 
     return () => clearInterval(interval);
-  }, [logs.length, activePairs]);
+  }, [user, activePairs]);
 
   // Integración con Realtime Database si está disponible
   useEffect(() => {

@@ -44,7 +44,12 @@ export function EquityChart() {
         
         // Si el historial está vacío (cuenta nueva), mostrar al menos el balance actual como punto de partida
         if (records.length === 0 && tradingStats?.balance !== undefined) {
-            records = [{ date: 'Inicio', equity: tradingStats.balance }];
+            records = [
+              { date: 'Inicio', equity: tradingStats.balance },
+              { date: 'Actual', equity: tradingStats.balance }
+            ];
+        } else if (records.length === 1) {
+            records.push({ date: 'Actual', equity: records[0].equity });
         }
         
         setData(records);

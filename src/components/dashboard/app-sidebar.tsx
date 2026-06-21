@@ -29,10 +29,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { signOutUser } from "@/lib/actions"
+// import removed
 import { useToast } from "@/hooks/use-toast"
 import { useUser, useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
+
+import { getAuth, signOut } from "firebase/auth";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const router = useRouter();
@@ -45,13 +47,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super-admin';
 
   const handleLogout = async () => {
-    const res = await signOutUser();
-    if (res.success) {
+    try {
+      const auth = getAuth();
+      await signOut(auth);
       toast({
         title: "CONEXIÓN CERRADA",
         description: "Protocolo de desconexión completado.",
       });
       router.push('/login');
+    } catch (e) {
+      console.error(e);
     }
   };
 
