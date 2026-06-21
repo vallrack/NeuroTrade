@@ -1,16 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { ArrowUpCircle, ArrowDownCircle, Cpu, Activity, Zap, Loader2, ShieldCheck } from 'lucide-react';
-import { useUser, useFirestore, useDoc, useRTDB, useCollection } from '@/firebase';
+import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
 import { doc, query, collection, orderBy, limit } from 'firebase/firestore';
 import { executeTrade, triggerKillSwitch } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-
 import { playSuccessChime, playAlarm } from '@/lib/sounds';
 import { TradingChart } from './trading-chart';
 
@@ -19,27 +15,22 @@ export function IACommitteeMonitor() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
-  
+
   const [data, setData] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [lastExecution, setLastExecution] = useState<string | null>(null);
-  const [isExecuting, setIsExecuting] = useState(false);
   const [realPrice, setRealPrice] = useState<number | null>(null);
-  const [aiPersonality, setAiPersonality] = useState<'AGGRESSIVE' | 'STANDARD' | 'SNIPER'>('STANDARD');
-  
+  const [isExecuting, setIsExecuting] = useState(false);
+
   const executionCooldown = useRef(false);
   const lastFetchTime = useRef(0);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
   const botParamsRef = useMemo(() => {
     if (!mounted || !firestore) return null;
     return doc(firestore, 'configuracion', 'bot_params');
   }, [mounted, firestore]);
   const { data: botParams } = useDoc(botParamsRef);
-  
+
   const brokerRef = useMemo(() => {
     if (!mounted || !user || !firestore) return null;
     return doc(firestore, 'users', user.uid, 'config', 'broker');
@@ -54,241 +45,149 @@ export function IACommitteeMonitor() {
     return doc(firestore, 'users', user.uid, 'trading_stats', currentAccountType);
   }, [mounted, user, firestore, currentAccountType]);
   const { data: tradingStats } = useDoc(statsRef);
-  
+
   const tradesQuery = useMemo(() => {
     if (!mounted || !user || !firestore) return null;
-    return query(
-      collection(firestore, 'users', user.uid, 'trades'),
-      orderBy('timestamp', 'desc'),
-      limit(3)
-    );
+    return query(collection(firestore, 'users', user.uid, 'trades'), orderBy('timestamp', 'desc'), limit(3));
   }, [mounted, user, firestore]);
   const { data: recentTradesRaw } = useCollection(tradesQuery);
-
   const recentTrades = useMemo(() => {
     if (!recentTradesRaw) return [];
     return recentTradesRaw.filter((t: any) => t.accountType === currentAccountType);
   }, [recentTradesRaw, currentAccountType]);
 
-  const getThreshold = () => {
-    switch(aiPersonality) {
-      case 'AGGRESSIVE': return 70;
-      case 'SNIPER': return 95;
-      default: return 85;
-    }
-  };
-
   const handleAutoTrade = async (direction: 'CALL' | 'PUT') => {
     if (!user || isExecuting || executionCooldown.current) return;
     setIsExecuting(true);
     executionCooldown.current = true;
-    
     try {
       const result = await executeTrade(user.uid, {
-        pair: activePair,
-        direction,
-        amount: botParams?.investmentPerTrade || 4000
+        pair: activePair, direction, amount: botParams?.investmentPerTrade || 4000
       });
-      
       if (result.success) {
-        setLastExecution(new Date().toLocaleTimeString());
         playSuccessChime();
-        toast({ title: "🚀 V7 TRADE", description: `${direction} en ${activePair}` });
+        toast({ title: `🚀 ${direction} en ${activePair}`, description: 'Trade ejecutado por V7' });
       }
-    } catch (error) {
-      console.error('Trade error:', error);
+    } catch (e) {
+      console.error(e);
     } finally {
       setIsExecuting(false);
       setTimeout(() => { executionCooldown.current = false; }, 10000);
     }
   };
 
+  // ── Bridge polling ──────────────────────────────────────────────────
   useEffect(() => {
     if (!mounted || !user || !brokerConfig?.email) return;
-    
     let isMounted = true;
-    const fetchConsensus = async () => {
+
+    const fetchData = async () => {
       const now = Date.now();
       if (now - lastFetchTime.current < 4500) return;
       lastFetchTime.current = now;
 
       try {
         const bridgeUrl = process.env.NEXT_PUBLIC_BRIDGE_URL || 'https://dprogramadores.com.co/nt-bridge';
-        const response = await fetch(`${bridgeUrl}/analyze`, {
+        const res = await fetch(`${bridgeUrl}/analyze`, {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
-            'X-Bridge-Token': process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'quantum_v7_secure_key_123' 
+            'X-Bridge-Token': process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'quantum_v7_secure_key_123',
           },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             email: brokerConfig.email,
             password: brokerConfig.password,
             pair: activePair,
-            accountType: currentAccountType
-          })
+            accountType: currentAccountType,
+          }),
         });
 
-        if (response.ok && isMounted) {
-          const resData = await response.json();
-          if (resData.success) {
-            if (resData.candles?.length > 0) {
-              setRealPrice(resData.candles[resData.candles.length - 1].close);
-            }
+        if (res.ok && isMounted) {
+          const json = await res.json();
+          if (json.success) {
+            if (json.candles?.length > 0) setRealPrice(json.candles[json.candles.length - 1].close);
+            const p = json.direction !== 'NONE' ? 75 + Math.floor(Math.random() * 21) : 50;
+            setData({ direction: json.direction, probability: p, candles: json.candles, balance: json.balance });
 
-            const p = resData.direction !== 'NONE' ? 75 + Math.floor(Math.random() * 21) : 50;
-            setData({
-              overallConsensus: resData.direction,
-              consensusPercentage: p,
-              candles: resData.candles,
-              agentRecommendations: ['QUANTUM-X', 'CYBER-SENTINEL', 'V7-MAESTRO'].map(a => ({
-                agentName: a,
-                recommendation: resData.direction,
-                reasoning: `Señal detectada por Bridge HFT: ${resData.direction}`
-              }))
-            });
-            setLoading(false);
-
-            if (botParams?.bot_activo && brokerConfig.status === 'connected' && p >= getThreshold()) {
-              if (resData.direction !== 'NONE') handleAutoTrade(resData.direction);
+            if (botParams?.bot_activo && brokerConfig.status === 'connected' && p >= 85 && json.direction !== 'NONE') {
+              handleAutoTrade(json.direction);
             }
           }
         }
-      } catch (err) {
-        console.error('Bridge heartbeat error:', err);
-      }
+      } catch (_) { /* silencioso */ }
     };
 
-    fetchConsensus();
-    const interval = setInterval(fetchConsensus, 5000);
-    return () => { isMounted = false; clearInterval(interval); };
+    fetchData();
+    const id = setInterval(fetchData, 5000);
+    return () => { isMounted = false; clearInterval(id); };
   }, [mounted, user, activePair, botParams?.bot_activo, brokerConfig?.email, brokerConfig?.status, currentAccountType]);
 
   if (!mounted) return null;
 
+  const isCall = data?.direction === 'CALL';
+  const isPut  = data?.direction === 'PUT';
+
   return (
-    <div className="space-y-6">
-      <Card className="bg-black/40 border-slate-800 backdrop-blur-xl overflow-hidden shadow-2xl">
-        <CardHeader className="flex flex-row items-center justify-between border-b border-slate-800/50 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-500/10 rounded-lg">
-              <Cpu className="w-5 h-5 text-indigo-400 animate-pulse" />
-            </div>
-            <div>
-              <CardTitle className="text-xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-                Comité de Resolución HFT
-              </CardTitle>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge variant="outline" className="bg-emerald-500/5 text-emerald-400 border-emerald-500/20 text-[10px] py-0 px-2 tracking-widest font-mono">
-                  SERVER PRODUCTION ONLINE
-                </Badge>
-                {lastExecution && (
-                  <span className="text-[10px] text-slate-500 font-mono italic">
-                    Ultima Op: {lastExecution}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-             <div className="flex flex-col items-end">
-                <span className="text-[10px] text-slate-500 uppercase tracking-tighter font-mono">MERCADO {currentAccountType.toUpperCase()} V7</span>
-                <span className={cn(
-                  "font-mono text-lg font-bold transition-all duration-300",
-                  "text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]"
-                )}>
-                  {realPrice?.toFixed(5) || '---'}
-                </span>
-             </div>
-          </div>
-        </CardHeader>
-        
-        <CardContent className="pt-6">
-          <div className="h-[450px] w-full mb-6 rounded-2xl border border-indigo-500/10 overflow-hidden bg-slate-950 shadow-inner relative">
-             <div className="absolute top-4 left-4 z-10 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/5 pointer-events-none">
-                <span className="text-[10px] font-bold text-indigo-400 font-mono tracking-widest uppercase">Live Telemetry Feed</span>
-             </div>
-             <TradingChart data={data?.candles || []} pair={activePair} />
-          </div>
+    <div className="relative w-full rounded-2xl overflow-hidden border border-white/5 bg-black shadow-2xl">
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-indigo-400" />
-                  Consenso Algorítmico Quantum
-                </h3>
-                <span className={cn(
-                  "text-sm font-bold font-mono tracking-wider",
-                  data?.overallConsensus === 'CALL' ? "text-emerald-400" : 
-                  data?.overallConsensus === 'PUT' ? "text-red-400" : "text-slate-500"
-                )}>
-                  {data?.overallConsensus || 'ESPERANDO...'}
-                </span>
-              </div>
-              
-              <div className="relative pt-2">
-                 <Progress value={data?.consensusPercentage || 0} className="h-3 bg-slate-800" />
-                 <div className="flex justify-between mt-2">
-                    <span className="text-[10px] text-slate-500 font-mono tracking-tighter text-indigo-400 uppercase">Precisión V7 Bridge ({currentAccountType})</span>
-                    <span className="text-xs font-bold text-white font-mono">{data?.consensusPercentage || 0}%</span>
-                 </div>
-              </div>
+      {/* ── Gráfico principal ── */}
+      <div className="h-[540px] w-full">
+        <TradingChart data={data?.candles || []} pair={activePair} />
+      </div>
 
-              <div className="flex gap-2 pt-2">
-                <Badge 
-                  onClick={() => setAiPersonality('SNIPER')}
-                  className={cn(
-                    "cursor-pointer transition-all duration-300 border-indigo-500/20",
-                    aiPersonality === 'SNIPER' ? "bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]" : "bg-slate-900 text-slate-400 opacity-50"
-                  )}
-                >Sniper (95%)</Badge>
-                <Badge 
-                  onClick={() => setAiPersonality('STANDARD')}
-                  className={cn(
-                    "cursor-pointer transition-all duration-300 border-indigo-500/20",
-                    aiPersonality === 'STANDARD' ? "bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]" : "bg-slate-900 text-slate-400 opacity-50"
-                  )}
-                >Standard (85%)</Badge>
-              </div>
-            </div>
+      {/* ── HUD inferior ── */}
+      <div className="flex items-center justify-between gap-4 px-5 py-3
+                      bg-gradient-to-r from-black via-slate-950 to-black
+                      border-t border-white/5">
 
-            <div className="space-y-3">
-              {loading ? (
-                <div className="flex flex-col items-center justify-center p-8 border border-slate-800/30 rounded-xl bg-slate-900/10">
-                  <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-3" />
-                  <span className="text-xs text-slate-500 animate-pulse font-mono tracking-widest">SINCRONIZANDO VÍNCULO SEGURO...</span>
-                </div>
-              ) : (
-                data?.agentRecommendations.map((rec: any, idx: number) => (
-                  <div key={idx} className="group relative bg-slate-900/30 border border-slate-800/50 rounded-xl p-4 transition-all hover:bg-slate-800/40 hover:border-indigo-500/30">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Zap className={cn("w-4 h-4", rec.recommendation === 'CALL' ? "text-emerald-400" : "text-red-400")} />
-                        <span className="text-xs font-bold text-slate-300 tracking-wider font-mono">{rec.agentName}</span>
-                      </div>
-                      <Badge className={cn("text-[10px] font-mono", rec.recommendation === 'CALL' ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400")}>
-                        {rec.recommendation}
-                      </Badge>
-                    </div>
-                    <p className="text-[10px] text-slate-500 italic leading-snug group-hover:text-slate-400 transition-colors">
-                      {rec.reasoning}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      
-      {botParams?.bot_activo && (
-        <div className="flex items-center justify-center gap-3 p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl animate-in fade-in slide-in-from-bottom-2">
-           <ShieldCheck className="w-5 h-5 text-emerald-400" />
-           <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest font-mono">
-             Protección del Guardián Activa - IA en Modo Ejecutivo Oficial
-           </span>
+        {/* Par + cuenta */}
+        <div className="flex flex-col">
+          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Par activo</span>
+          <span className="text-sm font-bold text-white font-mono tracking-wider">{activePair}</span>
+          <span className="text-[9px] text-indigo-400 uppercase font-mono">{currentAccountType}</span>
         </div>
-      )}
+
+        {/* Precio en vivo */}
+        <div className="flex flex-col items-center">
+          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Precio</span>
+          <span className={cn(
+            'text-2xl font-black font-mono tabular-nums transition-all duration-300',
+            isCall ? 'text-emerald-400 drop-shadow-[0_0_12px_#10b981]' :
+            isPut  ? 'text-red-400 drop-shadow-[0_0_12px_#ef4444]' :
+                     'text-slate-300'
+          )}>
+            {realPrice?.toFixed(5) ?? '─.─────'}
+          </span>
+        </div>
+
+        {/* Señal IA */}
+        <div className="flex flex-col items-center gap-1">
+          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Señal IA V7</span>
+          <Badge className={cn(
+            'text-sm font-black tracking-widest px-4 py-1 font-mono border-0',
+            isCall ? 'bg-emerald-500/20 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.3)]' :
+            isPut  ? 'bg-red-500/20 text-red-300 shadow-[0_0_20px_rgba(239,68,68,0.3)]' :
+                     'bg-slate-800 text-slate-400'
+          )}>
+            {data?.direction ?? 'ESPERANDO'}
+          </Badge>
+          {data?.probability && (
+            <span className="text-[9px] font-mono text-slate-500">{data.probability}% confianza</span>
+          )}
+        </div>
+
+        {/* Balance */}
+        <div className="flex flex-col items-end">
+          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Balance</span>
+          <span className="text-sm font-bold text-emerald-400 font-mono">
+            ${data?.balance != null ? Number(data.balance).toFixed(2) : '---'}
+          </span>
+          {isExecuting && (
+            <span className="text-[9px] text-yellow-400 font-mono animate-pulse">Ejecutando...</span>
+          )}
+        </div>
+
+      </div>
     </div>
   );
 }

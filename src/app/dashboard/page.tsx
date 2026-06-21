@@ -8,6 +8,7 @@ import { StatsGrid } from '@/components/dashboard/stats-grid';
 import { IACommitteeMonitor } from '@/components/dashboard/ia-committee-monitor';
 import { EquityChart } from '@/components/dashboard/equity-chart';
 import { LogConsole } from '@/components/dashboard/log-console';
+import { BridgeEventsLog } from '@/components/dashboard/bridge-events-log';
 import { KillSwitch } from '@/components/dashboard/kill-switch';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
@@ -168,21 +169,28 @@ export default function DashboardPage() {
 
           <StatsGrid />
           
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 pb-20">
-            <div className="xl:col-span-8 space-y-6">
-              <EquityChart />
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <IACommitteeMonitor />
-                <div className="space-y-6 flex flex-col">
-                  {isSuperAdmin && <SuperAdminTools />}
-                  <KillSwitch />
-                </div>
+          <div className="space-y-6 pb-20">
+
+            {/* Gráfico HFT — ancho completo */}
+            <IACommitteeMonitor />
+
+            {/* Fila secundaria: Stats + Controles */}
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+              <div className="xl:col-span-8 space-y-6">
+                <EquityChart />
+              </div>
+              <div className="xl:col-span-4 space-y-4">
+                {isSuperAdmin && <SuperAdminTools />}
+                <KillSwitch />
               </div>
             </div>
-            
-            <div className="xl:col-span-4">
+
+            {/* Eventos del sistema + Log legacy */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <BridgeEventsLog />
               <LogConsole />
             </div>
+
           </div>
         </main>
       </SidebarInset>
