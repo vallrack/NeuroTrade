@@ -40,6 +40,26 @@ def health():
         "iqoption_sdk": "LOADED"
     })
 
+@app.route('/connect', methods=['POST'])
+def connect():
+    try:
+        data = request.json
+        email = data.get('email')
+        password = data.get('password')
+        account_type = data.get('accountType', 'demo')
+        
+        iq, error = get_iq_connection(email, password, account_type)
+        if not iq:
+            return jsonify({"success": False, "error": f"Auth Fail: {error}"}), 401
+            
+        return jsonify({
+            "success": True, 
+            "balance": iq.get_balance(),
+            "status": "connected"
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/analyze', methods=['POST'])
 def analyze():
     try:
