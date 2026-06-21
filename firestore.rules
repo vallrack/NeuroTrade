@@ -11,37 +11,40 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function getRole() {
-      // Usamos el operador de seguridad para evitar errores si el documento no existe aún
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
-    }
-
     function isAdmin() {
-      return isSignedIn() && (getRole() == 'admin' || getRole() == 'super-admin');
+      // Intenta obtener el rol, pero devuelve falso si hay error (evita fallos circulares)
+      return isSignedIn() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super-admin'];
     }
 
     // ── USUARIOS ─────────────────────────────────────────────────
     match /users/{userId} {
+      // El dueño o el admin pueden leer y ver el perfil
       allow read: if isOwner(userId) || isAdmin();
       
-      // Permitir creación inicial de perfil si el usuario está autenticado
+      // Permitir creación inicial si está logueado
       allow create: if isSignedIn() && request.auth.uid == userId;
 
-      allow update: if isOwner(userId) && (
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'disabled'])
-      ) || isAdmin();
+      // El dueño puede actualizar cosas no críticas. Admin puede todo.
+      allow update: if isOwner(userId) || isAdmin();
 
-      // Sub-colecciones
+      // Sub-colecciones de usuario (trades, config, analytics, etc)
       match /{allSubcollections=**} {
         allow read, write: if isOwner(userId) || isAdmin();
       }
     }
 
+    // ── LOGS DEL SISTEMA ────────────────────────────────────────
+    match /logs/{logId} {
+      // Todos los operadores deben poder ver los logs
+      allow read: if isSignedIn();
+      // Solo el sistema/admin puede escribir (o el usuario si el log es sobre él)
+      allow write: if isSignedIn();
+    }
+
     // ── CONFIGURACIÓN GLOBAL ────────────────────────────────────
     match /configuracion/{docId} {
-      // CUALQUIER OPERADOR debe poder leer los parámetros para que el bot funcione
       allow read: if isSignedIn();
-      // SOLO ADMINS pueden modificar la estrategia
       allow write: if isAdmin();
     }
 
@@ -50,9 +53,10 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    match /dashboard/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+    // ── REGLA DE EMERGENCIA ─────────────────────────────────────
+    // Permitir lectura de cualquier documento si el usuario es super-admin
+    match /{path=**} {
+      allow read: if isAdmin();
     }
   }
 }

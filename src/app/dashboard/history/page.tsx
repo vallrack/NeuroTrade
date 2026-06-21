@@ -3,36 +3,51 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useCollection, useFirestore, useDoc } from '@/firebase';
-import { collection, query, orderBy, limit, where } from 'firebase/firestore';
-import { History, ArrowUpRight, ArrowDownRight, Clock, Download } from 'lucide-react';
+import { collection, query, orderBy, limit, where, doc } from 'firebase/firestore';
+import { History, ArrowUpRight, ArrowDownRight, Clock, Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function HistoryPage() {
+  const [mounted, setMounted] = useState(false);
   const { user } = useUser();
   const firestore = useFirestore();
 
-  const brokerRef = user ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const brokerRef = useMemo(() => {
+    if (!mounted || !user || !firestore) return null;
+    return doc(firestore, 'users', user.uid, 'config', 'broker');
+  }, [mounted, user, firestore]);
+
   const { data: brokerConfig } = useDoc(brokerRef);
   const currentAccountType = brokerConfig?.accountType || 'demo';
 
   const tradesQuery = useMemo(() => {
-    if (!user || !firestore) return null;
+    if (!mounted || !user || !firestore) return null;
+    // Consulta simplificada para evitar errores de índice compuesto inmediatos
     return query(
       collection(firestore, 'users', user.uid, 'trades'),
-      where('accountType', '==', currentAccountType),
       orderBy('timestamp', 'desc'),
       limit(50)
     );
-  }, [user, firestore, currentAccountType]);
+  }, [mounted, user, firestore]);
 
-  const { data: trades, loading } = useCollection(tradesQuery);
+  const { data: allTrades, loading } = useCollection(tradesQuery);
+
+  // Filtrado en el cliente para evitar el requisito de índice compuesto
+  const trades = useMemo(() => {
+    if (!allTrades) return [];
+    return allTrades.filter((t: any) => t.accountType === currentAccountType);
+  }, [allTrades, currentAccountType]);
 
   const exportToCSV = () => {
     if (!trades || trades.length === 0) return;
@@ -55,6 +70,14 @@ export default function HistoryPage() {
     link.click();
     document.body.removeChild(link);
   };
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-primary">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>
@@ -95,41 +118,44 @@ export default function HistoryPage() {
                 <Table>
                   <TableHeader className="bg-white/5">
                     <TableRow>
-                      <TableHead>Fecha/Hora</TableHead>
-                      <TableHead>Activo</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Monto</TableHead>
-                      <TableHead>Resultado</TableHead>
-                      <TableHead className="text-right">Beneficio</TableHead>
+                      <TableHead className="text-xs uppercase font-bold text-muted-foreground">Fecha/Hora</TableHead>
+                      <TableHead className="text-xs uppercase font-bold text-muted-foreground">Activo</TableHead>
+                      <TableHead className="text-xs uppercase font-bold text-muted-foreground">Tipo</TableHead>
+                      <TableHead className="text-xs uppercase font-bold text-muted-foreground">Monto</TableHead>
+                      <TableHead className="text-xs uppercase font-bold text-muted-foreground">Resultado</TableHead>
+                      <TableHead className="text-right text-xs uppercase font-bold text-muted-foreground">Beneficio</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {trades.map((trade: any) => (
                       <TableRow key={trade.id} className="hover:bg-white/5 transition-colors border-white/5">
                         <TableCell className="text-xs font-code">
-                          {new Date(trade.timestamp).toLocaleString()}
+                          {trade.timestamp?.toDate ? trade.timestamp.toDate().toLocaleString() : new Date(trade.timestamp).toLocaleString()}
                         </TableCell>
-                        <TableCell className="font-bold">{trade.pair}</TableCell>
+                        <TableCell className="font-bold text-xs">{trade.pair}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1.5">
                             {trade.direction === 'CALL' ? (
-                              <ArrowUpRight className="h-4 w-4 text-green-500" />
+                              <ArrowUpRight className="h-3 w-3 text-green-500" />
                             ) : (
-                              <ArrowDownRight className="h-4 w-4 text-red-500" />
+                              <ArrowDownRight className="h-3 w-3 text-red-500" />
                             )}
-                            <span className={trade.direction === 'CALL' ? 'text-green-500 font-bold' : 'text-red-500 font-bold'}>
+                            <span className={cn(
+                              "text-[10px] font-bold uppercase",
+                              trade.direction === 'CALL' ? 'text-green-500' : 'text-red-500'
+                            )}>
                               {trade.direction}
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-code">${trade.amount}</TableCell>
+                        <TableCell className="font-code text-xs">${trade.amount}</TableCell>
                         <TableCell>
-                          <Badge variant={trade.status === 'win' ? 'default' : 'destructive'} className="uppercase text-[10px]">
+                          <Badge variant={trade.status === 'win' ? 'default' : 'destructive'} className="uppercase text-[8px] font-bold tracking-tighter">
                             {trade.status === 'win' ? 'Profit' : 'Loss'}
                           </Badge>
                         </TableCell>
-                        <TableCell className={`text-right font-bold ${trade.profit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {trade.profit >= 0 ? '+' : ''}${trade.profit.toFixed(2)}
+                        <TableCell className={`text-right font-code font-bold text-xs ${trade.profit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {trade.profit >= 0 ? '+' : ''}${parseFloat(trade.profit).toFixed(2)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -144,4 +170,4 @@ export default function HistoryPage() {
   );
 }
 
-import { doc } from 'firebase/firestore';
+import { cn } from '@/lib/utils';

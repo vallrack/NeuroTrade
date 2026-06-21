@@ -12,7 +12,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Zap, Loader2, AlertCircle, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-// Componente interno que usa useSearchParams — DEBE estar dentro de Suspense
 function LoginContent() {
   const [mounted, setMounted] = useState(false);
   const [email, setEmail] = useState('');
@@ -39,15 +38,18 @@ function LoginContent() {
     e.preventDefault();
     setLoading(true);
     setError('');
+    
     try {
-      // RECAPTCHA ENTERPRISE PROTOCOL
-      // @ts-ignore
-      if (typeof window !== 'undefined' && window.grecaptcha) {
-        // @ts-ignore
-        await new Promise((resolve) => window.grecaptcha.enterprise.ready(resolve));
-        // @ts-ignore
-        const token = await window.grecaptcha.enterprise.execute('6LcsviotAAAAAOjneBwLDB9feQMo-YVXrJUdNykl', {action: 'LOGIN'});
-        console.log('RISK_SCORE_TOKEN_GENERATED');
+      // 🛡️ RECAPTCHA ENTERPRISE PROTOCOL
+      const grecaptcha = (window as any).grecaptcha;
+      if (grecaptcha?.enterprise) {
+        try {
+          await grecaptcha.enterprise.ready(async () => {
+            await grecaptcha.enterprise.execute('6LcsviotAAAAAOjneBwLDB9feQMo-YVXrJUdNykl', {action: 'LOGIN'});
+          });
+        } catch (rcErr) {
+          console.warn('RECAPTCHA_SILENT_FAIL', rcErr);
+        }
       }
 
       await signInWithEmailAndPassword(auth, email, password);
@@ -69,7 +71,6 @@ function LoginContent() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background relative overflow-hidden">
-      {/* Fondo neón decorativo */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-primary/5 blur-3xl" />
       </div>
@@ -88,9 +89,6 @@ function LoginContent() {
           <CardDescription className="mt-2 space-y-1">
             <span className="block uppercase text-[10px] tracking-widest font-bold text-muted-foreground">
               Sistema de Acceso Restringido
-            </span>
-            <span className="block text-[10px] text-muted-foreground/60 italic">
-              Acceso autorizado únicamente por el administrador
             </span>
           </CardDescription>
         </CardHeader>
@@ -124,9 +122,6 @@ function LoginContent() {
               {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
               Autenticar Identidad
             </Button>
-            <p className="text-[9px] text-muted-foreground/50 text-center font-bold uppercase tracking-widest">
-              ¿No tienes acceso? Contacta a tu administrador
-            </p>
           </CardFooter>
         </form>
       </Card>
@@ -134,7 +129,6 @@ function LoginContent() {
   );
 }
 
-// Export default envuelto en Suspense — requerido por Next.js 15 para useSearchParams
 export default function LoginPage() {
   return (
     <Suspense fallback={
