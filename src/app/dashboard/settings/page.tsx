@@ -61,21 +61,31 @@ export default function SettingsPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    
     const config = {
       min_confidence_score: parseFloat(minConfidence),
       max_drawdown: parseFloat(maxDrawdown),
-      strategy_mode: strategyMode
+      strategy_mode: strategyMode,
+      updatedAt: new Date().toISOString(),
     };
 
-    const result = await updateBotConfig(config);
-    setLoading(false);
-
-    if (result.success) {
+    try {
+      if (firestore) {
+        const { setDoc } = await import('firebase/firestore');
+        await setDoc(botParamsRef!, config, { merge: true });
+        toast({
+          title: "NÚCLEO V7 ACTUALIZADO",
+          description: "Los parámetros de IA han sido reconfigurados con éxito.",
+        });
+      }
+    } catch (error: any) {
+      console.error(error);
       toast({
-        title: "NÚCLEO V7 ACTUALIZADO",
-        description: "Los parámetros de IA han sido reconfigurados con éxito.",
+        title: "ERROR AL GUARDAR",
+        description: error.message || "Permiso denegado o error de conexión.",
+        variant: "destructive"
       });
+    } finally {
+      setLoading(false);
     }
   }
 
