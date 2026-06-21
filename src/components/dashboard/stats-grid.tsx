@@ -47,13 +47,12 @@ export function StatsGrid() {
             dailyProfit: data.dailyProfit || 0,
             totalInvestment: data.totalInvestment || 0,
             winRate: winRate,
-            // Inicializar balance con Firestore por si RTDB tarda o no existe
-            balance: prev.balance === 0 ? (data.balance || (accountType === 'demo' ? 11046.71 : 0)) : prev.balance
+            balance: data.balance || 0
           }));
         } else {
           setStats(prev => ({
              ...prev,
-            balance: accountType === 'demo' ? 11046.71 : 0,
+            balance: 0,
             dailyProfit: 0,
             winRate: 0,
             totalInvestment: 0
