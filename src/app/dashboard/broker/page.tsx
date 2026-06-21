@@ -84,23 +84,41 @@ function BrokerContent() {
         const bridgeUrl = process.env.NEXT_PUBLIC_BRIDGE_URL || 'https://dprogramadores.com.co/nt-bridge';
         const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'quantum_v7_secure_key_123';
         
+        // Timeout de 15 segundos para no quedarse colgado
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
         const response = await fetch(`${bridgeUrl}/connect`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-Bridge-Token': bridgeToken
           },
-          body: JSON.stringify({ email, password, accountType })
+          body: JSON.stringify({ email, password, accountType }),
+          signal: controller.signal
         });
         
+        clearTimeout(timeoutId);
+
         if (response.ok) {
           const bridgeData = await response.json();
           if (bridgeData.success) {
             realBalance = bridgeData.balance;
+          } else {
+            throw new Error(bridgeData.error || "Error en Bridge");
           }
+        } else {
+          throw new Error(`Servidor Bridge respondió con error ${response.status}`);
         }
-      } catch (bridgeError) {
-        console.warn('Bridge no disponible, usando balance 0:', bridgeError);
+      } catch (bridgeError: any) {
+        let errorMsg = "No se pudo sincronizar el balance real.";
+        if (bridgeError.name === 'AbortError') errorMsg = "El Bridge tardó demasiado en responder (Timeout).";
+        
+        toast({
+          title: "VÍNCULO PARCIAL",
+          description: errorMsg + " Pero tus credenciales fueron guardadas.",
+          variant: "default"
+        });
       }
 
       // 3. Guardar el balance real en Firestore
