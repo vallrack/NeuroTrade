@@ -1,34 +1,155 @@
 'use client';
 
-import { AdvancedRealTimeChart } from "react-ts-tradingview-widgets";
+import { useEffect, useRef } from 'react';
+import { createChart, ColorType, IChartApi } from 'lightweight-charts';
 
 interface TradingChartProps {
-  data?: any[]; // Mantenido para compatibilidad de type, aunque el widget usa su propio feed
+  data: any[];
   pair: string;
 }
 
-export function TradingChart({ pair }: TradingChartProps) {
-  // Formatear el par para TradingView (Remover -OTC si existe y usar un symbol válido)
-  const tvPair = pair ? pair.replace('-OTC', '') : 'EURUSD';
-  const symbol = `FX:${tvPair}`;
+export function TradingChart({ data, pair }: TradingChartProps) {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+
+  const seriesRef = useRef<any>(null);
+  const volumeSeriesRef = useRef<any>(null); // Referencia Histograma de Volumen
+
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+
+    const chart = createChart(chartContainerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: 'transparent' },
+        textColor: '#a1a1aa', // zinc-400
+        fontFamily: "'Inter', sans-serif",
+      },
+      grid: {
+        vertLines: { color: 'rgba(255, 255, 255, 0.03)' },
+        horzLines: { color: 'rgba(255, 255, 255, 0.03)' },
+      },
+      width: chartContainerRef.current.clientWidth,
+      height: chartContainerRef.current.clientHeight || 450,
+      crosshair: {
+        mode: 1, // Magnet mode
+        vertLine: {
+          color: 'rgba(255, 255, 255, 0.4)',
+          width: 1,
+          style: 3, 
+          labelBackgroundColor: '#26a69a',
+        },
+        horzLine: {
+          color: 'rgba(255, 255, 255, 0.4)',
+          width: 1,
+          style: 3,
+          labelBackgroundColor: '#26a69a',
+        },
+      },
+      rightPriceScale: {
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        autoScale: true,
+      },
+      timeScale: {
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        timeVisible: true,
+        secondsVisible: false, 
+      },
+    });
+
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: '#26a69a',       
+      downColor: '#ef5350',     
+      borderVisible: false,
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350',
+      priceFormat: {
+        type: 'price',
+        precision: 5,
+        minMove: 0.00001,
+      },
+    });
+
+    // Añadir el histograma de volumen abajo simulando estilo TradingView
+    const volumeSeries = chart.addHistogramSeries({
+        priceFormat: { type: 'volume' },
+        priceScaleId: '', // Overlay encima de las velas
+    });
+
+    volumeSeries.priceScale().applyOptions({
+        scaleMargins: {
+            top: 0.8, // volumen comprimido al último 20%
+            bottom: 0,
+        },
+    });
+
+    chartRef.current = chart;
+    seriesRef.current = candleSeries;
+    volumeSeriesRef.current = volumeSeries;
+
+    const handleResize = () => {
+      if (chartContainerRef.current) {
+        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
+    };
+  }, []);
+
+  const isDataLoadedRef = useRef(false);
+
+  useEffect(() => {
+    if (seriesRef.current && volumeSeriesRef.current && data && data.length > 0) {
+      // Velas
+      const formattedData = data.map(candle => ({
+        time: candle.from,
+        open: candle.open,
+        high: candle.max,
+        low: candle.min,
+        close: candle.close,
+      }));
+      formattedData.sort((a, b) => (a.time as number) - (b.time as number));
+
+      // Volumen
+      const formattedVolumeData = data.map(candle => ({
+        time: candle.from,
+        value: candle.volume || 0,
+        color: candle.close > candle.open ? 'rgba(38, 166, 154, 0.35)' : 'rgba(239, 83, 80, 0.35)'
+      }));
+      formattedVolumeData.sort((a, b) => (a.time as number) - (b.time as number));
+
+      if (!isDataLoadedRef.current) {
+        seriesRef.current.setData(formattedData);
+        volumeSeriesRef.current.setData(formattedVolumeData);
+        chartRef.current?.timeScale().fitContent();
+        isDataLoadedRef.current = true;
+      } else {
+        try {
+          const lastCandle = formattedData[formattedData.length - 1];
+          const lastVolume = formattedVolumeData[formattedVolumeData.length - 1];
+          if (lastCandle) seriesRef.current.update(lastCandle);
+          if (lastVolume) volumeSeriesRef.current.update(lastVolume);
+        } catch (err) {
+          seriesRef.current.setData(formattedData);
+          volumeSeriesRef.current.setData(formattedVolumeData);
+        }
+      }
+    }
+  }, [data]);
 
   return (
-    <div className="relative w-full h-full bg-[#131722] overflow-hidden border border-white/5 rounded-none">
-      <AdvancedRealTimeChart 
-        theme="dark"
-        symbol={symbol}
-        locale="es"
-        interval="1"
-        timezone="Etc/UTC"
-        style="1" // 1 = Candles
-        hide_top_toolbar={false}
-        hide_legend={false}
-        save_image={false}
-        container_id="tradingview_v7_master"
-        autosize={true}
-        enable_publishing={false}
-        allow_symbol_change={true}
-      />
+    <div className="relative w-full h-full bg-[#131722] rounded-none overflow-hidden border-0">
+        <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
+            <span className="flex items-center gap-2 text-[10px] font-bold text-primary uppercase tracking-[0.2em] bg-primary/10 px-2.5 py-1 rounded shadow-[0_0_15px_rgba(38,166,154,0.1)]">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_#26a69a]" />
+                IQ OTC: {pair}
+            </span>
+        </div>
+        <div ref={chartContainerRef} className="w-full h-full" />
     </div>
   );
 }
