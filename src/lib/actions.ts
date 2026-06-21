@@ -6,8 +6,36 @@ import { doc, setDoc, updateDoc, collection, addDoc, serverTimestamp, getDoc, in
 import { signOut } from 'firebase/auth';
 
 /**
- * PROTOCOLO MAESTRO V7 - COMUNICACIÓN UNILATERAL CON BROKER
+ * 🛰️ NEUROTRADE V7 - MÓDULO DE COMUNICACIÓN REMOTA
+ * Direcciona las órdenes al puente (Local o Servidor Pro)
  */
+
+const BRIDGE_URL = process.env.NEXT_PUBLIC_BRIDGE_URL || "http://127.0.0.1:8888";
+const BRIDGE_TOKEN = process.env.BRIDGE_SECRET_KEY || "quantum_v7_secure_key_123";
+
+async function callBridge(endpoint: string, payload: any) {
+  try {
+    const response = await fetch(`${BRIDGE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-Bridge-Token': BRIDGE_TOKEN
+      },
+      cache: 'no-store',
+      body: JSON.stringify(payload)
+    });
+    
+    if (!response.ok) {
+       const errData = await response.json().catch(() => ({}));
+       throw new Error(errData.error || `HTTP_Error_${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (e: any) {
+    console.error(`Bridge Call Error [${endpoint}]:`, e.message);
+    throw e;
+  }
+}
 
 export async function updateBrokerConfig(userId: string, data: any) {
   const { firestore: db } = initializeFirebase();
@@ -17,53 +45,22 @@ export async function updateBrokerConfig(userId: string, data: any) {
       ...data,
       updatedAt: new Date().toISOString(),
     }, { merge: true });
+    
+    // Al actualizar config, intentamos un handshake con el puente de una vez
+    try {
+      await callBridge('/connect', {
+        email: data.email,
+        password: data.password,
+        accountType: data.accountType,
+        uid: userId
+      });
+    } catch (e) {
+      console.warn("Handshake inicial fallido, pero configuración guardada.");
+    }
+
     return { success: true };
   } catch (error) {
-    console.error('Error updating broker config:', error);
     return { success: false, error: 'FALLO AL GUARDAR CONFIGURACIÓN' };
-  }
-}
-
-export async function syncBrokerProfile(userId: string, brokerData: any) {
-  const { firestore: db } = initializeFirebase();
-  try {
-    // LLAMADA AL PUENTE LOCAL (PYTHON)
-    try {
-      const bridgeResponse = await fetch('http://127.0.0.1:8888/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
-        body: JSON.stringify({
-          email: brokerData.email,
-          password: brokerData.password,
-          accountType: brokerData.accountType,
-          uid: userId
-        })
-      });
-      
-      const result = await bridgeResponse.json();
-      
-      if (!bridgeResponse.ok || !result.success) {
-        return { success: false, error: result.error || 'Credenciales inválidas o bloqueadas.' };
-      }
-      
-      const accountType = brokerData.accountType;
-      const statsRef = doc(db, 'users', userId, 'trading_stats', accountType);
-      
-      await setDoc(statsRef, {
-        balance: result.balance,
-        status: 'ACTIVE_BRIDGE',
-        lastSync: new Date().toISOString(),
-        version: 'V7-REAL'
-      }, { merge: true });
-
-      return { success: true, balance: result.balance };
-      
-    } catch (e: any) {
-      return { success: false, error: 'El puente local no respondió.' };
-    }
-  } catch (error: any) {
-    return { success: false, error: 'ERROR CRÍTICO DE SINCRONIZACIÓN' };
   }
 }
 
@@ -76,49 +73,38 @@ export async function executeTrade(userId: string, tradeData: {
   try {
     const brokerRef = doc(db, 'users', userId, 'config', 'broker');
     const brokerSnap = await getDoc(brokerRef);
-    const brokerConfig = brokerSnap.exists() ? brokerSnap.data() : { accountType: 'demo' };
-    const accountType = brokerConfig.accountType || 'demo';
+    const accountType = brokerSnap.exists() ? (brokerSnap.data().accountType || 'demo') : 'demo';
 
-    // LLAMADA AL PUENTE DE PYTHON
-    try {
-      const tradeResponse = await fetch('http://127.0.0.1:8888/trade', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
-        body: JSON.stringify({
-          uid: userId,
-          pair: tradeData.pair,
-          direction: tradeData.direction,
-          amount: tradeData.amount
-        })
-      });
-      
-      const result = await tradeResponse.json();
-      if (!result.success) return { success: false, error: result.error };
-      
-      const timestamp = new Date().toISOString();
-      const statsRef = doc(db, 'users', userId, 'trading_stats', accountType);
+    // LLAMADA AL PUENTE PRO (Remoto o Local)
+    const result = await callBridge('/trade', {
+      uid: userId,
+      pair: tradeData.pair,
+      direction: tradeData.direction,
+      amount: tradeData.amount
+    });
+    
+    if (!result.success) return { success: false, error: result.error };
+    
+    const timestamp = new Date().toISOString();
+    const statsRef = doc(db, 'users', userId, 'trading_stats', accountType);
 
-      await addDoc(collection(db, 'users', userId, 'trades'), {
-        ...tradeData,
-        status: result.status,
-        profit: result.profit,
-        timestamp,
-        accountType
-      });
+    await addDoc(collection(db, 'users', userId, 'trades'), {
+      ...tradeData,
+      status: result.status,
+      profit: result.profit,
+      timestamp,
+      accountType
+    });
 
-      await updateDoc(statsRef, {
-        balance: increment(result.profit),
-        dailyProfit: increment(result.profit),
-        tradesCount: increment(1)
-      });
+    await updateDoc(statsRef, {
+      balance: increment(result.profit),
+      dailyProfit: increment(result.profit),
+      tradesCount: increment(1)
+    });
 
-      return { success: true, status: result.status, profit: result.profit };
-    } catch (e: any) {
-      return { success: false, error: 'Sin conexión con el puente local.' };
-    }
-  } catch (error: any) {
-    return { success: false, error: 'ERROR EN EL PROCESO DE TRADING' };
+    return { success: true, status: result.status, profit: result.profit };
+  } catch (e: any) {
+    return { success: false, error: 'Sin respuesta del puente de datos.' };
   }
 }
 
@@ -141,16 +127,6 @@ export async function triggerKillSwitch() {
   try {
     const configRef = doc(db, 'configuracion', 'bot_params');
     await updateDoc(configRef, { bot_activo: false });
-    return { success: true };
-  } catch (error) {
-    return { success: false };
-  }
-}
-
-export async function promoteToSuperAdmin(userId: string) {
-  const { firestore: db } = initializeFirebase();
-  try {
-    await setDoc(doc(db, 'users', userId), { role: 'super-admin' }, { merge: true });
     return { success: true };
   } catch (error) {
     return { success: false };
