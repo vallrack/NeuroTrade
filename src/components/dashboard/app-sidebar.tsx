@@ -13,7 +13,8 @@ import {
   Zap,
   Globe,
   LineChart,
-  BookOpen
+  BookOpen,
+  Users
 } from "lucide-react"
 
 import {
@@ -30,70 +31,18 @@ import {
 } from "@/components/ui/sidebar"
 import { signOutUser } from "@/lib/actions"
 import { useToast } from "@/hooks/use-toast"
-
-const data = {
-  navMain: [
-    {
-      title: "OPERATIVA",
-      items: [
-        {
-          title: "Dashboard",
-          url: "/dashboard",
-          icon: LayoutDashboard,
-        },
-        {
-          title: "Terminal HFT",
-          url: "/dashboard/terminal",
-          icon: LineChart,
-        },
-        {
-          title: "Auditoría",
-          url: "/dashboard/history",
-          icon: History,
-        },
-      ],
-    },
-    {
-      title: "PUENTES",
-      items: [
-        {
-          title: "Broker Link",
-          url: "/dashboard/broker",
-          icon: Globe,
-        },
-        {
-          title: "Seguridad",
-          url: "/dashboard/risk",
-          icon: ShieldCheck,
-        },
-      ],
-    },
-    {
-      title: "SISTEMA",
-      items: [
-        {
-          title: "Núcleo V7",
-          url: "/dashboard/settings",
-          icon: Settings,
-        },
-        {
-          title: "Manual Pro",
-          url: "/dashboard/manual",
-          icon: BookOpen,
-        },
-        {
-          title: "Perfil",
-          url: "/dashboard/profile",
-          icon: UserCircle,
-        },
-      ],
-    },
-  ],
-}
+import { useUser, useFirestore, useDoc } from "@/firebase"
+import { doc } from "firebase/firestore"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useUser();
+  const firestore = useFirestore();
+  
+  // Obtener perfil para verificar rol
+  const { data: profile } = useDoc(user ? doc(firestore, 'users', user.uid) : null);
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'super-admin';
 
   const handleLogout = async () => {
     const res = await signOutUser();
@@ -105,6 +54,40 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       router.push('/login');
     }
   };
+
+  // Construcción dinámica del menú
+  const navigation = [
+    {
+      title: "OPERATIVA",
+      items: [
+        { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+        { title: "Terminal HFT", url: "/dashboard/terminal", icon: LineChart },
+        { title: "Auditoría", url: "/dashboard/history", icon: History },
+      ],
+    },
+    {
+      title: "PUENTES",
+      items: [
+        { title: "Broker Link", url: "/dashboard/broker", icon: Globe },
+        { title: "Seguridad", url: "/dashboard/risk", icon: ShieldCheck },
+      ],
+    },
+    // Solo visible para Administradores
+    ...(isAdmin ? [{
+      title: "ADMINISTRACIÓN",
+      items: [
+        { title: "Gestión de Usuarios", url: "/dashboard/admin", icon: Users },
+      ]
+    }] : []),
+    {
+      title: "SISTEMA",
+      items: [
+        { title: "Núcleo V7", url: "/dashboard/settings", icon: Settings },
+        { title: "Manual Pro", url: "/dashboard/manual", icon: BookOpen },
+        { title: "Perfil", url: "/dashboard/profile", icon: UserCircle },
+      ],
+    },
+  ];
 
   return (
     <Sidebar collapsible="icon" {...props} className="border-r border-white/5 bg-sidebar/50 backdrop-blur-3xl">
@@ -119,7 +102,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       
       <SidebarContent className="px-2 overflow-x-hidden custom-scrollbar">
-        {data.navMain.map((group) => (
+        {navigation.map((group) => (
           <SidebarGroup key={group.title} className="py-2">
             <SidebarGroupLabel className="text-[8px] text-muted-foreground/40 px-3 font-bold tracking-[0.2em] uppercase group-data-[collapsible=icon]:hidden">
               {group.title}
