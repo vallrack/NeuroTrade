@@ -3,3 +3,4 @@ flask-cors
 requests
 websocket-client
 https://github.com/iqoptionapi/iqoptionapi/archive/master.zip
+gunicorn
