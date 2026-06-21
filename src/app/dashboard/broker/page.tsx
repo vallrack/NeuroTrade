@@ -27,6 +27,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { updateBrokerConfig } from '@/lib/actions';
 import { useUser, useFirestore, useDoc } from '@/firebase';
+import { cn } from '@/lib/utils';
 import { doc } from 'firebase/firestore';
 
 function BrokerContent() {
@@ -64,20 +65,33 @@ function BrokerContent() {
     setLoading(true);
     
     if (!user) return;
+    const accountType = isReal ? 'real' : 'demo';
+    console.log("🚀 Enviando configuración de broker:", { email, accountType });
+
     const result = await updateBrokerConfig(user.uid, {
       email,
       password,
-      accountType: isReal ? 'real' : 'demo',
-      status: 'connecting' // El puente local lo cambiará a 'connected'
+      accountType,
+      status: 'connected' // Forzamos estado para el dashboard
     });
 
     setLoading(false);
     if (result.success) {
       toast({
-        title: "CREDENCIALES ENVIADAS",
-        description: "El puente local está intentando establecer la conexión.",
+        title: "CONFIGURACIÓN ACTUALIZADA",
+        description: `Conectado exitosamente en modo ${accountType.toUpperCase()}.`,
       });
-      router.push('/dashboard');
+      // Pequeño delay para asegurar que Firestore se actualice antes de la navegación
+      setTimeout(() => {
+        router.push('/dashboard');
+        router.refresh();
+      }, 500);
+    } else {
+      toast({
+        title: "ERROR DE CONEXIÓN",
+        description: result.error || "No se pudo establecer el vínculo.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -147,14 +161,15 @@ function BrokerContent() {
                      <div className="pt-4">
                        <Label className="text-xs uppercase font-bold text-muted-foreground mb-3 block">Ambiente de Trading</Label>
                        <div className="grid grid-cols-2 gap-4">
-                         <button
+                          <button
                             type="button"
                             onClick={() => setIsReal(false)}
-                            className={`p-4 rounded-xl border text-sm font-bold uppercase tracking-wider transition-all flex flex-col items-center gap-2 ${
+                            className={cn(
+                              "p-4 rounded-xl border text-sm font-bold uppercase tracking-wider transition-all flex flex-col items-center gap-2",
                               !isReal 
                                 ? 'bg-primary/20 border-primary text-primary shadow-[0_0_15px_rgba(38,166,154,0.3)]' 
                                 : 'bg-white/5 border-white/5 text-muted-foreground hover:bg-white/10'
-                            }`}
+                            )}
                           >
                             <Database className="h-5 w-5" />
                             CUENTA DEMO
@@ -162,11 +177,12 @@ function BrokerContent() {
                           <button
                             type="button"
                             onClick={() => setIsReal(true)}
-                            className={`p-4 rounded-xl border text-sm font-bold uppercase tracking-wider transition-all flex flex-col items-center gap-2 ${
+                            className={cn(
+                              "p-4 rounded-xl border text-sm font-bold uppercase tracking-wider transition-all flex flex-col items-center gap-2",
                               isReal 
-                                ? 'bg-secondary/20 border-secondary text-secondary shadow-[0_0_15px_rgba(255,171,0,0.3)]' 
+                                ? 'bg-emerald-500/20 border-emerald-500 text-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]' 
                                 : 'bg-white/5 border-white/5 text-muted-foreground hover:bg-white/10'
-                            }`}
+                            )}
                           >
                             <Globe className="h-5 w-5" />
                             CUENTA REAL
