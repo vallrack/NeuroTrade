@@ -99,7 +99,7 @@ export function BridgeEventsLog() {
       } catch (err: any) {
         if (!isMounted) return;
         setConnected(false);
-        // addEvent({ type: 'error', source: 'RED', message: `✘ Sin conexión al Bridge: ${err.message}` });
+        addEvent({ type: 'error', source: 'RED', message: `✘ Sin conexión al Bridge: ${err.message}` });
       }
     };
 
