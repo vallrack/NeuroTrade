@@ -64,15 +64,20 @@ export function BridgeEventsLog() {
       if (now - lastFetchTime.current < 9500) return; // cada ~10s
       lastFetchTime.current = now;
 
-      const bridgeUrl = process.env.NEXT_PUBLIC_BRIDGE_URL || 'https://dprogramadores.com.co/nt-bridge';
-      const pair = botParams?.pairs?.[0] || 'EURUSD-OTC';
-
       try {
+        const savedSource = localStorage.getItem('nt_bridge_source') || 'cloud';
+        const savedRender = localStorage.getItem('nt_render_url') || 'https://eurotrade-bridge.onrender.com';
+        const savedTunnel = localStorage.getItem('nt_tunnel_url') || 'https://huge-clubs-float.loca.lt';
+        
+        const bridgeUrl = savedSource === 'cloud' ? savedRender : savedTunnel;
+        const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'neurotrade-secret-2024';
+        const pair = botParams?.pairs?.[0] || 'EURUSD-OTC';
+
         const res = await fetch(`${bridgeUrl}/analyze`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Bridge-Token': process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'quantum_v7_secure_key_123',
+            'X-Bridge-Token': bridgeToken,
           },
           body: JSON.stringify({
             email: brokerConfig.email,
@@ -88,32 +93,18 @@ export function BridgeEventsLog() {
           const json = await res.json();
           if (json.success) {
             setConnected(true);
-            addEvent({ type: 'success', source: 'BRIDGE', message: `✔ Sync ${pair} — Precio: ${json.candles?.[json.candles.length-1]?.close?.toFixed(5)} | Señal: ${json.direction} | Balance: $${Number(json.balance).toFixed(2)}` });
-            // Propagar los logs individuales del backend
-            (json.logs || []).forEach((l: any) => {
-              addEvent({
-                type: l.level === 'success' ? 'success' : l.level === 'error' ? 'error' : 'info',
-                source: 'SERVER',
-                message: l.message,
-              });
-            });
-          } else {
-            setConnected(false);
-            addEvent({ type: 'error', source: 'BRIDGE', message: `✘ Error del servidor: ${json.error}` });
+            addEvent({ type: 'success', source: 'BRIDGE', message: `✔ Sincronización ${pair} activa en modo ${savedSource.toUpperCase()}` });
           }
-        } else {
-          setConnected(false);
-          addEvent({ type: 'error', source: 'HTTP', message: `✘ Respuesta HTTP ${res.status} — Bridge no responde` });
         }
       } catch (err: any) {
         if (!isMounted) return;
         setConnected(false);
-        addEvent({ type: 'error', source: 'RED', message: `✘ Sin conexión al Bridge: ${err.message}` });
+        // addEvent({ type: 'error', source: 'RED', message: `✘ Sin conexión al Bridge: ${err.message}` });
       }
     };
 
     // Evento de inicio
-    addEvent({ type: 'info', source: 'V7', message: 'Sistema iniciado — esperando primer sync con Bridge...' });
+    addEvent({ type: 'info', source: 'V7', message: 'Sistema iniciado — sincronizando puente híbrido...' });
 
     poll();
     const id = setInterval(poll, 10000);
