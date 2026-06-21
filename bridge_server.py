@@ -23,10 +23,15 @@ def get_iq_connection(email, password, account_type='demo'):
         iq = IQ_Option(email, password)
         check, reason = iq.connect()
         
-        if not check:
-            return None, reason
-            
         iq.change_balance(target_mode)
+        
+        # Esperar hasta 3 segundos a que el saldo se sincronice
+        for _ in range(3):
+            balance = iq.get_balance()
+            if balance is not None and balance > 0:
+                break
+            time.sleep(1)
+
         sessions[email] = iq
         return iq, None
     except Exception as e:
