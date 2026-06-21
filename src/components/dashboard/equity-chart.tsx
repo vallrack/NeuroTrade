@@ -69,35 +69,47 @@ export function EquityChart() {
       <CardContent>
         <div className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data}>
+            <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorEquity" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                  <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.8}/>
+                  <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.0}/>
                 </linearGradient>
+                <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="6" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.4} />
               <XAxis 
                 dataKey="date" 
                 axisLine={false} 
                 tickLine={false} 
-                tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}}
+                tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 11, fontWeight: 500}}
                 dy={10}
+                minTickGap={20}
               />
               <YAxis 
                 axisLine={false} 
                 tickLine={false} 
-                tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}}
+                tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 11, fontWeight: 500}}
                 dx={-10}
+                tickFormatter={(value) => `$${value}`}
+                domain={['auto', 'auto']}
               />
               <Tooltip 
+                cursor={{ stroke: 'hsl(var(--primary))', strokeWidth: 1, strokeDasharray: '5 5' }}
                 contentStyle={{ 
-                  backgroundColor: 'hsl(var(--card))', 
-                  borderColor: 'hsl(var(--border))',
-                  borderRadius: 'var(--radius)',
-                  fontSize: '12px'
+                  backgroundColor: 'rgba(0, 0, 0, 0.8)', 
+                  borderColor: 'hsl(var(--primary)/0.3)',
+                  borderRadius: '12px',
+                  fontSize: '13px',
+                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+                  backdropFilter: 'blur(10px)'
                 }}
-                labelStyle={{ color: 'hsl(var(--primary))' }}
+                itemStyle={{ color: 'hsl(var(--primary))', fontWeight: 'bold' }}
+                labelStyle={{ color: 'hsl(var(--muted-foreground))', marginBottom: '4px' }}
+                formatter={(value: any) => [`$${Number(value).toFixed(2)}`, 'Equidad']}
               />
               <Area 
                 type="monotone" 
@@ -106,7 +118,8 @@ export function EquityChart() {
                 strokeWidth={3}
                 fillOpacity={1} 
                 fill="url(#colorEquity)" 
-                animationDuration={2000}
+                animationDuration={1500}
+                activeDot={{ r: 6, fill: 'hsl(var(--primary))', stroke: '#000', strokeWidth: 2, filter: 'url(#glow)' }}
               />
             </AreaChart>
           </ResponsiveContainer>

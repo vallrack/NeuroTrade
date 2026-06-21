@@ -20,26 +20,52 @@ export function TradingChart({ data, pair }: TradingChartProps) {
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
-        textColor: '#d1d4dc',
+        textColor: '#a1a1aa', // zinc-400
+        fontFamily: "'Inter', sans-serif",
       },
       grid: {
-        vertLines: { color: 'rgba(42, 46, 57, 0.1)' },
-        horzLines: { color: 'rgba(42, 46, 57, 0.1)' },
+        vertLines: { color: 'rgba(255, 255, 255, 0.03)' },
+        horzLines: { color: 'rgba(255, 255, 255, 0.03)' },
       },
       width: chartContainerRef.current.clientWidth,
       height: chartContainerRef.current.clientHeight || 450,
+      crosshair: {
+        mode: 1, // Magnet mode or Normal
+        vertLine: {
+          color: 'rgba(255, 255, 255, 0.4)',
+          width: 1,
+          style: 3, // Dashed
+          labelBackgroundColor: '#26a69a',
+        },
+        horzLine: {
+          color: 'rgba(255, 255, 255, 0.4)',
+          width: 1,
+          style: 3, // Dashed
+          labelBackgroundColor: '#26a69a',
+        },
+      },
+      rightPriceScale: {
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        autoScale: true,
+      },
       timeScale: {
+        borderColor: 'rgba(255, 255, 255, 0.1)',
         timeVisible: true,
-        secondsVisible: true,
+        secondsVisible: false, // Cleaner
       },
     });
 
     const candleSeries = chart.addCandlestickSeries({
-      upColor: '#26a69a',
-      downColor: '#ef5350',
+      upColor: '#26a69a',       // Teal-400
+      downColor: '#ef5350',     // Red-400
       borderVisible: false,
       wickUpColor: '#26a69a',
       wickDownColor: '#ef5350',
+      priceFormat: {
+        type: 'price',
+        precision: 5,
+        minMove: 0.00001,
+      },
     });
 
     chartRef.current = chart;
