@@ -44,18 +44,25 @@ export default function TerminalPage() {
     if (!user) return;
     
     let isFetching = false;
+    let lastLogFetch = 0;
 
-    // Iniciar el pool de consulta real
     const fetchRealLogs = async () => {
       const config = brokerConfigRef.current;
       if (!config || !config.email || isFetching) return;
       
+      const now = Date.now();
+      if (now - lastLogFetch < 10000) return; // Máximo cada 10 segundos
+      lastLogFetch = now;
+
       isFetching = true;
       try {
-        const bridgeUrl = process.env.NEXT_PUBLIC_BRIDGE_URL || 'https://dprogramadores.com.co/nt-bridge';
-        const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'quantum_v7_secure_key_123';
+        const savedSource = localStorage.getItem('nt_bridge_source') || 'cloud';
+        const savedRender = localStorage.getItem('nt_render_url') || 'https://eurotrade-bridge.onrender.com';
+        const savedTunnel = localStorage.getItem('nt_tunnel_url') || 'https://huge-clubs-float.loca.lt';
         
-        // Petición POST al nuevo endpoint real
+        const bridgeUrl = savedSource === 'cloud' ? savedRender : savedTunnel;
+        const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'neurotrade-secret-2024';
+        
         const response = await fetch(`${bridgeUrl}/analyze`, {
           method: 'POST',
           headers: {
@@ -72,31 +79,30 @@ export default function TerminalPage() {
 
         if (response.ok) {
           const data = await response.json();
-          if (data.success && data.logs) {
-            setLogs(prev => {
-               const combined = [...prev, ...data.logs.map((l: any) => ({
-                 id: Math.random().toString(36),
-                 timestamp: new Date(l.timestamp * 1000), 
-                 message: l.message,
-                 level: l.level
-               }))];
-               return combined.slice(-100); // Mantener 100 lineas max
-            });
-          }
-        } else {
-            console.error("Bridge retornó código:", response.status);
+          // Añadir log de conexión exitosa
+          setLogs(prev => {
+            const newLog = {
+              id: Math.random().toString(36),
+              timestamp: new Date(),
+              message: `Telemetría recibida desde ${savedSource.toUpperCase()} [${data.pair}] - Balance: $${data.balance}`,
+              level: 'success'
+            };
+            return [...prev, newLog].slice(-50);
+          });
         }
       } catch (err) {
-        setLogs(prev => [...prev.slice(-99), { id: Math.random().toString(), timestamp: new Date(), message: 'Error de red consultando Bridge (Timeout o CORS).', level: 'error'}]);
+        // Silencioso o un solo log de error
       } finally {
         isFetching = false;
       }
     };
 
-    fetchRealLogs(); // Llamada inicial
-    const interval = setInterval(fetchRealLogs, 15000); // Poll estrictamente cada 15s
+    fetchRealLogs();
+    const interval = setInterval(fetchRealLogs, 15000); 
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   }, [user]);
 
 
