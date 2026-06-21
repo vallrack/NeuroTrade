@@ -107,12 +107,18 @@ export function TradingChart({ data, pair }: TradingChartProps) {
         chartRef.current?.timeScale().fitContent();
         isDataLoadedRef.current = true;
       } else {
-        // En tiempo real: aplicamos update a las últimas velas para animación táctil
-        // Al darle update a una vela existente o nueva, lightweight-charts hace el morphing con FPS altos.
-        const recentCandles = formattedData.slice(-5);
-        recentCandles.forEach(candle => {
-          seriesRef.current.update(candle);
-        });
+        // En tiempo real: aplicamos update SOLAMENTE a la vela viva actual
+        // Lightweight Charts lanza error crítico si se intenta hacer update a una vela anterior
+        try {
+          const lastCandle = formattedData[formattedData.length - 1];
+          // Solo si existe la vela
+          if (lastCandle) {
+             seriesRef.current.update(lastCandle);
+          }
+        } catch (err) {
+          // Si el par cambió o el tiempo se desincronizó (Ej: cambio de activo)
+          seriesRef.current.setData(formattedData);
+        }
       }
     }
   }, [data]); // Se dispara cada vez que llega un nuevo tick o bloque de data
