@@ -51,12 +51,15 @@ export function IACommitteeMonitor() {
   const activePair = botParams?.pairs?.[0] || 'EURUSD-OTC';
   const cleanPair = useMemo(() => activePair.replace('/', '').replace('-', '').trim(), [activePair]);
 
-  const currentAccountType = brokerConfig?.accountType || 'demo';
+  const currentAccountType = useMemo(() => {
+    return brokerConfig?.accountType || 'demo';
+  }, [brokerConfig]);
   
   const statsRef = useMemo(() => {
     if (!mounted || !user || !firestore) return null;
     return doc(firestore, 'users', user.uid, 'trading_stats', currentAccountType);
   }, [mounted, user, firestore, currentAccountType]);
+  
   const { data: tradingStats } = useDoc(statsRef);
   
   // 🛡️ Blindaje de Trades para el Guardián
@@ -149,7 +152,7 @@ export function IACommitteeMonitor() {
     };
 
     fetchConsensus();
-    const interval = setInterval(fetchConsensus, 5000); // 5s para no saturar
+    const interval = setInterval(fetchConsensus, 15000); // 15s para estabilidad
     return () => clearInterval(interval);
   }, [mounted, user, botParams?.bot_activo, brokerConfig?.status, activePair, aiPersonality, tradingStats, recentTrades]);
 

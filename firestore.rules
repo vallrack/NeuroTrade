@@ -4,28 +4,25 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Perfil de usuario y configuraciones
+    // Perfil de usuario y subcolecciones
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
       
-      // Permitir acceso a subcolecciones de configuración y estadísticas
-      match /config/{document=**} {
+      match /{allPaths=**} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
-      
-      match /trading_stats/{document=**} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
+    }
 
-      match /trades/{document=**} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
+    // 🚨 COLECCIÓN DE RENDIMIENTO (Global o por referencia)
+    match /rendimiento_diario/{docId} {
+      allow read, list: if request.auth != null;
+      allow write: if request.auth != null; 
     }
 
     // Configuración global del bot
     match /configuracion/bot_params {
       allow read: if request.auth != null;
-      allow write: if request.auth != null; // En producción, restringir a admins
+      allow write: if request.auth != null; 
     }
 
     // Logs para la terminal

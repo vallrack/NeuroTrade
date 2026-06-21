@@ -1,19 +1,17 @@
-
 import sys
 import os
-import json
 import time
-import requests
 
-# 🚨 SISTEMA DE CAPTURA DE ERRORES
+# CAPTURA DE ERRORES
 sys.stderr = open('/home/dprogram/bridge/python_errors.log', 'w')
 sys.stdout = sys.stderr
 
 try:
     from flask import Flask, request, jsonify
     from flask_cors import CORS
-except ImportError:
-    print("Error: Librerias no instaladas.")
+    from iqoptionapi.stable_api import IQ_Option
+except ImportError as e:
+    print(f"Error importando librerias: {e}")
     sys.exit(1)
 
 app = Flask(__name__)
@@ -21,15 +19,30 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 BRIDGE_SECRET_KEY = os.environ.get("BRIDGE_SECRET_KEY", "quantum_v7_secure_key_123")
 
-# Función para enviar logs a la Terminal del Dashboard via REST API de Firebase
-def send_log_to_dashboard(message, type="info"):
-    # Nota: En una versión premium, el puente usaría el SDK de admin. 
-    # Por ahora, imprimimos en consola y simulamos flujo.
-    print(f"[{type.upper()}] {message}")
+# Instancia global del bróker para reutilizar la sesión
+iq_instance = None
+
+def get_iq_connection(email, password):
+    """Crea o reutiliza una conexión con IQ Option."""
+    global iq_instance
+    try:
+        iq = IQ_Option(email, password)
+        check, reason = iq.connect()
+        if check:
+            iq_instance = iq
+            return iq, None
+        else:
+            return None, f"Fallo de autenticacion: {reason}"
+    except Exception as e:
+        return None, str(e)
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({"status": "V7_BRIDGE_ONLINE", "mode": "SERVER_PRODUCTION"})
+    return jsonify({
+        "status": "V7_BRIDGE_ONLINE",
+        "mode": "SERVER_PRODUCTION_REAL",
+        "iqoption_sdk": "LOADED"
+    })
 
 @app.route('/connect', methods=['POST'])
 def connect():
@@ -38,14 +51,35 @@ def connect():
         if token != BRIDGE_SECRET_KEY:
             return jsonify({"success": False, "error": "TOKEN_INVALIDO"}), 403
 
-        send_log_to_dashboard("Handshake Maestro Recibido. Estableciendo Tunel seguro...")
-        send_log_to_dashboard("Handshake Maestro Recibido. Protocolo AES-256 habilitado.", "success")
-        
+        data = request.json
+        email = data.get('email')
+        password = data.get('password')
+        account_type = data.get('accountType', 'demo').upper()
+
+        if not email or not password:
+            return jsonify({"success": False, "error": "CREDENCIALES_FALTANTES"}), 400
+
+        iq, error = get_iq_connection(email, password)
+        if not iq:
+            return jsonify({"success": False, "error": error}), 401
+
+        # Cambiar al tipo de cuenta correcto
+        if account_type == 'REAL':
+            iq.change_balance('REAL')
+        else:
+            iq.change_balance('PRACTICE')
+
+        # Esperar un momento para que el saldo se actualice
+        time.sleep(1)
+
+        balance = iq.get_balance()
+
         return jsonify({
-            "success": True, 
-            "balance": 5320.45,
+            "success": True,
+            "balance": float(balance),
             "status": "connected",
-            "server": "NeuroTrade_V7_Cloud_Node"
+            "accountType": account_type,
+            "server": "NeuroTrade_V7_IQOption_Bridge"
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -58,21 +92,41 @@ def trade():
             return jsonify({"success": False, "error": "FORBIDDEN"}), 403
 
         data = request.json
+        email = data.get('email')
+        password = data.get('password')
         pair = data.get('pair', 'EURUSD-OTC')
-        dir = data.get('direction', 'CALL')
-        
-        send_log_to_dashboard(f"Orden HFT Recibida: {dir} en {pair}...")
-        
-        import random
-        res = random.choice(['win', 'loss', 'win'])
-        profit = data.get('amount', 4000) * 0.87 if res == 'win' else -data.get('amount', 4000)
-        
-        send_log_to_dashboard(f"Orden Cerrada: {res.upper()} | Profit: {profit} COP", res)
-        
+        direction = data.get('direction', 'call').lower()
+        amount = float(data.get('amount', 1))
+        duration = int(data.get('duration', 1))
+        account_type = data.get('accountType', 'demo').upper()
+
+        iq, error = get_iq_connection(email, password)
+        if not iq:
+            return jsonify({"success": False, "error": error}), 401
+
+        if account_type == 'REAL':
+            iq.change_balance('REAL')
+        else:
+            iq.change_balance('PRACTICE')
+
+        # Ejecutar la operacion binaria
+        status, id = iq.buy(amount, pair, direction, duration)
+
+        if not status:
+            return jsonify({"success": False, "error": "ERROR_AL_COMPRAR"}), 500
+
+        # Esperar resultado
+        time.sleep(duration * 60 + 5)
+        result = iq.check_win_v3(id)
+
+        profit = float(result) if result else -amount
+        status_str = 'win' if profit > 0 else 'loss'
+
         return jsonify({
             "success": True,
-            "status": res,
-            "profit": float(profit)
+            "status": status_str,
+            "profit": profit,
+            "trade_id": str(id)
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
