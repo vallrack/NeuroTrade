@@ -85,9 +85,9 @@ export function IACommitteeMonitor() {
     let isMounted = true;
 
     const fetchData = async () => {
-      // Protector contra re-ejecución accidental
+      // Protector contra re-ejecución accidental (HFT Mode)
       const now = Date.now();
-      if (now - lastFetchTime.current < 4000) return;
+      if (now - lastFetchTime.current < 1200) return;
       lastFetchTime.current = now;
 
       try {
@@ -99,8 +99,6 @@ export function IACommitteeMonitor() {
         const bridgeUrl = savedSource === 'cloud' ? savedRender : savedTunnel;
         const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'neurotrade-secret-2024';
 
-        console.log(`[IA Monitor] Consultando Bridge en: ${bridgeUrl}`);
-        
         const res = await fetch(`${bridgeUrl}/analyze`, {
           method: 'POST',
           headers: {
@@ -131,7 +129,8 @@ export function IACommitteeMonitor() {
     };
 
     fetchData();
-    const id = setInterval(fetchData, 5000);
+    // High-Frequency Polling: 1.5s interval
+    const id = setInterval(fetchData, 1500);
     return () => { isMounted = false; clearInterval(id); };
   }, [mounted, user, activePair, botParams?.bot_activo, brokerConfig?.email, brokerConfig?.status, currentAccountType]);
 

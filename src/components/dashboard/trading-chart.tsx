@@ -85,6 +85,8 @@ export function TradingChart({ data, pair }: TradingChartProps) {
     };
   }, []); // Solo se crea una vez al montar
 
+  const isDataLoadedRef = useRef(false);
+
   useEffect(() => {
     if (seriesRef.current && data && data.length > 0) {
       // Traducir formato IQ Option a formato Lightweight Charts
@@ -99,19 +101,27 @@ export function TradingChart({ data, pair }: TradingChartProps) {
       // Ordenar por tiempo (vital para lightweight-charts)
       formattedData.sort((a, b) => (a.time as number) - (b.time as number));
 
-      seriesRef.current.setData(formattedData);
-      
-      // Ajustar el gráfico al contenido la primera vez que llegan datos
-      if (data.length > 0) {
+      if (!isDataLoadedRef.current) {
+        // Carga inicial completa
+        seriesRef.current.setData(formattedData);
         chartRef.current?.timeScale().fitContent();
+        isDataLoadedRef.current = true;
+      } else {
+        // En tiempo real: aplicamos update a las últimas velas para animación táctil
+        // Al darle update a una vela existente o nueva, lightweight-charts hace el morphing con FPS altos.
+        const recentCandles = formattedData.slice(-5);
+        recentCandles.forEach(candle => {
+          seriesRef.current.update(candle);
+        });
       }
     }
-  }, [data]); // Solo actualiza las velas cuando el data cambia
+  }, [data]); // Se dispara cada vez que llega un nuevo tick o bloque de data
 
   return (
     <div className="relative w-full h-full bg-black/20 rounded-xl overflow-hidden border border-white/5">
         <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
-            <span className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] bg-primary/10 px-2 py-1 rounded">
+            <span className="flex items-center gap-2 text-[10px] font-bold text-primary uppercase tracking-[0.2em] bg-primary/10 px-2.5 py-1 rounded shadow-[0_0_15px_rgba(38,166,154,0.1)]">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_#26a69a]" />
                 LIVE: {pair}
             </span>
         </div>
