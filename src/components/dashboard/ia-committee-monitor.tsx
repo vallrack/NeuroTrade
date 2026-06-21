@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Cpu, Activity, Zap, Loader2, ShieldCheck } from 'lucide-react';
 import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
 import { doc, query, collection, orderBy, limit } from 'firebase/firestore';
 import { executeTrade, triggerKillSwitch } from '@/lib/actions';
@@ -128,66 +131,107 @@ export function IACommitteeMonitor() {
   const isPut  = data?.direction === 'PUT';
 
   return (
-    <div className="relative w-full rounded-2xl overflow-hidden border border-white/5 bg-black shadow-2xl">
+    <div className="space-y-6">
+      <Card className="bg-black/60 border-white/5 backdrop-blur-xl overflow-hidden shadow-2xl">
+        <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 pb-4 bg-white/5">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-500/10 rounded-lg">
+              <Cpu className="w-5 h-5 text-indigo-400 animate-pulse" />
+            </div>
+            <div>
+              <CardTitle className="text-xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent font-headline tracking-tight">
+                V7 TERMINAL MAESTRO
+              </CardTitle>
+              <div className="flex items-center gap-2 mt-1 font-mono text-[9px]">
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] py-0">BRIDGE HFT ONLINE</Badge>
+                <span className="text-slate-500 uppercase tracking-widest">{activePair}</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col items-end font-mono">
+            <span className="text-[10px] text-slate-500 uppercase">Balance {currentAccountType}</span>
+            <span className="text-xl font-black text-emerald-400 drop-shadow-[0_0_10px_#10b981]">
+               ${data?.balance != null ? Number(data.balance).toLocaleString() : '---'}
+            </span>
+          </div>
+        </CardHeader>
+        
+        <CardContent className="p-0">
+          <div className="h-[480px] w-full bg-slate-950 relative border-b border-white/5">
+             <TradingChart data={data?.candles || []} pair={activePair} />
+          </div>
 
-      {/* ── Gráfico principal ── */}
-      <div className="h-[540px] w-full">
-        <TradingChart data={data?.candles || []} pair={activePair} />
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-indigo-400" />
+                  Consenso Algorítmico Quantum
+                </h3>
+                <span className={cn(
+                  "text-lg font-black font-mono tracking-tighter",
+                  isCall ? "text-emerald-400" : isPut ? "text-red-400" : "text-slate-500"
+                )}>
+                  {data?.direction || 'ANALIZANDO...'}
+                </span>
+              </div>
+              
+              <div className="relative pt-2">
+                 <Progress value={data?.probability || 0} className="h-2 bg-slate-800" />
+                 <div className="flex justify-between mt-2 font-mono">
+                    <span className="text-[10px] text-indigo-400">PRECISIÓN V7 BRIDGE</span>
+                    <span className="text-sm text-white font-bold">{data?.probability || 0}%</span>
+                 </div>
+              </div>
 
-      {/* ── HUD inferior ── */}
-      <div className="flex items-center justify-between gap-4 px-5 py-3
-                      bg-gradient-to-r from-black via-slate-950 to-black
-                      border-t border-white/5">
+              <div className="flex items-center justify-between bg-slate-900/40 p-3 rounded-xl border border-white/5">
+                 <span className="text-[10px] text-slate-500 uppercase font-mono tracking-widest">Ejecutor IA</span>
+                 <Badge className={cn(
+                   "font-mono text-[10px]",
+                   botParams?.bot_activo ? "bg-emerald-500 text-black font-bold" : "bg-slate-800 text-slate-500"
+                 )}>
+                   {botParams?.bot_activo ? 'OFFICIAL ACTIVE' : 'MANUAL MODE'}
+                 </Badge>
+              </div>
+            </div>
 
-        {/* Par + cuenta */}
-        <div className="flex flex-col">
-          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Par activo</span>
-          <span className="text-sm font-bold text-white font-mono tracking-wider">{activePair}</span>
-          <span className="text-[9px] text-indigo-400 uppercase font-mono">{currentAccountType}</span>
+            <div className="space-y-3">
+               {!data?.direction ? (
+                 <div className="flex flex-col items-center justify-center p-8 border border-white/5 rounded-2xl bg-white/[0.02]">
+                    <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-3" />
+                    <span className="text-[10px] text-slate-500 animate-pulse font-mono tracking-[0.2em] uppercase">Estableciendo vínculo seguro...</span>
+                 </div>
+               ) : (
+                 <div className="grid grid-cols-1 gap-2">
+                    {['QUANTUM-X', 'SENTINEL', 'V7-MAESTRO'].map((name) => (
+                      <div key={name} className="flex items-center justify-between bg-slate-900/50 p-3 rounded-xl border border-white/5 hover:bg-slate-800/80 transition-all group">
+                         <div className="flex items-center gap-3">
+                            <Zap className={cn("w-4 h-4", isCall ? "text-emerald-400" : isPut ? "text-red-400" : "text-slate-600")} />
+                            <span className="text-[11px] font-bold text-slate-300 font-mono tracking-widest">{name}</span>
+                         </div>
+                         <Badge className={cn(
+                           "text-[10px] font-mono border-0",
+                           isCall ? "bg-emerald-500/20 text-emerald-300" : isPut ? "bg-red-500/20 text-red-300" : "bg-slate-800 text-slate-500"
+                         )}>
+                           {data.direction}
+                         </Badge>
+                      </div>
+                    ))}
+                 </div>
+               )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {botParams?.bot_activo && (
+        <div className="flex items-center justify-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl animate-in fade-in slide-in-from-bottom-2 shadow-[0_0_30px_rgba(16,185,129,0.1)]">
+           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]" />
+           <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-[0.3em] font-mono">
+             Protección del Guardián Activa — IA en Modo Maestro Oficial
+           </span>
         </div>
-
-        {/* Precio en vivo */}
-        <div className="flex flex-col items-center">
-          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Precio</span>
-          <span className={cn(
-            'text-2xl font-black font-mono tabular-nums transition-all duration-300',
-            isCall ? 'text-emerald-400 drop-shadow-[0_0_12px_#10b981]' :
-            isPut  ? 'text-red-400 drop-shadow-[0_0_12px_#ef4444]' :
-                     'text-slate-300'
-          )}>
-            {realPrice?.toFixed(5) ?? '─.─────'}
-          </span>
-        </div>
-
-        {/* Señal IA */}
-        <div className="flex flex-col items-center gap-1">
-          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Señal IA V7</span>
-          <Badge className={cn(
-            'text-sm font-black tracking-widest px-4 py-1 font-mono border-0',
-            isCall ? 'bg-emerald-500/20 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.3)]' :
-            isPut  ? 'bg-red-500/20 text-red-300 shadow-[0_0_20px_rgba(239,68,68,0.3)]' :
-                     'bg-slate-800 text-slate-400'
-          )}>
-            {data?.direction ?? 'ESPERANDO'}
-          </Badge>
-          {data?.probability && (
-            <span className="text-[9px] font-mono text-slate-500">{data.probability}% confianza</span>
-          )}
-        </div>
-
-        {/* Balance */}
-        <div className="flex flex-col items-end">
-          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">Balance</span>
-          <span className="text-sm font-bold text-emerald-400 font-mono">
-            ${data?.balance != null ? Number(data.balance).toFixed(2) : '---'}
-          </span>
-          {isExecuting && (
-            <span className="text-[9px] text-yellow-400 font-mono animate-pulse">Ejecutando...</span>
-          )}
-        </div>
-
-      </div>
+      )}
     </div>
   );
 }

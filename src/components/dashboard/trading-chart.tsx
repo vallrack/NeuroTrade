@@ -12,6 +12,8 @@ export function TradingChart({ data, pair }: TradingChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
 
+  const seriesRef = useRef<any>(null);
+
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
@@ -21,14 +23,14 @@ export function TradingChart({ data, pair }: TradingChartProps) {
         textColor: '#d1d4dc',
       },
       grid: {
-        vertLines: { color: 'rgba(42, 46, 57, 0.5)' },
-        horzLines: { color: 'rgba(42, 46, 57, 0.5)' },
+        vertLines: { color: 'rgba(42, 46, 57, 0.1)' },
+        horzLines: { color: 'rgba(42, 46, 57, 0.1)' },
       },
       width: chartContainerRef.current.clientWidth,
-      height: 300,
+      height: chartContainerRef.current.clientHeight || 450,
       timeScale: {
         timeVisible: true,
-        secondsVisible: false,
+        secondsVisible: true,
       },
     });
 
@@ -41,14 +43,12 @@ export function TradingChart({ data, pair }: TradingChartProps) {
     });
 
     chartRef.current = chart;
-
-    if (data && data.length > 0) {
-      candleSeries.setData(data);
-      chart.timeScale().fitContent();
-    }
+    seriesRef.current = candleSeries;
 
     const handleResize = () => {
-      chart.applyOptions({ width: chartContainerRef.current?.clientWidth });
+      if (chartContainerRef.current) {
+        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
     };
 
     window.addEventListener('resize', handleResize);
@@ -57,7 +57,14 @@ export function TradingChart({ data, pair }: TradingChartProps) {
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, [data]);
+  }, []); // Solo se crea una vez al montar
+
+  useEffect(() => {
+    if (seriesRef.current && data && data.length > 0) {
+      seriesRef.current.setData(data);
+      // No ajustamos el contenido en cada tick para que el usuario pueda hacer zoom
+    }
+  }, [data]); // Solo actualiza las velas cuando el data cambia
 
   return (
     <div className="relative w-full h-full bg-black/20 rounded-xl overflow-hidden border border-white/5">
