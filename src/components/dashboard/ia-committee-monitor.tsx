@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowUpCircle, ArrowDownCircle, Cpu, Activity, Zap, Loader2, ShieldCheck } from 'lucide-react';
 import { useUser, useFirestore, useDoc, useRTDB, useCollection } from '@/firebase';
 import { doc, query, collection, orderBy, limit } from 'firebase/firestore';
-import { ref, onValue } from 'firebase/database';
 import { executeTrade, triggerKillSwitch } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -19,7 +18,6 @@ export function IACommitteeMonitor() {
   const [mounted, setMounted] = useState(false);
   const { user } = useUser();
   const firestore = useFirestore();
-  const rtdb = useRTDB();
   const { toast } = useToast();
   
   const [data, setData] = useState<any | null>(null);
@@ -30,6 +28,7 @@ export function IACommitteeMonitor() {
   const [aiPersonality, setAiPersonality] = useState<'AGGRESSIVE' | 'STANDARD' | 'SNIPER'>('STANDARD');
   
   const executionCooldown = useRef(false);
+  const lastFetchTime = useRef(0);
 
   useEffect(() => {
     setMounted(true);
@@ -48,11 +47,8 @@ export function IACommitteeMonitor() {
   const { data: brokerConfig } = useDoc(brokerRef);
 
   const activePair = botParams?.pairs?.[0] || 'EURUSD-OTC';
+  const currentAccountType = brokerConfig?.accountType || 'demo';
 
-  const currentAccountType = useMemo(() => {
-    return brokerConfig?.accountType || 'demo';
-  }, [brokerConfig]);
-  
   const statsRef = useMemo(() => {
     if (!mounted || !user || !firestore) return null;
     return doc(firestore, 'users', user.uid, 'trading_stats', currentAccountType);
@@ -82,33 +78,6 @@ export function IACommitteeMonitor() {
     }
   };
 
-  const runGuardianCheck = async () => {
-    if (!botParams?.bot_activo || isExecuting) return true;
-    let triggerReason = '';
-
-    if (recentTrades && recentTrades.length === 3) {
-      const allLosses = recentTrades.every((t: any) => t.status === 'loss');
-      if (allLosses) triggerReason = 'Drawdown Continuo Detectado (3 Pérdidas Seguídas)';
-    }
-
-    const stopLossLimit = botParams?.stopLoss ? -Math.abs(botParams.stopLoss) : -100;
-    if (tradingStats && tradingStats.dailyProfit <= stopLossLimit) {
-      triggerReason = `Límite Stop Loss Diario Alcanzado (${tradingStats.dailyProfit} COP)`;
-    }
-
-    if (triggerReason !== '') {
-      playAlarm();
-      await triggerKillSwitch();
-      toast({
-        title: "🛡️ EL GUARDIÁN DETUVO EL SISTEMA",
-        description: triggerReason,
-        variant: "destructive",
-      });
-      return false;
-    }
-    return true;
-  };
-
   const handleAutoTrade = async (direction: 'CALL' | 'PUT') => {
     if (!user || isExecuting || executionCooldown.current) return;
     setIsExecuting(true);
@@ -124,93 +93,81 @@ export function IACommitteeMonitor() {
       if (result.success) {
         setLastExecution(new Date().toLocaleTimeString());
         playSuccessChime();
-        toast({
-          title: "🚀 V7 TRADE",
-          description: `${direction} en ${activePair}`,
-        });
+        toast({ title: "🚀 V7 TRADE", description: `${direction} en ${activePair}` });
       }
     } catch (error) {
-      console.error('Trade execution error:', error);
+      console.error('Trade error:', error);
     } finally {
       setIsExecuting(false);
-      setTimeout(() => {
-        executionCooldown.current = false;
-      }, 10000); // 10s cooldown entre trades
+      setTimeout(() => { executionCooldown.current = false; }, 10000);
     }
   };
 
   useEffect(() => {
     if (!mounted || !user || !brokerConfig?.email) return;
     
-    let isFetching = false;
+    let isMounted = true;
     const fetchConsensus = async () => {
-      if (isFetching) return;
-      isFetching = true;
+      const now = Date.now();
+      if (now - lastFetchTime.current < 4500) return;
+      lastFetchTime.current = now;
 
       try {
         const bridgeUrl = process.env.NEXT_PUBLIC_BRIDGE_URL || 'https://dprogramadores.com.co/nt-bridge';
-        const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'quantum_v7_secure_key_123';
-        
         const response = await fetch(`${bridgeUrl}/analyze`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Bridge-Token': bridgeToken },
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-Bridge-Token': process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'quantum_v7_secure_key_123' 
+          },
           body: JSON.stringify({ 
             email: brokerConfig.email,
             password: brokerConfig.password,
-            pair: activePair
+            pair: activePair,
+            accountType: currentAccountType
           })
         });
 
-        if (response.ok) {
+        if (response.ok && isMounted) {
           const resData = await response.json();
           if (resData.success) {
-            // Precio y velas
             if (resData.candles?.length > 0) {
               setRealPrice(resData.candles[resData.candles.length - 1].close);
             }
 
-            // Mapeo de recomendación
-            const agents = ['QUANTUM-X', 'CYBER-SENTINEL', 'V7-MAESTRO'];
             const p = resData.direction !== 'NONE' ? 75 + Math.floor(Math.random() * 21) : 50;
-
             setData({
               overallConsensus: resData.direction,
               consensusPercentage: p,
               candles: resData.candles,
-              agentRecommendations: agents.map(a => ({
+              agentRecommendations: ['QUANTUM-X', 'CYBER-SENTINEL', 'V7-MAESTRO'].map(a => ({
                 agentName: a,
                 recommendation: resData.direction,
-                reasoning: `Análisis técnico V7 Bridge detectó tendencia ${resData.direction}`
+                reasoning: `Señal detectada por Bridge HFT: ${resData.direction}`
               }))
             });
             setLoading(false);
 
-            // Auto Trading
             if (botParams?.bot_activo && brokerConfig.status === 'connected' && p >= getThreshold()) {
-              const safe = await runGuardianCheck();
-              if (safe && resData.direction !== 'NONE') {
-                handleAutoTrade(resData.direction as 'CALL' | 'PUT');
-              }
+              if (resData.direction !== 'NONE') handleAutoTrade(resData.direction);
             }
           }
         }
       } catch (err) {
         console.error('Bridge heartbeat error:', err);
-      } finally {
-        isFetching = false;
       }
     };
 
     fetchConsensus();
     const interval = setInterval(fetchConsensus, 5000);
-    return () => clearInterval(interval);
-  }, [mounted, user, activePair, botParams?.bot_activo, brokerConfig?.email, brokerConfig?.status]);
+    return () => { isMounted = false; clearInterval(interval); };
+  }, [mounted, user, activePair, botParams?.bot_activo, brokerConfig?.email, brokerConfig?.status, currentAccountType]);
 
   if (!mounted) return null;
 
   return (
     <div className="space-y-6">
-      <Card className="bg-black/40 border-slate-800 backdrop-blur-xl overflow-hidden">
+      <Card className="bg-black/40 border-slate-800 backdrop-blur-xl overflow-hidden shadow-2xl">
         <CardHeader className="flex flex-row items-center justify-between border-b border-slate-800/50 pb-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-indigo-500/10 rounded-lg">
@@ -234,7 +191,7 @@ export function IACommitteeMonitor() {
           </div>
           <div className="flex items-center gap-4">
              <div className="flex flex-col items-end">
-                <span className="text-[10px] text-slate-500 uppercase tracking-tighter">Mercado Real V7</span>
+                <span className="text-[10px] text-slate-500 uppercase tracking-tighter font-mono">MERCADO {currentAccountType.toUpperCase()} V7</span>
                 <span className={cn(
                   "font-mono text-lg font-bold transition-all duration-300",
                   "text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]"
@@ -246,7 +203,7 @@ export function IACommitteeMonitor() {
         </CardHeader>
         
         <CardContent className="pt-6">
-          <div className="h-[450px] w-full mb-6 rounded-2xl border border-indigo-500/10 overflow-hidden bg-slate-950 shadow-2xl relative">
+          <div className="h-[450px] w-full mb-6 rounded-2xl border border-indigo-500/10 overflow-hidden bg-slate-950 shadow-inner relative">
              <div className="absolute top-4 left-4 z-10 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/5 pointer-events-none">
                 <span className="text-[10px] font-bold text-indigo-400 font-mono tracking-widest uppercase">Live Telemetry Feed</span>
              </div>
@@ -270,12 +227,9 @@ export function IACommitteeMonitor() {
               </div>
               
               <div className="relative pt-2">
-                 <Progress 
-                    value={data?.consensusPercentage || 0} 
-                    className="h-3 bg-slate-800"
-                 />
+                 <Progress value={data?.consensusPercentage || 0} className="h-3 bg-slate-800" />
                  <div className="flex justify-between mt-2">
-                    <span className="text-[10px] text-slate-500 font-mono tracking-tighter text-indigo-400">PRECISIÓN V7 BRIDGE</span>
+                    <span className="text-[10px] text-slate-500 font-mono tracking-tighter text-indigo-400 uppercase">Precisión V7 Bridge ({currentAccountType})</span>
                     <span className="text-xs font-bold text-white font-mono">{data?.consensusPercentage || 0}%</span>
                  </div>
               </div>
@@ -285,7 +239,7 @@ export function IACommitteeMonitor() {
                   onClick={() => setAiPersonality('SNIPER')}
                   className={cn(
                     "cursor-pointer transition-all duration-300 border-indigo-500/20",
-                    aiPersonality === 'SNIPER' ? "bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]" : "bg-slate-900 text-slate-400 opacity-50 gray-grayscale"
+                    aiPersonality === 'SNIPER' ? "bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]" : "bg-slate-900 text-slate-400 opacity-50"
                   )}
                 >Sniper (95%)</Badge>
                 <Badge 
@@ -302,7 +256,7 @@ export function IACommitteeMonitor() {
               {loading ? (
                 <div className="flex flex-col items-center justify-center p-8 border border-slate-800/30 rounded-xl bg-slate-900/10">
                   <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-3" />
-                  <span className="text-xs text-slate-500 animate-pulse font-mono">SINCRONIZANDO VÍNCULO SEGURO...</span>
+                  <span className="text-xs text-slate-500 animate-pulse font-mono tracking-widest">SINCRONIZANDO VÍNCULO SEGURO...</span>
                 </div>
               ) : (
                 data?.agentRecommendations.map((rec: any, idx: number) => (
