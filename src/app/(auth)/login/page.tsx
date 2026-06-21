@@ -40,6 +40,16 @@ function LoginContent() {
     setLoading(true);
     setError('');
     try {
+      // RECAPTCHA ENTERPRISE PROTOCOL
+      // @ts-ignore
+      if (typeof window !== 'undefined' && window.grecaptcha) {
+        // @ts-ignore
+        await new Promise((resolve) => window.grecaptcha.enterprise.ready(resolve));
+        // @ts-ignore
+        const token = await window.grecaptcha.enterprise.execute('6LcsviotAAAAAOjneBwLDB9feQMo-YVXrJUdNykl', {action: 'LOGIN'});
+        console.log('RISK_SCORE_TOKEN_GENERATED');
+      }
+
       await signInWithEmailAndPassword(auth, email, password);
       toast({ title: 'ACCESO AUTORIZADO', description: 'Bienvenido al Centro de Comando NeuroTrade.' });
       router.push(searchParams.get('from') || '/dashboard');
