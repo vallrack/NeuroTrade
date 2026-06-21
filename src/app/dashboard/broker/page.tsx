@@ -63,7 +63,8 @@ function BrokerContent() {
     e.preventDefault();
     setLoading(true);
     
-    const result = await updateBrokerConfig({
+    if (!user) return;
+    const result = await updateBrokerConfig(user.uid, {
       email,
       password,
       accountType: isReal ? 'real' : 'demo',
