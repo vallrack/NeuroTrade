@@ -19,7 +19,6 @@ import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { SuperAdminTools } from '@/components/dashboard/super-admin-tools';
 import { Badge } from '@/components/ui/badge';
-import { promoteToSuperAdmin } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
@@ -148,12 +147,18 @@ export default function DashboardPage() {
                 )}
                 {hasNoRole && user && (
                   <Button 
-                    onClick={() => {
+                    onClick={async () => {
                       setInitLoading(true);
-                      promoteToSuperAdmin(user.uid).then(res => {
-                        if (res.success) toast({ title: "ACCESO MAESTRO", description: "Privilegios L-5 activados." });
-                        setInitLoading(false);
-                      });
+                      try {
+                        if (firestore && user) {
+                           const { updateDoc, doc } = await import('firebase/firestore');
+                           await updateDoc(doc(firestore, 'users', user.uid), { role: 'super-admin' });
+                           toast({ title: "ACCESO MAESTRO", description: "Privilegios L-5 activados." });
+                        }
+                      } catch (e: any) {
+                         toast({ title: "ERROR", description: e.message, variant: "destructive" });
+                      }
+                      setInitLoading(false);
                     }} 
                     variant="outline" 
                     size="sm" 

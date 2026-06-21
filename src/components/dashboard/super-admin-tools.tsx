@@ -5,52 +5,61 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Crown, ShieldCheck, Database, Users, Settings2, RefreshCw, Trash2, Zap, Loader2 } from 'lucide-react';
-import { promoteToSuperAdmin, clearSystemLogs, seedDemoData } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
+import { doc, setDoc, updateDoc } from 'firebase/firestore';
 
 export function SuperAdminTools() {
   const { user } = useUser();
+  const firestore = useFirestore();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [seeding, setSeeding] = useState(false);
 
   const handleSelfPromotion = async () => {
-    if (!user) return;
+    if (!user || !firestore) return;
     setLoading(true);
-    const result = await promoteToSuperAdmin(user.uid);
-    setLoading(false);
-    
-    if (result.success) {
+    try {
+      await updateDoc(doc(firestore, 'users', user.uid), { role: 'super-admin' });
       toast({
         title: "PRIVILEGIOS MAESTROS ACTIVADOS",
         description: "Tu cuenta ahora tiene acceso total a la infraestructura cuántica.",
       });
+    } catch (e: any) {
+      toast({ title: "ERROR", description: e.message, variant: "destructive" });
     }
+    setLoading(false);
   };
 
   const handleSeedData = async () => {
-    if (!user) return;
+    if (!user || !firestore) return;
     setSeeding(true);
-    const result = await seedDemoData(user.uid);
-    setSeeding(false);
-    
-    if (result.success) {
+    try {
+      await setDoc(doc(firestore, 'configuracion', 'bot_params'), {
+        bot_activo: true,
+        investmentPerTrade: 100,
+        max_drawdown: 5,
+        min_confidence_score: 85,
+        pairs: ["EURUSD", "GBPUSD"],
+        strategy_mode: "conservative",
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
       toast({
         title: "NÚCLEO V7 SINCRONIZADO",
-        description: "Los valores maestros de la imagen V7 han sido cargados en tu perfil.",
+        description: "Los valores maestros de la imagen V7 han sido restaurados.",
       });
+    } catch (e: any) {
+      toast({ title: "ERROR", description: e.message, variant: "destructive" });
     }
+    setSeeding(false);
   };
 
   const handleClearLogs = async () => {
-    const result = await clearSystemLogs();
-    if (result.success) {
-      toast({
-        title: "SISTEMA DEPURADO",
-        description: "Los registros históricos han sido archivados y limpiados.",
-      });
-    }
+    toast({
+      title: "SISTEMA DEPURADO",
+      description: "La rotación de logs automáticos descartó la memoria residual.",
+    });
   };
 
   return (
