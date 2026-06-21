@@ -108,6 +108,7 @@ export function IACommitteeMonitor() {
           headers: {
             'Content-Type': 'application/json',
             'X-Bridge-Token': bridgeToken,
+            'Bypass-Tunnel-Reminder': 'true'
           },
           body: JSON.stringify({
             email: brokerConfig.email,
