@@ -15,7 +15,23 @@ except ImportError as e:
     sys.exit(1)
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=False)
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Bridge-Token, Authorization'
+    return response
+
+@app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
+@app.route('/<path:path>', methods=['OPTIONS'])
+def handle_options(path):
+    response = jsonify({'status': 'ok'})
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Bridge-Token, Authorization'
+    return response, 200
 
 BRIDGE_SECRET_KEY = os.environ.get("BRIDGE_SECRET_KEY", "quantum_v7_secure_key_123")
 
