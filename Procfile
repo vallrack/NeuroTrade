@@ -1,1 +1,1 @@
-web: gunicorn bridge_server:app
+web: gunicorn bridge_server:app --workers 1 --threads 4 --timeout 120

@@ -34,6 +34,7 @@ export function BridgeEventsLog() {
   const [connected, setConnected] = useState<boolean | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastFetchTime = useRef(0);
+  const consecutiveFailures = useRef(0);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -79,6 +80,13 @@ export function BridgeEventsLog() {
 
         if (json.success) {
           setConnected(true);
+          const hadFailures = consecutiveFailures.current > 0;
+          consecutiveFailures.current = 0;
+          
+          if (hadFailures) {
+            addEvent({ type: 'success', source: 'RED', message: '✔ Conexión restablecida con el Bridge.' });
+          }
+
           addEvent({
             type: 'success',
             source: 'BRIDGE',
@@ -87,16 +95,20 @@ export function BridgeEventsLog() {
         }
       } catch (err: any) {
         if (!isMounted) return;
-        setConnected(false);
-        addEvent({ type: 'error', source: 'RED', message: `✘ Sin conexión al Bridge: ${err.message}` });
+        consecutiveFailures.current++;
+        
+        if (consecutiveFailures.current >= 3) {
+          setConnected(false);
+          addEvent({ type: 'error', source: 'RED', message: `✘ Sin conexión estable al Bridge (${consecutiveFailures.current} fallos).` });
+        }
       }
     };
 
     // Evento de inicio
-    addEvent({ type: 'info', source: 'V7', message: 'Sistema iniciado — sincronizando puente híbrido...' });
+    addEvent({ type: 'info', source: 'V7', message: 'Iniciando monitoreo de eventos...' });
 
     poll();
-    const id = setInterval(poll, 10000);
+    const id = setInterval(poll, 20000); // 20 segundos
     return () => { isMounted = false; clearInterval(id); };
   }, [mounted, user, brokerConfig?.email, brokerConfig?.status, botParams?.pairs]);
 

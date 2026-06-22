@@ -32,6 +32,7 @@ export function IACommitteeMonitor() {
   const [data, setData] = useState<CommitteeData | null>(null);
   const [bridgeOnline, setBridgeOnline] = useState<boolean | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const failureCount = useRef(0);
 
   const executionCooldown = useRef(false);
   const lastFetchTime = useRef(0);
@@ -154,6 +155,7 @@ export function IACommitteeMonitor() {
 
         if (json.success) {
           setBridgeOnline(true);
+          failureCount.current = 0; // Reset
           const direction = (json.direction === 'CALL' || json.direction === 'PUT')
             ? json.direction
             : 'NONE';
@@ -176,10 +178,14 @@ export function IACommitteeMonitor() {
             handleAutoTrade(direction);
           }
         } else {
-          setBridgeOnline(false);
+          failureCount.current++;
+          if (failureCount.current >= 3) setBridgeOnline(false);
         }
       } catch {
-        if (isMounted) setBridgeOnline(false);
+        if (isMounted) {
+          failureCount.current++;
+          if (failureCount.current >= 3) setBridgeOnline(false);
+        }
       }
     };
 

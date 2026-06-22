@@ -79,7 +79,7 @@ export function LogConsole() {
     };
 
     fetchRealLogs(); // Inicial
-    const interval = setInterval(fetchRealLogs, 15000); // 15 segundos
+    const interval = setInterval(fetchRealLogs, 30000); // 30 segundos (antes 15)
 
     return () => clearInterval(interval);
   }, [user, activePairs]);
