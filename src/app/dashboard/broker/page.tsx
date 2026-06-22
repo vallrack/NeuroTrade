@@ -77,6 +77,16 @@ function BrokerContent() {
       setRenderUrl(envRender);
     }
 
+    // Auto-correccion: si el usuario guardó una URL de tunel en modo RENDER, moverla a MI PC
+    const savedRender = localStorage.getItem('nt_render_url') || '';
+    const looksLikeTunnel = savedRender.includes('loca.lt') || savedRender.includes('ngrok') || savedRender.includes('localtunnel');
+    const savedSource = localStorage.getItem('nt_bridge_source') || 'cloud';
+    if (looksLikeTunnel && savedSource === 'cloud') {
+      // Mover la URL de tunel al slot de MI PC y resetear RENDER al default
+      localStorage.setItem('nt_tunnel_url', savedRender);
+      localStorage.setItem('nt_render_url', 'https://eurotrade-bridge.onrender.com');
+    }
+
     setBridgeSourceState(getBridgeSource());
     setRenderUrlState(getRenderUrl());
     setLocalUrlState(getLocalUrl());
@@ -274,29 +284,65 @@ function BrokerContent() {
 
                     <div className="space-y-3">
                         <div className="space-y-1">
-                          <Label className="text-[10px] uppercase font-bold text-muted-foreground/50">
-                            {bridgeSource === 'cloud' ? 'URL de Render.com' : 'URL del túnel / localhost'}
-                          </Label>
-                          <Input
-                            value={bridgeSource === 'cloud' ? renderUrl : localUrl}
-                            onChange={(e) => {
-                              if (bridgeSource === 'cloud') {
-                                setRenderUrlState(e.target.value);
-                                setRenderUrl(e.target.value);
-                              } else {
-                                setLocalUrlState(e.target.value);
-                                setLocalUrl(e.target.value);
-                              }
-                              setBridgeStatus('unknown');
-                            }}
-                            className="h-9 text-[10px] font-mono bg-background/50 border-white/10"
-                            placeholder={bridgeSource === 'cloud' ? 'https://eurotrade-bridge.onrender.com' : 'http://127.0.0.1:5000 o https://xxx.loca.lt'}
-                          />
-                          <p className="text-[9px] text-muted-foreground font-mono truncate">
-                            Activo ahora: {getBridgeUrl()}
-                          </p>
-                        </div>
-
+                           <div className="flex items-center justify-between">
+                             <Label className="text-[10px] uppercase font-bold text-muted-foreground/50">
+                               {bridgeSource === 'cloud' ? 'URL de Render.com' : 'URL del tunel / localhost'}
+                             </Label>
+                             <button
+                               type="button"
+                               className="text-[9px] text-primary/60 hover:text-primary transition-colors font-mono"
+                               onClick={() => {
+                                 if (bridgeSource === 'cloud') {
+                                   setRenderUrlState(DEFAULT_RENDER_URL);
+                                   setRenderUrl(DEFAULT_RENDER_URL);
+                                 } else {
+                                   setLocalUrlState(DEFAULT_LOCAL_URL);
+                                   setLocalUrl(DEFAULT_LOCAL_URL);
+                                 }
+                                 setBridgeStatus('unknown');
+                               }}
+                             >
+                               &#8634; Restablecer
+                             </button>
+                           </div>
+                           <Input
+                             value={bridgeSource === 'cloud' ? renderUrl : localUrl}
+                             onChange={(e) => {
+                               if (bridgeSource === 'cloud') {
+                                 setRenderUrlState(e.target.value);
+                                 setRenderUrl(e.target.value);
+                               } else {
+                                 setLocalUrlState(e.target.value);
+                                 setLocalUrl(e.target.value);
+                               }
+                               setBridgeStatus('unknown');
+                             }}
+                             className={cn(
+                               "h-9 text-[10px] font-mono bg-background/50",
+                               bridgeSource === 'cloud' && (renderUrl.includes('loca.lt') || renderUrl.includes('ngrok'))
+                                 ? 'border-amber-500/50 ring-1 ring-amber-500/30'
+                                 : 'border-white/10'
+                             )}
+                             placeholder={bridgeSource === 'cloud' ? 'https://eurotrade-bridge.onrender.com' : 'http://127.0.0.1:5000 o https://xxx.loca.lt'}
+                           />
+                           {bridgeSource === 'cloud' && (renderUrl.includes('loca.lt') || renderUrl.includes('ngrok') || renderUrl.includes('tunnel')) && (
+                             <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                               <p className="text-[9px] text-amber-300 font-mono leading-relaxed">
+                                 <strong>URL de tunel detectada en modo RENDER.</strong> Esta URL apunta a tu PC, no a Render.
+                                 <br />Haz clic en <strong>Restablecer</strong> para usar eurotrade-bridge.onrender.com
+                                 <br />O cambia a modo <strong>MI PC</strong> si quieres usar el tunel.
+                               </p>
+                             </div>
+                           )}
+                           <p className={cn(
+                             'text-[9px] font-mono truncate',
+                             bridgeSource === 'cloud' && (renderUrl.includes('loca.lt') || renderUrl.includes('ngrok'))
+                               ? 'text-amber-400'
+                               : 'text-muted-foreground'
+                           )}>
+                             Activo ahora: {getBridgeUrl()}
+                           </p>
+                         </div>
                         {getLocalBridgeWarning() && (
                           <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
                             <p className="text-[9px] text-red-400 leading-relaxed">{getLocalBridgeWarning()}</p>
