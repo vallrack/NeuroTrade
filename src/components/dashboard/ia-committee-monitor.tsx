@@ -176,13 +176,22 @@ export function IACommitteeMonitor() {
             detail: { ...json, ...comData, timestamp: Date.now() } 
           }));
 
-          if (
-            botParams?.bot_activo &&
-            brokerConfig.status === 'connected' &&
-            probability >= minConfidence &&
-            (direction === 'CALL' || direction === 'PUT')
-          ) {
-            handleAutoTrade(direction);
+          // Lógica de Autotrading con Feedback
+          const minConfidence = botParams?.min_confidence_score ?? 85;
+          const isBotActive = botParams?.bot_activo;
+          
+          if (direction !== 'NONE' && (direction === 'CALL' || direction === 'PUT')) {
+            if (!isBotActive) {
+                window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
+                  detail: { success: true, logs: [{ timestamp: Date.now()/1000, message: `[SISTEMA] Señal ${direction} detectada pero el BOT está DESACTIVADO.` }] } 
+                }));
+            } else if (probability < minConfidence) {
+                window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
+                  detail: { success: true, logs: [{ timestamp: Date.now()/1000, message: `[V7-MAESTRO] Señal ${direction} filtrada por baja precisión (${probability}% < ${minConfidence}%).` }] } 
+                }));
+            } else if (brokerConfig.status === 'connected') {
+                handleAutoTrade(direction);
+            }
           }
         } else {
           failureCount.current++;

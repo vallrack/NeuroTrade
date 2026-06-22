@@ -123,7 +123,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       tooltip={item.title}
                       className="px-3 py-5 rounded-lg transition-all hover:bg-white/5 active:scale-95 group/btn"
                     >
-                      <Link href={item.url} className="flex items-center gap-3">
+                      <Link href={item.url}>
                         <item.icon className="text-muted-foreground group-hover/btn:text-primary transition-colors w-4 h-4" />
                         <span className="font-bold text-[10px] uppercase tracking-wide group-data-[collapsible=icon]:hidden">{item.title}</span>
                       </Link>
