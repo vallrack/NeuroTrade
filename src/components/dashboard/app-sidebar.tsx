@@ -118,17 +118,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 {group.items.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
-                      onClick={() => {
-                        setOpenMobile(false);
-                        router.push(item.url);
-                      }}
+                      asChild
                       tooltip={item.title}
                       className="px-3 py-5 rounded-lg transition-all hover:bg-white/5 active:scale-95 group/btn"
                     >
-                      <div className="flex items-center gap-3 w-full cursor-pointer">
-                        <item.icon className="text-muted-foreground group-hover/btn:text-primary transition-colors w-4 h-4" />
-                        <span className="font-bold text-[10px] uppercase tracking-wide group-data-[collapsible=icon]:hidden">{item.title}</span>
-                      </div>
+                      <Link href={item.url} onClick={() => setOpenMobile(false)}>
+                        <div className="flex items-center gap-3 w-full cursor-pointer">
+                          <item.icon className="text-muted-foreground group-hover/btn:text-primary transition-colors w-4 h-4" />
+                          <span className="font-bold text-[10px] uppercase tracking-wide group-data-[collapsible=icon]:hidden">{item.title}</span>
+                        </div>
+                      </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
