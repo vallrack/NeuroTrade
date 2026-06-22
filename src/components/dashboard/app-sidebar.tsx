@@ -28,18 +28,17 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
-// import removed
 import { useToast } from "@/hooks/use-toast"
 import { useUser, useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
-
 import { getAuth, signOut } from "firebase/auth";
-
 import Link from "next/link"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const router = useRouter();
+  const { setOpenMobile } = useSidebar();
   const { toast } = useToast();
   const { user } = useUser();
   const firestore = useFirestore();
@@ -119,7 +118,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 {group.items.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
-                      onClick={() => router.push(item.url)}
+                      onClick={() => {
+                        setOpenMobile(false);
+                        router.push(item.url);
+                      }}
                       tooltip={item.title}
                       className="px-3 py-5 rounded-lg transition-all hover:bg-white/5 active:scale-95 group/btn"
                     >
