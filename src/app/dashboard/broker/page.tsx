@@ -22,11 +22,15 @@ import {
   Database,
   Globe,
   Loader2,
-  PowerOff
+  PowerOff,
+  Monitor,
+  Cloud,
+  Radio
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc } from '@/firebase';
 import { cn } from '@/lib/utils';
+import { bridgeConnect, bridgeDisconnect, bridgeHealthCheck, getBridgeSource, setBridgeSource, getRenderUrl, getLocalUrl, setRenderUrl, setLocalUrl, getBridgeUrl, getLocalBridgeWarning, DEFAULT_RENDER_URL, DEFAULT_LOCAL_URL } from '@/lib/bridge';
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
 
 function BrokerContent() {
@@ -42,9 +46,11 @@ function BrokerContent() {
   const [loading, setLoading] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   
-  const [bridgeSource, setBridgeSource] = useState<'cloud' | 'tunnel'>('cloud');
-  const [renderUrl, setRenderUrl] = useState('https://eurotrade-bridge.onrender.com');
-  const [tunnelUrl, setTunnelUrl] = useState('https://huge-clubs-float.loca.lt');
+  const [bridgeSource, setBridgeSourceState] = useState<'cloud' | 'local'>('cloud');
+  const [renderUrl, setRenderUrlState] = useState(DEFAULT_RENDER_URL);
+  const [localUrl, setLocalUrlState] = useState(DEFAULT_LOCAL_URL);
+  const [testingBridge, setTestingBridge] = useState(false);
+  const [bridgeStatus, setBridgeStatus] = useState<'unknown' | 'online' | 'offline'>('unknown');
 
   useEffect(() => {
     setMounted(true);
@@ -58,37 +64,53 @@ function BrokerContent() {
   const { data: brokerConfig, loading: configLoading } = useDoc(brokerRef);
 
   useEffect(() => {
+    if (!mounted) return;
     if (brokerConfig) {
       setEmail(brokerConfig.email || '');
       setIsReal(brokerConfig.accountType === 'real');
     }
-    
-    if (typeof window !== 'undefined') {
-      const savedSource = localStorage.getItem('nt_bridge_source');
-      if (savedSource) setBridgeSource(savedSource as 'cloud' | 'tunnel');
-      
-      const savedRender = localStorage.getItem('nt_render_url');
-      if (savedRender) setRenderUrl(savedRender);
-      
-      const savedTunnel = localStorage.getItem('nt_tunnel_url');
-      if (savedTunnel) setTunnelUrl(savedTunnel);
+
+    // Render: si Vercel tiene NEXT_PUBLIC_BRIDGE_URL y el usuario no guardó otra, usarla
+    const envRender = process.env.NEXT_PUBLIC_BRIDGE_URL;
+    if (envRender && !localStorage.getItem('nt_render_url')) {
+      setRenderUrl(envRender);
     }
-  }, [brokerConfig]);
+
+    setBridgeSourceState(getBridgeSource());
+    setRenderUrlState(getRenderUrl());
+    setLocalUrlState(getLocalUrl());
+  }, [mounted, brokerConfig]);
+
+  const handleBridgeSourceChange = (source: 'cloud' | 'local') => {
+    setBridgeSourceState(source);
+    setBridgeSource(source);
+    setBridgeStatus('unknown');
+  };
+
+  const handleTestBridge = async () => {
+    setTestingBridge(true);
+    try {
+      const result = await bridgeHealthCheck();
+      setBridgeStatus(result.online ? 'online' : 'offline');
+      toast({
+        title: result.online ? 'PUENTE ONLINE' : 'PUENTE OFFLINE',
+        description: result.online
+          ? `${result.mode} — ${result.url}`
+          : `${result.mode}: ${result.error || 'No responde'}. ${bridgeSource === 'local' ? '¿Ejecutó bridge_server.py en su PC?' : '¿Render está despierto?'}`,
+        variant: result.online ? 'default' : 'destructive',
+      });
+    } finally {
+      setTestingBridge(false);
+    }
+  };
 
   const handleDisconnect = async () => {
     if (!user || !firestore || !brokerConfig) return;
     setDisconnecting(true);
     try {
-      const bridgeUrl = bridgeSource === 'cloud' ? renderUrl : tunnelUrl;
-      const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'neurotrade-secret-2024';
-
-      await fetch(`${bridgeUrl}/disconnect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Bridge-Token': bridgeToken, 'Bypass-Tunnel-Reminder': 'true' },
-        body: JSON.stringify({ 
-           email: brokerConfig.email, 
-           accountType: brokerConfig.accountType 
-        })
+      await bridgeDisconnect({
+        email: brokerConfig.email,
+        accountType: brokerConfig.accountType || 'demo',
       });
 
       const configRef = doc(firestore, 'users', user.uid, 'config', 'broker');
@@ -118,20 +140,17 @@ function BrokerContent() {
 
       let realBalance = 0;
       try {
-        const bridgeUrl = bridgeSource === 'cloud' ? renderUrl : tunnelUrl;
-        const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'neurotrade-secret-2024';
-        
-        const response = await fetch(`${bridgeUrl}/connect`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Bridge-Token': bridgeToken, 'Bypass-Tunnel-Reminder': 'true' },
-          body: JSON.stringify({ email, password, accountType })
+        const bridgeData = await bridgeConnect({ email, password, accountType });
+        if (bridgeData.success) realBalance = bridgeData.balance ?? 0;
+      } catch {
+        toast({
+          title: 'AVISO',
+          description: bridgeSource === 'local'
+            ? 'El puente local no respondió. Ejecute bridge_server.py en su PC y configure el túnel.'
+            : 'El puente en Render no respondió. Verifique que el servicio esté activo.',
+          variant: 'destructive',
         });
-        
-        if (response.ok) {
-          const bridgeData = await response.json();
-          if (bridgeData.success) realBalance = bridgeData.balance;
-        }
-      } catch (bridgeError) {}
+      }
 
       const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', accountType);
       await setDoc(statsRef, { balance: realBalance, status: 'connected', lastSync: new Date().toISOString() }, { merge: true });
@@ -225,30 +244,93 @@ function BrokerContent() {
                 <Card className="bg-card/50 border-white/5 backdrop-blur-xl border-primary/20">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-headline font-bold flex items-center gap-2">
-                       <Settings className="h-4 w-4 text-primary" /> Fuente del Bridge
+                       <Settings className="h-4 w-4 text-primary" /> Modo del Puente Python
                     </CardTitle>
+                    <CardDescription className="text-[10px]">
+                      El mismo <code className="text-primary">bridge_server.py</code> corre en Render o en su PC.
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex p-1 bg-white/5 rounded-lg border border-white/5">
-                      <button type="button" onClick={() => { setBridgeSource('cloud'); localStorage.setItem('nt_bridge_source', 'cloud'); }} className={cn("flex-1 py-2 px-3 rounded-md text-[10px] font-bold transition-all flex items-center justify-center gap-2", bridgeSource === 'cloud' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>
-                        <Globe className="h-3 w-3" /> RENDER
+                      <button type="button" onClick={() => handleBridgeSourceChange('cloud')} className={cn("flex-1 py-2 px-3 rounded-md text-[10px] font-bold transition-all flex items-center justify-center gap-2", bridgeSource === 'cloud' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>
+                        <Cloud className="h-3 w-3" /> RENDER
                       </button>
-                      <button type="button" onClick={() => { setBridgeSource('tunnel'); localStorage.setItem('nt_bridge_source', 'tunnel'); }} className={cn("flex-1 py-2 px-3 rounded-md text-[10px] font-bold transition-all flex items-center justify-center gap-2", bridgeSource === 'tunnel' ? 'bg-amber-500 text-black' : 'text-muted-foreground')}>
-                        <Database className="h-3 w-3" /> TÚNEL
+                      <button type="button" onClick={() => handleBridgeSourceChange('local')} className={cn("flex-1 py-2 px-3 rounded-md text-[10px] font-bold transition-all flex items-center justify-center gap-2", bridgeSource === 'local' ? 'bg-amber-500 text-black' : 'text-muted-foreground')}>
+                        <Monitor className="h-3 w-3" /> MI PC
                       </button>
                     </div>
 
-                    <div className="space-y-3 pt-4">
+                    <div className="space-y-3">
                         <div className="space-y-1">
-                          <Label className="text-[10px] uppercase font-bold text-muted-foreground/50">URL Endpoint</Label>
-                          <Input value={bridgeSource === 'cloud' ? renderUrl : tunnelUrl} onChange={(e) => {
-                            if (bridgeSource === 'cloud') { setRenderUrl(e.target.value); localStorage.setItem('nt_render_url', e.target.value); }
-                            else { setTunnelUrl(e.target.value); localStorage.setItem('nt_tunnel_url', e.target.value); }
-                          }} className="h-9 text-[10px] font-mono bg-background/50 border-white/10" />
-                          <p className="text-[9px] text-muted-foreground italic">
-                            {bridgeSource === 'cloud' ? '📍 Use la URL de su servidor en Render.' : '📍 Use la URL de localtunnel generada en su PC.'}
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground/50">
+                            {bridgeSource === 'cloud' ? 'URL de Render.com' : 'URL del túnel / localhost'}
+                          </Label>
+                          <Input
+                            value={bridgeSource === 'cloud' ? renderUrl : localUrl}
+                            onChange={(e) => {
+                              if (bridgeSource === 'cloud') {
+                                setRenderUrlState(e.target.value);
+                                setRenderUrl(e.target.value);
+                              } else {
+                                setLocalUrlState(e.target.value);
+                                setLocalUrl(e.target.value);
+                              }
+                              setBridgeStatus('unknown');
+                            }}
+                            className="h-9 text-[10px] font-mono bg-background/50 border-white/10"
+                            placeholder={bridgeSource === 'cloud' ? 'https://eurotrade-bridge.onrender.com' : 'http://127.0.0.1:5000 o https://xxx.loca.lt'}
+                          />
+                          <p className="text-[9px] text-muted-foreground font-mono truncate">
+                            Activo ahora: {getBridgeUrl()}
                           </p>
                         </div>
+
+                        {getLocalBridgeWarning() && (
+                          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                            <p className="text-[9px] text-red-400 leading-relaxed">{getLocalBridgeWarning()}</p>
+                          </div>
+                        )}
+
+                        {bridgeSource === 'cloud' ? (
+                          <div className="p-3 bg-primary/5 border border-primary/10 rounded-lg space-y-1">
+                            <p className="text-[9px] text-muted-foreground leading-relaxed">
+                              <strong className="text-primary">Modo nube (24/7):</strong> Despliegue <code>bridge_server.py</code> en Render con{' '}
+                              <code className="text-[8px]">gunicorn bridge_server:app</code>. Use la URL pública de Render aquí.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-lg space-y-2">
+                            <p className="text-[9px] text-muted-foreground leading-relaxed font-bold text-amber-500">Modo local (su PC):</p>
+                            <ol className="text-[9px] text-muted-foreground space-y-1 list-decimal pl-4">
+                              <li>Ejecute <code>python bridge_server.py</code> o <code>start-bridge.bat</code></li>
+                              <li>Si usa la app en Vercel: <code>npx localtunnel --port 5000</code></li>
+                              <li>Pegue la URL del túnel (HTTPS) o <code>http://127.0.0.1:5000</code> si abre la app en <code>localhost:9002</code></li>
+                            </ol>
+                          </div>
+                        )}
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full h-8 text-[10px] font-bold uppercase gap-2 border-white/10"
+                          onClick={handleTestBridge}
+                          disabled={testingBridge}
+                        >
+                          {testingBridge ? <Loader2 className="w-3 h-3 animate-spin" /> : <Radio className="w-3 h-3" />}
+                          Probar conexión al puente
+                        </Button>
+
+                        {bridgeStatus !== 'unknown' && (
+                          <Badge className={cn(
+                            'w-full justify-center py-1 text-[9px] font-bold',
+                            bridgeStatus === 'online'
+                              ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                              : 'bg-red-500/10 text-red-500 border-red-500/20'
+                          )}>
+                            {bridgeStatus === 'online' ? '● PUENTE RESPONDE' : '● PUENTE NO DISPONIBLE'}
+                          </Badge>
+                        )}
                     </div>
 
                     {brokerConfig?.status === 'connected' && (

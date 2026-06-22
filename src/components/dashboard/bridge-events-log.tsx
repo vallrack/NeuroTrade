@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Activity, Wifi, WifiOff, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { bridgeAnalyze } from '@/lib/bridge';
 
 interface BridgeEvent {
   id: string;
@@ -56,7 +57,7 @@ export function BridgeEventsLog() {
     }, ...prev].slice(0, 150)); // máximo 150 eventos en memoria
 
   useEffect(() => {
-    if (!mounted || !user || !brokerConfig?.email) return;
+    if (!mounted || !user || !brokerConfig?.email || !brokerConfig?.password) return;
     let isMounted = true;
 
     const poll = async () => {
@@ -65,37 +66,24 @@ export function BridgeEventsLog() {
       lastFetchTime.current = now;
 
       try {
-        const savedSource = localStorage.getItem('nt_bridge_source') || 'cloud';
-        const savedRender = localStorage.getItem('nt_render_url') || 'https://eurotrade-bridge.onrender.com';
-        const savedTunnel = localStorage.getItem('nt_tunnel_url') || 'https://huge-clubs-float.loca.lt';
-        
-        const bridgeUrl = savedSource === 'cloud' ? savedRender : savedTunnel;
-        const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'neurotrade-secret-2024';
         const pair = botParams?.pairs?.[0] || 'EURUSD-OTC';
 
-        const res = await fetch(`${bridgeUrl}/analyze`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Bridge-Token': bridgeToken,
-            'Bypass-Tunnel-Reminder': 'true'
-          },
-          body: JSON.stringify({
-            email: brokerConfig.email,
-            password: brokerConfig.password,
-            pair,
-            accountType: brokerConfig.accountType || 'demo',
-          }),
+        const json = await bridgeAnalyze({
+          email: brokerConfig.email,
+          password: brokerConfig.password,
+          pair,
+          accountType: brokerConfig.accountType || 'demo',
         });
 
         if (!isMounted) return;
 
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success) {
-            setConnected(true);
-            addEvent({ type: 'success', source: 'BRIDGE', message: `✔ Sincronización ${pair} activa en modo ${savedSource.toUpperCase()}` });
-          }
+        if (json.success) {
+          setConnected(true);
+          addEvent({
+            type: 'success',
+            source: 'BRIDGE',
+            message: `✔ ${pair} — RSI ${json.rsi?.toFixed(1) ?? '?'} — señal ${json.direction}`,
+          });
         }
       } catch (err: any) {
         if (!isMounted) return;

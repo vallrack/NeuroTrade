@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useFirestore, useCollection, useUser, useDoc } from '@/firebase';
 import { collection, query, orderBy, limit, doc } from 'firebase/firestore';
+import { bridgeAnalyze, getBridgeUrl, getBridgeModeLabel } from '@/lib/bridge';
 
 export default function TerminalPage() {
   const [mounted, setMounted] = useState(false);
@@ -48,7 +49,7 @@ export default function TerminalPage() {
 
     const fetchRealLogs = async () => {
       const config = brokerConfigRef.current;
-      if (!config || !config.email || isFetching) return;
+      if (!config || !config.email || !config.password || isFetching) return;
       
       const now = Date.now();
       if (now - lastLogFetch < 10000) return; // Máximo cada 10 segundos
@@ -56,36 +57,20 @@ export default function TerminalPage() {
 
       isFetching = true;
       try {
-        const savedSource = localStorage.getItem('nt_bridge_source') || 'cloud';
-        const savedRender = localStorage.getItem('nt_render_url') || 'https://eurotrade-bridge.onrender.com';
-        const savedTunnel = localStorage.getItem('nt_tunnel_url') || 'https://huge-clubs-float.loca.lt';
-        
-        const bridgeUrl = savedSource === 'cloud' ? savedRender : savedTunnel;
-        const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'neurotrade-secret-2024';
-        
-        const response = await fetch(`${bridgeUrl}/analyze`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Bridge-Token': bridgeToken
-          },
-          body: JSON.stringify({ 
-            email: config.email,
-            password: config.password,
-            pair: 'EURUSD-OTC',
-            accountType: config.accountType || 'demo'
-          })
+        const data = await bridgeAnalyze({
+          email: config.email,
+          password: config.password,
+          pair: 'EURUSD-OTC',
+          accountType: config.accountType || 'demo',
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          // Añadir log de conexión exitosa
+        if (data.success) {
           setLogs(prev => {
             const newLog = {
               id: Math.random().toString(36),
               timestamp: new Date(),
-              message: `Telemetría recibida desde ${savedSource.toUpperCase()} [${data.pair}] - Balance: $${data.balance}`,
-              level: 'success'
+              message: `Telemetría [${data.pair}] RSI:${data.rsi?.toFixed(1)} ${data.direction} — Balance: $${data.balance} — ${getBridgeModeLabel()}`,
+              level: 'success',
             };
             return [...prev, newLog].slice(-50);
           });

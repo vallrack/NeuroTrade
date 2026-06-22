@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: neurotrade-bridge
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn bridge_server:app
+    healthCheckPath: /health
+    envVars:
+      - key: BRIDGE_TOKEN
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.11.0"

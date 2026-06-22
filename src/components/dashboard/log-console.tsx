@@ -7,6 +7,7 @@ import { doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { bridgeAnalyze } from '@/lib/bridge';
 
 export function LogConsole() {
   const rtdb = useRTDB();
@@ -34,55 +35,41 @@ export function LogConsole() {
     
     const fetchRealLogs = async () => {
       const config = brokerConfigRef.current;
-      if (!config || !config.email || isFetching) return;
+      if (!config || !config.email || !config.password || isFetching) return;
       
       const pair = activePairs[0] || 'EURUSD-OTC';
       isFetching = true;
 
       try {
-        const bridgeUrl = process.env.NEXT_PUBLIC_BRIDGE_URL || 'https://dprogramadores.com.co/nt-bridge';
-        const bridgeToken = process.env.NEXT_PUBLIC_BRIDGE_TOKEN || 'quantum_v7_secure_key_123';
-        
-        const response = await fetch(`${bridgeUrl}/analyze`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Bridge-Token': bridgeToken
-          },
-          body: JSON.stringify({ 
-            email: config.email,
-            password: config.password,
-            pair: pair,
-            accountType: config.accountType || 'demo'
-          })
+        const data = await bridgeAnalyze({
+          email: config.email,
+          password: config.password,
+          pair,
+          accountType: config.accountType || 'demo',
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.logs) {
-            setLogs(prev => {
-               const combined = [...prev, ...data.logs.map((l: any) => {
-                 // Adaptamos el formato del backend al diseño de LogConsole
-                 let agent = 'SYSTEM';
-                 if (l.message.includes('[QUANTUM]')) agent = 'QUANTUM-X';
-                 if (l.message.includes('[SENTINEL]')) agent = 'CYBER-SENTINEL';
-                 if (l.message.includes('[IA MAIN]')) agent = 'V7-MAESTRO';
-                 
-                 let direction = 'NONE';
-                 if (l.message.includes('CALL')) direction = 'CALL';
-                 if (l.message.includes('PUT')) direction = 'PUT';
+        if (data.success && data.logs) {
+          setLogs(prev => {
+            const combined = [...prev, ...data.logs!.map((l) => {
+              let agent = 'SYSTEM';
+              if (l.message.includes('[QUANTUM]')) agent = 'QUANTUM-X';
+              if (l.message.includes('[SENTINEL]')) agent = 'CYBER-SENTINEL';
+              if (l.message.includes('[IA MAIN]')) agent = 'V7-MAESTRO';
 
-                 return {
-                   id: Math.random().toString(36),
-                   timestamp: l.timestamp * 1000, 
-                   message: l.message.replace(/\[.*?\]\s*/, ''), // Limpiamos el prefijo para la visual pequeña
-                   direction: direction,
-                   agentId: agent
-                 };
-               })];
-               return combined.slice(-100);
-            });
-          }
+              let direction = 'NONE';
+              if (l.message.includes('CALL')) direction = 'CALL';
+              if (l.message.includes('PUT')) direction = 'PUT';
+
+              return {
+                id: Math.random().toString(36),
+                timestamp: l.timestamp * 1000,
+                message: l.message.replace(/\[.*?\]\s*/, ''),
+                direction,
+                agentId: agent,
+              };
+            })];
+            return combined.slice(-100);
+          });
         }
       } catch (err) {
         // Silencioso en la consola para no spoilar la estética
