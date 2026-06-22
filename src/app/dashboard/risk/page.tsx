@@ -1,242 +1,242 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/components/dashboard/app-sidebar';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { ShieldCheck, ShieldAlert, Target, TrendingUp, AlertTriangle, Save, Loader2, RefreshCw } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { 
+  ShieldCheck, 
+  TrendingUp, 
+  AlertTriangle, 
+  Zap, 
+  Loader2, 
+  Target,
+  ChevronRight,
+  Save,
+  Lock
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { updateBotConfig } from '@/lib/actions';
-import { useFirestore, useDoc } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc } from '@/firebase';
+import { doc, updateDoc, setDoc } from 'firebase/firestore';
 
 export default function RiskPage() {
   const [mounted, setMounted] = useState(false);
-  const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
+  const { user } = useUser();
   const firestore = useFirestore();
+  const { toast } = useToast();
+  
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    investmentPerTrade: 1000,
+    stopLoss: 5000,
+    takeProfit: 10000,
+    maxDailyTrades: 20,
+    martingaleMultiplier: 2.1,
+    min_confidence_score: 85
+  });
 
   useEffect(() => {
     setMounted(true);
   }, []);
-  
+
   const botParamsRef = useMemo(() => {
     if (!mounted || !firestore) return null;
     return doc(firestore, 'configuracion', 'bot_params');
   }, [mounted, firestore]);
-
+  
   const { data: botParams, loading: paramsLoading } = useDoc(botParamsRef);
-
-  const [investment, setInvestment] = useState('10');
-  const [stopLoss, setStopLoss] = useState('50');
-  const [takeProfit, setTakeProfit] = useState('100');
-  const [maxTrades, setMaxTrades] = useState('20');
-  const [martingale, setMartingale] = useState(false);
 
   useEffect(() => {
     if (botParams) {
-      setInvestment(botParams.investmentPerTrade?.toString() || '10');
-      setStopLoss(botParams.stopLoss?.toString() || '50');
-      setTakeProfit(botParams.takeProfit?.toString() || '100');
-      setMaxTrades(botParams.maxTradesPerDay?.toString() || '20');
-      setMartingale(!!botParams.martingale);
+      setFormData({
+        investmentPerTrade: botParams.investmentPerTrade || 1000,
+        stopLoss: botParams.stopLoss || 5000,
+        takeProfit: botParams.takeProfit || 10000,
+        maxDailyTrades: botParams.maxDailyTrades || 20,
+        martingaleMultiplier: botParams.martingaleMultiplier || 2.1,
+        min_confidence_score: botParams.min_confidence_score || 85
+      });
     }
   }, [botParams]);
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
+  const handleSave = async () => {
     if (!firestore || !botParamsRef) return;
-    
-    setLoading(true);
+    setSaving(true);
     try {
-      const config = {
-        investmentPerTrade: parseFloat(investment) || 0,
-        stopLoss: parseFloat(stopLoss) || 0,
-        takeProfit: parseFloat(takeProfit) || 0,
-        maxTradesPerDay: parseInt(maxTrades) || 0,
-        martingale: martingale,
-        updatedAt: new Date().toISOString()
-      };
-
-      const { updateDoc } = await import('firebase/firestore');
-      await updateDoc(botParamsRef, config);
+      await updateDoc(botParamsRef, {
+        ...formData,
+        lastUpdated: new Date(),
+        updatedBy: user?.email
+      });
       
       toast({
-        title: "PROTOCOLOS DE RIESGO ACTUALIZADOS ✅",
-        description: "El motor V7 ha sincronizado los nuevos límites de capital.",
+        title: "PROTOCOLOS ACTUALIZADOS",
+        description: "Los parámetros de riesgo han sido sincronizados.",
       });
-    } catch (error: any) {
-      console.error(error);
+      
+      window.dispatchEvent(new CustomEvent('nt_force_sync', { detail: formData }));
+    } catch (e: any) {
       toast({
-        title: "ERROR DE SINCRONIZACIÓN",
-        description: "No se pudieron guardar los cambios: " + error.message,
-        variant: "destructive",
+        title: "ERROR DE PERSISTENCIA",
+        description: e.message,
+        variant: "destructive"
       });
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
-  }
+  };
 
-  if (!mounted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background text-primary">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
+  const handleInputChange = (field: string, value: string) => {
+    const numValue = parseFloat(value);
+    setFormData(prev => ({ ...prev, [field]: isNaN(numValue) ? 0 : numValue }));
+  };
+
+  if (!mounted) return null;
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center px-4 md:px-6 border-b border-white/5 bg-background/80 backdrop-blur-md sticky top-0 z-30">
+    <>
+      <header className="flex h-14 md:h-16 shrink-0 items-center justify-between gap-2 px-4 md:px-6 border-b border-white/5 sticky top-0 bg-background/95 backdrop-blur-xl z-50">
+        <div className="flex items-center gap-2">
           <SidebarTrigger />
-          <h1 className="ml-4 font-headline text-lg md:text-xl font-bold flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-primary" />
-            Control de Riesgo
-          </h1>
-        </header>
+          <Separator orientation="vertical" className="hidden sm:block mr-2 h-4" />
+          <h1 className="font-headline text-lg font-bold tracking-tight text-white truncate">Seguridad Cuántica</h1>
+        </div>
+      </header>
 
-        <main className="p-4 md:p-6 max-w-4xl mx-auto space-y-6 md:space-y-8">
-          <div className="flex flex-col gap-2">
-            <h2 className="text-2xl md:text-3xl font-headline font-bold text-foreground tracking-tight">Gestión de Capital</h2>
-            <p className="text-sm md:text-base text-muted-foreground italic">Defina los parámetros de seguridad operativa.</p>
-          </div>
+      <main className="flex-1 p-4 md:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto w-full">
+         <div className="flex flex-col gap-2 mb-6">
+            <h2 className="text-3xl font-black font-headline tracking-tighter text-white">Gestión de Riesgo V7</h2>
+            <p className="text-muted-foreground text-sm font-medium italic">Configure los muros de contención algorítmica.</p>
+         </div>
 
-          {paramsLoading ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <RefreshCw className="h-8 w-8 text-primary animate-spin" />
-              <p className="text-sm font-bold text-muted-foreground animate-pulse">Sincronizando...</p>
-            </div>
-          ) : (
-            <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-20 md:pb-0">
-              <Card className="bg-card/50 border-white/5 backdrop-blur-xl">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base md:text-lg">
-                    <ShieldAlert className="h-5 w-5 text-red-500" />
-                    Límites Pérdida
-                  </CardTitle>
+         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Tarjeta de Apalancamiento */}
+            <Card className="bg-black/40 border-white/5 backdrop-blur-xl group hover:border-primary/20 transition-all">
+                <CardHeader className="pb-2">
+                  <div className="p-2 bg-primary/10 rounded-lg w-fit mb-2">
+                    <TrendingUp className="w-5 h-5 text-primary" />
+                  </div>
+                  <CardTitle className="text-sm font-bold uppercase tracking-widest text-slate-400">Apalancamiento V7</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="stopLoss" className="text-xs uppercase font-bold text-muted-foreground">Stop Loss Diario (COP)</Label>
-                    <Input 
-                      id="stopLoss" 
-                      type="number" 
-                      value={stopLoss}
-                      onChange={(e) => setStopLoss(e.target.value)}
-                      className="bg-background/50 border-white/5 h-11 md:h-12" 
-                    />
-                  </div>
-                  <div className="flex items-center justify-between p-3 md:p-4 bg-white/5 rounded-xl border border-white/5">
-                    <div className="space-y-0.5">
-                      <Label className="text-[10px] md:text-xs font-bold">Protección Balance</Label>
-                      <p className="text-[8px] md:text-[10px] text-muted-foreground">Cierre en volatilidad</p>
+                    <Label className="text-[10px] uppercase font-bold text-slate-500">Monto por Operación</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-mono text-sm">$</span>
+                      <Input 
+                        type="number"
+                        value={formData.investmentPerTrade}
+                        onChange={(e) => handleInputChange('investmentPerTrade', e.target.value)}
+                        className="bg-white/5 border-white/10 pl-8 h-12 font-mono text-lg font-bold text-white focus:ring-primary"
+                      />
                     </div>
-                    <Switch defaultChecked />
                   </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed italic">Inversión calculada por cada ciclo de la IA.</p>
                 </CardContent>
-              </Card>
+            </Card>
 
-              <Card className="bg-card/50 border-white/5 backdrop-blur-xl">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base md:text-lg">
-                    <Target className="h-5 w-5 text-green-500" />
-                    Objetivos Meta
-                  </CardTitle>
+            {/* Tarjeta de Firewall (Stop Loss) */}
+            <Card className="bg-black/40 border-white/5 backdrop-blur-xl group hover:border-destructive/20 transition-all">
+                <CardHeader className="pb-2">
+                  <div className="p-2 bg-destructive/10 rounded-lg w-fit mb-2">
+                    <AlertTriangle className="w-5 h-5 text-destructive" />
+                  </div>
+                  <CardTitle className="text-sm font-bold uppercase tracking-widest text-slate-400">Firewall de Pérdidas</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="takeProfit" className="text-xs uppercase font-bold text-muted-foreground">Take Profit Diario (COP)</Label>
-                    <Input 
-                      id="takeProfit" 
-                      type="number" 
-                      value={takeProfit}
-                      onChange={(e) => setTakeProfit(e.target.value)}
-                      className="bg-background/50 border-white/5 h-11 md:h-12" 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="maxTrades" className="text-xs uppercase font-bold text-muted-foreground">Máx Operaciones / Día</Label>
-                    <Input 
-                      id="maxTrades" 
-                      type="number" 
-                      value={maxTrades}
-                      onChange={(e) => setMaxTrades(e.target.value)}
-                      className="bg-background/50 border-white/5 h-11 md:h-12" 
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-card/50 border-white/5 backdrop-blur-xl md:col-span-2 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none hidden md:block">
-                  <TrendingUp className="h-40 w-40 text-primary" />
-                </div>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base md:text-lg">
-                    <TrendingUp className="h-5 w-5 text-primary" />
-                    Apalancamiento V7
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                  <div className="space-y-3">
-                    <Label htmlFor="investment" className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground">Monto por Operación (COP)</Label>
-                    <Input 
-                      id="investment" 
-                      type="number" 
-                      step="0.1" 
-                      value={investment}
-                      onChange={(e) => setInvestment(e.target.value)}
-                      className="bg-background/50 border-white/5 h-12 md:h-14 text-xl md:text-2xl font-code font-bold text-primary text-center" 
-                    />
-                  </div>
-                  <div className="flex items-center justify-between p-4 md:p-5 bg-red-500/5 border border-red-500/20 rounded-xl md:rounded-2xl group transition-colors">
-                    <div className="space-y-1">
-                      <Label htmlFor="martingale" className="text-red-500 font-bold text-base md:text-lg">Estrategia Martingala</Label>
-                      <p className="text-[8px] md:text-[10px] text-red-500/70 italic leading-tight uppercase font-bold">
-                        Riesgo Crítico de Drawdown.
-                      </p>
+                    <Label className="text-[10px] uppercase font-bold text-slate-500">Stop Loss Diario (USD)</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-mono text-sm">$</span>
+                      <Input 
+                        type="number"
+                        value={formData.stopLoss}
+                        onChange={(e) => handleInputChange('stopLoss', e.target.value)}
+                        className="bg-white/5 border-white/10 pl-8 h-12 font-mono text-lg font-bold text-destructive focus:ring-destructive"
+                      />
                     </div>
-                    <Switch 
-                      id="martingale" 
-                      checked={martingale}
-                      onCheckedChange={setMartingale}
-                      className="data-[state=checked]:bg-red-500"
-                    />
                   </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed italic">El bot hibernará automáticamente al alcanzar esta pérdida.</p>
                 </CardContent>
-                <CardFooter className="border-t border-white/5 pt-6 flex flex-col md:flex-row justify-between items-center bg-white/5 p-6 md:p-8 gap-4">
-                  <div className="flex flex-col items-center md:items-start text-center md:text-left">
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Sincronización HFT</span>
-                    <span className="text-xs font-code text-primary">MOTOR V7 ACTIVO</span>
-                  </div>
-                  <Button type="submit" className="w-full md:w-auto gap-2 px-8 md:px-12 h-12 md:h-14 font-headline text-base md:text-lg shadow-xl shadow-primary/20" disabled={loading}>
-                    {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
-                    GUARDAR CAMBIOS
-                  </Button>
-                </CardFooter>
-              </Card>
-            </form>
-          )}
+            </Card>
 
-          <div className="p-4 md:p-5 bg-yellow-500/10 border border-yellow-500/20 rounded-xl md:rounded-2xl flex flex-col sm:flex-row gap-4 md:gap-5 items-start">
-            <div className="p-2 md:p-3 bg-yellow-500/20 rounded-full shrink-0">
-              <AlertTriangle className="h-5 w-5 md:h-6 md:w-6 text-yellow-500" />
-            </div>
-            <div className="space-y-1">
-              <h4 className="font-bold text-yellow-500 text-sm md:text-md uppercase tracking-wide">Advertencia de Autonomía</h4>
-              <p className="text-[10px] md:text-xs text-muted-foreground leading-relaxed">
-                El sistema operará de forma autónoma basándose en estos límites. Las decisiones tomadas por el núcleo V7 son irreversibles.
-              </p>
-            </div>
-          </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+            {/* Confianza Mínima */}
+            <Card className="bg-black/40 border-white/5 backdrop-blur-xl group hover:border-blue-400/20 transition-all">
+                <CardHeader className="pb-2">
+                  <div className="p-2 bg-blue-400/10 rounded-lg w-fit mb-2">
+                    <Target className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <CardTitle className="text-sm font-bold uppercase tracking-widest text-slate-400">Filtro de IA</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-bold text-slate-500">Precisión Mínima (%)</Label>
+                    <div className="relative">
+                      <Input 
+                        type="number"
+                        min="50"
+                        max="100"
+                        value={formData.min_confidence_score}
+                        onChange={(e) => handleInputChange('min_confidence_score', e.target.value)}
+                        className="bg-white/5 border-white/10 h-12 font-mono text-lg font-bold text-blue-400 focus:ring-blue-400"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 font-mono text-sm">%</span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed italic">Umbral mínimo para permitir una entrada al mercado.</p>
+                </CardContent>
+            </Card>
+         </div>
+
+         <div className="flex justify-center pt-8 pb-12">
+            <Button 
+                onClick={handleSave}
+                disabled={saving || paramsLoading}
+                className="bg-primary hover:bg-primary/90 text-white h-14 px-12 rounded-2xl font-black uppercase tracking-widest shadow-[0_0_40px_rgba(var(--primary),0.3)] gap-3 transition-all hover:scale-105 active:scale-95"
+            >
+                {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                Guardar Protocolos de Riesgo
+            </Button>
+         </div>
+
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-20">
+            <Card className="bg-primary/5 border-primary/20">
+              <CardContent className="pt-6 space-y-4">
+                 <div className="flex items-start gap-4">
+                    <div className="p-2 bg-primary/20 rounded-lg shrink-0">
+                      <Lock className="w-4 h-4 text-primary" />
+                    </div>
+                    <div>
+                       <p className="text-xs font-bold text-white uppercase mb-1">Encripción de Seguridad</p>
+                       <p className="text-[10px] text-muted-foreground leading-relaxed">
+                         Estos parámetros se inyectan directamente en el núcleo HFT de Render. Una vez guardados, la IA ajusta su comportamiento en el siguiente tick del mercado.
+                       </p>
+                    </div>
+                 </div>
+              </CardContent>
+            </Card>
+            
+            <Card className="bg-secondary/5 border-secondary/20">
+              <CardContent className="pt-6 space-y-4">
+                 <div className="flex items-start gap-4">
+                    <div className="p-2 bg-secondary/20 rounded-lg shrink-0">
+                      <Zap className="w-4 h-4 text-secondary" />
+                    </div>
+                    <div>
+                       <p className="text-xs font-bold text-white uppercase mb-1">Martingale V7.1</p>
+                       <p className="text-[10px] text-muted-foreground leading-relaxed">
+                         El multiplicador actual está configurado en <span className="font-bold text-secondary font-mono">{formData.martingaleMultiplier}x</span>. Use con precaución en cuentas con balance menor a $1,000 USD.
+                       </p>
+                    </div>
+                 </div>
+              </CardContent>
+            </Card>
+         </div>
+      </main>
+    </>
   );
 }
