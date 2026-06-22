@@ -58,59 +58,35 @@ export function BridgeEventsLog() {
     }, ...prev].slice(0, 150)); // máximo 150 eventos en memoria
 
   useEffect(() => {
-    if (!mounted || !user || !brokerConfig?.email || !brokerConfig?.password) return;
-    let isMounted = true;
+    if (!mounted || !user) return;
 
-    const poll = async () => {
-      const now = Date.now();
-      if (now - lastFetchTime.current < 9500) return; // cada ~10s
-      lastFetchTime.current = now;
+    const handleIncomingData = (e: any) => {
+      const json = e.detail;
+      const pair = json.pair || 'EURUSD-OTC';
 
-      try {
-        const pair = botParams?.pairs?.[0] || 'EURUSD-OTC';
-
-        const json = await bridgeAnalyze({
-          email: brokerConfig.email,
-          password: brokerConfig.password,
-          pair,
-          accountType: brokerConfig.accountType || 'demo',
-        });
-
-        if (!isMounted) return;
-
-        if (json.success) {
-          setConnected(true);
-          const hadFailures = consecutiveFailures.current > 0;
-          consecutiveFailures.current = 0;
-          
-          if (hadFailures) {
-            addEvent({ type: 'success', source: 'RED', message: '✔ Conexión restablecida con el Bridge.' });
-          }
-
-          addEvent({
-            type: 'success',
-            source: 'BRIDGE',
-            message: `✔ ${pair} — RSI ${json.rsi?.toFixed(1) ?? '?'} — señal ${json.direction}`,
-          });
-        }
-      } catch (err: any) {
-        if (!isMounted) return;
-        consecutiveFailures.current++;
+      if (json.success) {
+        setConnected(true);
+        consecutiveFailures.current = 0;
         
+        addEvent({
+          type: 'success',
+          source: 'BRIDGE',
+          message: `✔ ${pair} — RSI ${json.rsi?.toFixed(1) ?? '?'} — señal ${json.direction}`,
+        });
+      } else {
+        consecutiveFailures.current++;
         if (consecutiveFailures.current >= 3) {
           setConnected(false);
-          addEvent({ type: 'error', source: 'RED', message: `✘ Sin conexión estable al Bridge (${consecutiveFailures.current} fallos).` });
+          addEvent({ type: 'error', source: 'RED', message: `✘ Respuesta de error del Bridge.` });
         }
       }
     };
 
-    // Evento de inicio
-    addEvent({ type: 'info', source: 'V7', message: 'Iniciando monitoreo de eventos...' });
+    addEvent({ type: 'info', source: 'V7', message: 'Sintonizando flujo de datos maestro...' });
 
-    poll();
-    const id = setInterval(poll, 20000); // 20 segundos
-    return () => { isMounted = false; clearInterval(id); };
-  }, [mounted, user, brokerConfig?.email, brokerConfig?.status, botParams?.pairs]);
+    window.addEventListener('nt_bridge_data', handleIncomingData);
+    return () => window.removeEventListener('nt_bridge_data', handleIncomingData);
+  }, [mounted, user]);
 
   // Auto-scroll al evento más reciente (arriba)
   useEffect(() => {

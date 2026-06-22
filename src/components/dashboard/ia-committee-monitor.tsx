@@ -155,19 +155,26 @@ export function IACommitteeMonitor() {
 
         if (json.success) {
           setBridgeOnline(true);
-          failureCount.current = 0; // Reset
+          failureCount.current = 0;
           const direction = (json.direction === 'CALL' || json.direction === 'PUT')
             ? json.direction
             : 'NONE';
           const probability = json.probability ?? 50;
 
-          setData({
-            direction,
+          const comData: CommitteeData = {
+            direction: direction as 'CALL' | 'PUT' | 'NONE',
             probability,
             candles: json.candles || [],
             balance: json.balance ?? 0,
             rsi: json.rsi,
-          });
+          };
+          
+          setData(comData);
+
+          // EMISIÓN GLOBAL: Compartir datos con Consola y Eventos sin peticiones extra
+          window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
+            detail: { ...json, ...comData, timestamp: Date.now() } 
+          }));
 
           if (
             botParams?.bot_activo &&
@@ -190,7 +197,7 @@ export function IACommitteeMonitor() {
     };
 
     fetchData();
-    const id = setInterval(fetchData, 1500);
+    const id = setInterval(fetchData, 4000); // 4 segundos: ideal para Render Free
     return () => { isMounted = false; clearInterval(id); };
   }, [
     mounted, user, activePair, botParams?.bot_activo, botParams?.minRsi, botParams?.midRsi,

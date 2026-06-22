@@ -31,58 +31,37 @@ export function LogConsole() {
   useEffect(() => {
     if (!user) return;
     
-    let isFetching = false;
-    
-    const fetchRealLogs = async () => {
-      const config = brokerConfigRef.current;
-      if (!config || !config.email || !config.password || isFetching) return;
-      
-      const pair = activePairs[0] || 'EURUSD-OTC';
-      isFetching = true;
+    const handleNewData = (e: any) => {
+      const data = e.detail;
+      if (data.success && data.logs) {
+        setLogs(prev => {
+          const newEntries = data.logs.map((l: any) => {
+            let agent = 'SYSTEM';
+            if (l.message.includes('[QUANTUM]')) agent = 'QUANTUM-X';
+            if (l.message.includes('[SENTINEL]')) agent = 'CYBER-SENTINEL';
+            if (l.message.includes('[IA MAIN]')) agent = 'V7-MAESTRO';
 
-      try {
-        const data = await bridgeAnalyze({
-          email: config.email,
-          password: config.password,
-          pair,
-          accountType: config.accountType || 'demo',
-        });
+            let direction = 'NONE';
+            if (l.message.includes('CALL')) direction = 'CALL';
+            if (l.message.includes('PUT')) direction = 'PUT';
 
-        if (data.success && data.logs) {
-          setLogs(prev => {
-            const combined = [...prev, ...data.logs!.map((l) => {
-              let agent = 'SYSTEM';
-              if (l.message.includes('[QUANTUM]')) agent = 'QUANTUM-X';
-              if (l.message.includes('[SENTINEL]')) agent = 'CYBER-SENTINEL';
-              if (l.message.includes('[IA MAIN]')) agent = 'V7-MAESTRO';
-
-              let direction = 'NONE';
-              if (l.message.includes('CALL')) direction = 'CALL';
-              if (l.message.includes('PUT')) direction = 'PUT';
-
-              return {
-                id: Math.random().toString(36),
-                timestamp: l.timestamp * 1000,
-                message: l.message.replace(/\[.*?\]\s*/, ''),
-                direction,
-                agentId: agent,
-              };
-            })];
-            return combined.slice(-100);
+            return {
+              id: Math.random().toString(36),
+              timestamp: (l.timestamp || Date.now() / 1000) * 1000,
+              message: l.message.replace(/\[.*?\]\s*/, ''),
+              direction,
+              agentId: agent,
+            };
           });
-        }
-      } catch (err) {
-        // Silencioso en la consola para no spoilar la estética
-      } finally {
-        isFetching = false;
+          const combined = [...prev, ...newEntries];
+          return combined.slice(-100);
+        });
       }
     };
 
-    fetchRealLogs(); // Inicial
-    const interval = setInterval(fetchRealLogs, 30000); // 30 segundos (antes 15)
-
-    return () => clearInterval(interval);
-  }, [user, activePairs]);
+    window.addEventListener('nt_bridge_data', handleNewData);
+    return () => window.removeEventListener('nt_bridge_data', handleNewData);
+  }, [user]);
 
   // Integración con Realtime Database si está disponible
   useEffect(() => {
