@@ -29,6 +29,15 @@ export default function DashboardPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [initLoading, setInitLoading] = useState(false);
+  const [bridgeRunning, setBridgeRunning] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const handleSync = (e: any) => {
+      if (e.detail?.success) setBridgeRunning(true);
+    };
+    window.addEventListener('nt_bridge_data', handleSync);
+    return () => window.removeEventListener('nt_bridge_data', handleSync);
+  }, []);
 
   useEffect(() => {
     setMounted(true);
