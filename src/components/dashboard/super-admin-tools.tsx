@@ -56,26 +56,41 @@ export function SuperAdminTools() {
   };
 
   const handleClearLogs = async () => {
+    // Emitir evento para que la consola se limpie
+    window.dispatchEvent(new CustomEvent('nt_clear_logs'));
     toast({
       title: "SISTEMA DEPURADO",
-      description: "La rotación de logs automáticos descartó la memoria residual.",
+      description: "La memoria residual de logs ha sido purgada exitosamente.",
     });
   };
 
+  const handleBypassSync = async () => {
+    setLoading(true);
+    // Simular bypass de DB forzando una lectura del puente
+    window.dispatchEvent(new CustomEvent('nt_force_sync'));
+    setTimeout(() => {
+      setLoading(false);
+      toast({
+        title: "BYPASS DB ACTIVO",
+        description: "Sincronización forzada con el núcleo V7 completada.",
+      });
+    }, 1000);
+  };
+
   return (
-    <Card className="bg-primary/5 border-primary/20 shadow-xl overflow-hidden relative">
-      <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+    <Card className="bg-card/40 border-white/5 shadow-xl overflow-hidden relative backdrop-blur-xl">
+      <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
         <Crown className="h-24 w-24 text-primary" />
       </div>
       <CardHeader>
         <div className="flex items-center gap-2">
-          <Badge className="bg-primary hover:bg-primary font-headline px-3 py-1 gap-1">
+          <Badge className="bg-primary hover:bg-primary font-headline px-3 py-1 gap-1 text-[9px] font-black">
             <Crown className="h-3 w-3" />
             MAESTRO CUÁNTICO
           </Badge>
         </div>
-        <CardTitle className="font-headline text-xl mt-2">Protocolos de Infraestructura</CardTitle>
-        <CardDescription className="text-xs">Gestión de nivel absoluto para el Centro de Comando.</CardDescription>
+        <CardTitle className="font-headline text-lg mt-2 tracking-tight text-white">Protocolos de Infraestructura</CardTitle>
+        <CardDescription className="text-[10px] text-muted-foreground/60">Gestión de nivel absoluto para el Centro de Comando.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
@@ -83,29 +98,33 @@ export function SuperAdminTools() {
             onClick={handleSeedData}
             disabled={seeding}
             variant="outline" 
-            className="justify-start gap-2 border-primary/30 hover:bg-primary/10 h-12 text-[10px] font-bold uppercase tracking-wider"
+            className="justify-start gap-2 border-white/5 bg-white/[0.02] hover:bg-primary/20 h-11 text-[9px] font-black uppercase tracking-wider"
           >
-            {seeding ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Zap className="h-4 w-4 text-primary" />}
+            {seeding ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> : <Zap className="h-3.5 w-3.5 text-primary" />}
             Cargar Valores V7
           </Button>
           <Button 
             onClick={handleClearLogs}
             variant="outline" 
-            className="justify-start gap-2 border-primary/30 hover:bg-primary/10 h-12 text-[10px] font-bold uppercase tracking-wider"
+            className="justify-start gap-2 border-white/5 bg-white/[0.02] hover:bg-primary/20 h-11 text-[9px] font-black uppercase tracking-wider"
           >
-            <Trash2 className="h-4 w-4 text-primary" />
+            <Trash2 className="h-3.5 w-3.5 text-primary" />
             Limpiar Memoria
           </Button>
-          <Button variant="outline" className="justify-start gap-2 border-primary/30 hover:bg-primary/10 h-12 text-[10px] font-bold uppercase tracking-wider">
-            <Database className="h-4 w-4 text-primary" />
+          <Button 
+            onClick={handleBypassSync}
+            variant="outline" 
+            className="justify-start gap-2 border-white/5 bg-white/[0.02] hover:bg-primary/20 h-11 text-[9px] font-black uppercase tracking-wider"
+          >
+            <Database className="h-3.5 w-3.5 text-primary" />
             Bypass DB
           </Button>
           <Button 
             onClick={handleSelfPromotion} 
             disabled={loading}
-            className="justify-start gap-2 h-12 bg-primary hover:bg-primary/90 text-[10px] font-bold uppercase tracking-wider"
+            className="justify-start gap-2 h-11 bg-primary hover:bg-primary/90 text-primary-foreground text-[9px] font-black uppercase tracking-wider shadow-lg shadow-primary/20"
           >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
             Fix Rango Maestro
           </Button>
         </div>

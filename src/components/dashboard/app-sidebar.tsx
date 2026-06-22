@@ -36,6 +36,8 @@ import { doc } from "firebase/firestore"
 
 import { getAuth, signOut } from "firebase/auth";
 
+import Link from "next/link"
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const router = useRouter();
   const { toast } = useToast();
@@ -121,10 +123,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       tooltip={item.title}
                       className="px-3 py-5 rounded-lg transition-all hover:bg-white/5 active:scale-95 group/btn"
                     >
-                      <a href={item.url} className="flex items-center gap-3">
+                      <Link href={item.url} className="flex items-center gap-3">
                         <item.icon className="text-muted-foreground group-hover/btn:text-primary transition-colors w-4 h-4" />
                         <span className="font-bold text-[10px] uppercase tracking-wide group-data-[collapsible=icon]:hidden">{item.title}</span>
-                      </a>
+                      </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}

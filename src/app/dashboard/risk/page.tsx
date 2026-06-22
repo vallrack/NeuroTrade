@@ -52,24 +52,35 @@ export default function RiskPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
+    if (!firestore || !botParamsRef) return;
     
-    const config = {
-      investmentPerTrade: parseFloat(investment),
-      stopLoss: parseFloat(stopLoss),
-      takeProfit: parseFloat(takeProfit),
-      maxTradesPerDay: parseInt(maxTrades),
-      martingale: martingale,
-    };
+    setLoading(true);
+    try {
+      const config = {
+        investmentPerTrade: parseFloat(investment) || 0,
+        stopLoss: parseFloat(stopLoss) || 0,
+        takeProfit: parseFloat(takeProfit) || 0,
+        maxTradesPerDay: parseInt(maxTrades) || 0,
+        martingale: martingale,
+        updatedAt: new Date().toISOString()
+      };
 
-    const result = await updateBotConfig(config);
-    setLoading(false);
-
-    if (result.success) {
+      const { updateDoc } = await import('firebase/firestore');
+      await updateDoc(botParamsRef, config);
+      
       toast({
-        title: "PROTOCOLOS DE RIESGO ACTUALIZADOS",
-        description: "El motor ha sincronizado los nuevos límites de seguridad.",
+        title: "PROTOCOLOS DE RIESGO ACTUALIZADOS ✅",
+        description: "El motor V7 ha sincronizado los nuevos límites de capital.",
       });
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        title: "ERROR DE SINCRONIZACIÓN",
+        description: "No se pudieron guardar los cambios: " + error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   }
 

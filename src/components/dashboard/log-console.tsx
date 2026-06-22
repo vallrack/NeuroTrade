@@ -60,7 +60,15 @@ export function LogConsole() {
     };
 
     window.addEventListener('nt_bridge_data', handleNewData);
-    return () => window.removeEventListener('nt_bridge_data', handleNewData);
+    
+    // Listener para limpiar logs manualmente
+    const handleClear = () => setLogs([]);
+    window.addEventListener('nt_clear_logs', handleClear);
+
+    return () => {
+      window.removeEventListener('nt_bridge_data', handleNewData);
+      window.removeEventListener('nt_clear_logs', handleClear);
+    };
   }, [user]);
 
   // Integración con Realtime Database si está disponible
