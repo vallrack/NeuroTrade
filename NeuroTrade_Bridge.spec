@@ -1,20 +1,47 @@
 # -*- mode: python ; coding: utf-8 -*-
+# PyInstaller spec — genera dist/NeuroTrade_Bridge.exe
+# Uso: pyinstaller NeuroTrade_Bridge.spec
 
+from PyInstaller.utils.hooks import collect_all, collect_submodules
+
+block_cipher = None
+
+# Empaquetar dependencias completas de iqoptionapi y flask
+iq_datas, iq_binaries, iq_hiddenimports = collect_all('iqoptionapi')
+flask_datas, flask_binaries, flask_hiddenimports = collect_all('flask')
+
+hiddenimports = (
+    collect_submodules('iqoptionapi')
+    + collect_submodules('websocket')
+    + iq_hiddenimports
+    + flask_hiddenimports
+    + [
+        'flask_cors',
+        'werkzeug',
+        'jinja2',
+        'requests',
+        'urllib3',
+        'certifi',
+        'charset_normalizer',
+        'idna',
+    ]
+)
 
 a = Analysis(
     ['bridge_server.py'],
     pathex=[],
-    binaries=[],
-    datas=[],
-    hiddenimports=[],
+    binaries=iq_binaries + flask_binaries,
+    datas=iq_datas + flask_datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['gunicorn', 'matplotlib', 'numpy', 'pandas', 'tkinter'],
     noarchive=False,
     optimize=0,
 )
-pyz = PYZ(a.pure)
+
+pyz = PYZ(a.pure, cipher=block_cipher)
 
 exe = EXE(
     pyz,
@@ -35,5 +62,4 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='NONE',
 )

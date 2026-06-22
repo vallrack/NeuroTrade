@@ -265,4 +265,13 @@ def trade():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
+    token = os.environ.get("BRIDGE_TOKEN", "neurotrade-secret-2024")
+    print("=" * 50)
+    print("  NEUROTRADE V7 - BRIDGE SERVER")
+    print("=" * 50)
+    print(f"  Puerto : {port}")
+    print(f"  Token  : {token[:8]}...")
+    print(f"  Health : http://127.0.0.1:{port}/health")
+    print("  Ctrl+C para detener")
+    print("=" * 50)
     app.run(host="0.0.0.0", port=port)
