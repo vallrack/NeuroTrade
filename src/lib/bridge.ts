@@ -12,6 +12,20 @@ export const DEFAULT_RENDER_URL = 'https://eurotrade-bridge.onrender.com';
 export const DEFAULT_LOCAL_URL = 'http://127.0.0.1:5000';
 export const DEFAULT_BRIDGE_TOKEN = 'neurotrade-secret-2024';
 
+/** Timeout en ms para peticiones al puente (Render puede tardar ~30s en despertar) */
+const FETCH_TIMEOUT_MS = 35_000;
+
+/** Fetch con timeout. Lanza AbortError si supera el límite. */
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = FETCH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export type BridgeSource = 'cloud' | 'local';
 
 const LS_SOURCE = 'nt_bridge_source';
@@ -128,7 +142,7 @@ export interface TradeResponse {
   error?: string;
 }
 
-export async function bridgeHealthCheck(): Promise<{
+export async function bridgeHealthCheck(retries = 2): Promise<{
   online: boolean;
   url: string;
   mode: string;
@@ -137,25 +151,72 @@ export async function bridgeHealthCheck(): Promise<{
 }> {
   const url = getBridgeUrl();
   const mode = getBridgeModeLabel();
-  try {
-    const res = await fetch(`${url}/health`, {
-      headers: { 'X-Bridge-Token': getBridgeToken() },
-    });
-    if (!res.ok) return { online: false, url, mode, error: `HTTP ${res.status}` };
-    const data = await res.json();
-    return { online: data?.status === 'ONLINE', url, mode, data };
-  } catch (e) {
-    const message = e instanceof Error ? e.message : 'Sin conexión';
-    return { online: false, url, mode, error: message };
+  let lastError = 'Sin conexión';
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      if (attempt > 0) {
+        // Esperar antes de reintentar (Render spin-up puede tardar 30-60s)
+        await new Promise(r => setTimeout(r, 5000));
+      }
+
+      const res = await fetchWithTimeout(
+        `${url}/health`,
+        {
+          method: 'GET',
+          headers: {
+            'X-Bridge-Token': getBridgeToken(),
+            'Bypass-Tunnel-Reminder': 'true',
+            'Cache-Control': 'no-cache',
+          },
+          mode: 'cors',
+        },
+        35_000, // 35s — cubre el spin-up de Render Free
+      );
+
+      if (!res.ok) {
+        lastError = `HTTP ${res.status} — ${res.statusText}`;
+        continue;
+      }
+
+      const data = await res.json();
+      if (data?.status === 'ONLINE') {
+        return { online: true, url, mode, data };
+      }
+      lastError = `Respuesta inesperada: ${JSON.stringify(data)}`;
+    } catch (e) {
+      if (e instanceof Error) {
+        if (e.name === 'AbortError') {
+          lastError = `Timeout (${FETCH_TIMEOUT_MS / 1000}s) — Render está despertando, espere y reintente`;
+        } else if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+          lastError = getBridgeSource() === 'cloud'
+            ? 'Failed to fetch — verifique que Render esté desplegado y la URL sea correcta'
+            : 'Failed to fetch — verifique que bridge_server.py esté corriendo en su PC';
+        } else {
+          lastError = e.message;
+        }
+      }
+    }
   }
+
+  return { online: false, url, mode, error: lastError };
 }
 
 export async function bridgePost<T>(path: string, body: Record<string, unknown>): Promise<T> {
-  const res = await fetch(`${getBridgeUrl()}${path}`, {
-    method: 'POST',
-    headers: getBridgeHeaders(),
-    body: JSON.stringify(body),
-  });
+  const res = await fetchWithTimeout(
+    `${getBridgeUrl()}${path}`,
+    {
+      method: 'POST',
+      headers: getBridgeHeaders(),
+      body: JSON.stringify(body),
+      mode: 'cors',
+    },
+    40_000,
+  );
+  if (!res.ok) {
+    const errText = await res.text().catch(() => `HTTP ${res.status}`);
+    throw new Error(errText || `HTTP ${res.status}`);
+  }
   return res.json() as Promise<T>;
 }
 

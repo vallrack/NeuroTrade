@@ -5,7 +5,15 @@ from flask_cors import CORS
 from iqoptionapi.stable_api import IQ_Option
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+
+# CORS amplio: permite cualquier origen (Vercel, localtunnel, localhost)
+CORS(
+    app,
+    resources={r"/*": {"origins": "*"}},
+    allow_headers=["Content-Type", "X-Bridge-Token", "Bypass-Tunnel-Reminder", "Cache-Control", "Authorization"],
+    methods=["GET", "POST", "OPTIONS"],
+    supports_credentials=False,
+)
 
 BRIDGE_TOKEN = os.environ.get("BRIDGE_TOKEN", "neurotrade-secret-2024")
 sessions = {}
@@ -15,12 +23,32 @@ DEFAULT_MIN_RSI = 38
 DEFAULT_MAX_RSI = 62
 
 
+@app.after_request
+def add_cors_headers(response):
+    """Asegura headers CORS en TODAS las respuestas (incluyendo errores 401/500)."""
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = (
+        "Content-Type, X-Bridge-Token, Bypass-Tunnel-Reminder, Cache-Control, Authorization"
+    )
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    return response
+
+
+@app.route("/", methods=["GET", "HEAD", "OPTIONS"])
+def root():
+    """Render hace HEAD / para verificar que el servicio responde (muestra 200, no 401)."""
+    return jsonify({"status": "ONLINE", "service": "NeuroTrade Bridge V7"}), 200
+
+
 def verify_token():
-    if request.method == "OPTIONS" or request.path == "/health":
+    """Devuelve None si la peticion es valida, o una Response de error 401."""
+    if request.method == "OPTIONS":
+        return None  # preflight CORS siempre pasa
+    if request.path in ("/health", "/"):  # publicos
         return None
     token = request.headers.get("X-Bridge-Token", "")
     if token != BRIDGE_TOKEN:
-        return jsonify({"success": False, "error": "Token inválido"}), 401
+        return jsonify({"success": False, "error": "Token invalido"}), 401
     return None
 
 
@@ -120,13 +148,18 @@ def build_logs(pair, direction, rsi, probability):
     ]
 
 
-@app.route("/health", methods=["GET"])
+@app.route("/health", methods=["GET", "OPTIONS"])
 def health():
+    """Endpoint publico — sin autenticacion, usado por el frontend para probar la conexion."""
+    if request.method == "OPTIONS":
+        return jsonify({"ok": True}), 200
     return jsonify({
         "status": "ONLINE",
         "version": "V7",
-        "sessions_active": list(sessions.keys()),
+        "sessions_active": len(sessions),
+        "accounts": list(sessions.keys()),
         "server_time": time.time(),
+        "token_configured": bool(BRIDGE_TOKEN),
     })
 
 

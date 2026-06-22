@@ -50,6 +50,7 @@ function BrokerContent() {
   const [renderUrl, setRenderUrlState] = useState(DEFAULT_RENDER_URL);
   const [localUrl, setLocalUrlState] = useState(DEFAULT_LOCAL_URL);
   const [testingBridge, setTestingBridge] = useState(false);
+  const [testingMsg, setTestingMsg] = useState('');
   const [bridgeStatus, setBridgeStatus] = useState<'unknown' | 'online' | 'offline'>('unknown');
 
   useEffect(() => {
@@ -89,14 +90,25 @@ function BrokerContent() {
 
   const handleTestBridge = async () => {
     setTestingBridge(true);
+    setBridgeStatus('unknown');
+    const isCloud = bridgeSource === 'cloud';
+    setTestingMsg(isCloud
+      ? 'Contactando Render… (puede tardar hasta 35 s si estaba dormido)'
+      : 'Contactando puente local…'
+    );
     try {
-      const result = await bridgeHealthCheck();
+      const result = await bridgeHealthCheck(isCloud ? 1 : 0); // 2 intentos en cloud, 1 en local
       setBridgeStatus(result.online ? 'online' : 'offline');
+      setTestingMsg('');
       toast({
-        title: result.online ? 'PUENTE ONLINE' : 'PUENTE OFFLINE',
+        title: result.online ? 'PUENTE ONLINE ✅' : 'PUENTE OFFLINE ❌',
         description: result.online
-          ? `${result.mode} — ${result.url}`
-          : `${result.mode}: ${result.error || 'No responde'}. ${bridgeSource === 'local' ? '¿Ejecutó bridge_server.py en su PC?' : '¿Render está despierto?'}`,
+          ? `Conectado — ${result.mode} — ${result.url}`
+          : `${result.mode}: ${result.error || 'No responde'}${
+              isCloud
+                ? ' — ¿Render está desplegado con el bridge_server.py nuevo?'
+                : ' — ¿Ejecutaste start-bridge.bat en tu PC?'
+            }`,
         variant: result.online ? 'default' : 'destructive',
       });
     } finally {
@@ -318,8 +330,12 @@ function BrokerContent() {
                           disabled={testingBridge}
                         >
                           {testingBridge ? <Loader2 className="w-3 h-3 animate-spin" /> : <Radio className="w-3 h-3" />}
-                          Probar conexión al puente
+                          {testingBridge ? 'Probando…' : 'Probar conexión al puente'}
                         </Button>
+
+                        {testingBridge && testingMsg && (
+                          <p className="text-[9px] text-amber-400 font-mono text-center animate-pulse">{testingMsg}</p>
+                        )}
 
                         {bridgeStatus !== 'unknown' && (
                           <Badge className={cn(
