@@ -97,7 +97,7 @@ export default function TerminalPage() {
                   )}
                 </CardHeader>
                 <CardContent className="p-0 relative flex-1 min-h-[300px]">
-                  <TradingChart symbol={pair.replace('-OTC', '')} />
+                  <TradingChart data={analysis?.candles || []} pair={pair} />
                 </CardContent>
               </Card>
             );

@@ -55,7 +55,7 @@ export function IACommitteeMonitor() {
             </button>
           </CardHeader>
           <CardContent className="p-0 h-[400px]">
-            <TradingChart symbol={mainPair.replace('-OTC', '')} />
+            <TradingChart data={analysis?.candles || []} pair={mainPair} />
           </CardContent>
         </Card>
       </div>
