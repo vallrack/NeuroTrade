@@ -16,7 +16,7 @@ export const DEFAULT_BRIDGE_TOKEN = 'neurotrade-secret-2024';
 const FETCH_TIMEOUT_MS = 75_000;
 
 /** Fetch con timeout. Lanza AbortError si supera el límite. */
-async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = FETCH_TIMEOUT_MS): Promise<Response> {
+export async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = FETCH_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
