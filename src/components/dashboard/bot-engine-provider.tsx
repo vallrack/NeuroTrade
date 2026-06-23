@@ -86,7 +86,13 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     let interval: NodeJS.Timeout;
     const checkBridge = async () => {
       try {
-        const res = await fetchWithTimeout(`${getBridgeUrl()}/health`, {}, 5000);
+        const res = await fetchWithTimeout(`${getBridgeUrl()}/health`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        }, 5000);
         setBridgeOnline(res.ok);
       } catch {
         setBridgeOnline(false);
