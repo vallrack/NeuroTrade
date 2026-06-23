@@ -68,11 +68,24 @@ export function BridgeEventsLog() {
         setConnected(true);
         consecutiveFailures.current = 0;
         
-        addEvent({
-          type: 'success',
-          source: 'BRIDGE',
-          message: `✔ ${pair} — RSI ${json.rsi?.toFixed(1) ?? '?'} — señal ${json.direction}`,
-        });
+        // Solo generar evento si tenemos datos reales de análisis (con rsi o direction definidos)
+        const direction = json.direction;
+        const hasDirection = direction === 'CALL' || direction === 'PUT' || direction === 'NONE';
+        const rsiStr = json.rsi != null ? json.rsi.toFixed(1) : '?';
+        
+        if (hasDirection) {
+          addEvent({
+            type: 'success',
+            source: 'BRIDGE',
+            message: `✔ ${pair} — RSI ${rsiStr} — señal ${direction}`,
+          });
+        } else if (json.logs && json.logs.length > 0) {
+          // Evento de log del sistema (no de análisis) — mostrar solo si tiene texto útil
+          const logMsg = json.logs[0]?.message;
+          if (logMsg) {
+            addEvent({ type: 'info', source: 'SISTEMA', message: logMsg });
+          }
+        }
       } else {
         consecutiveFailures.current++;
         if (consecutiveFailures.current >= 3) {

@@ -229,10 +229,17 @@ def analyze():
         if not iq:
             return jsonify({"success": False, "error": error or "Sesión no disponible"}), 401
 
-        api_pair = api_pair_name(pair)
+        api_pair = api_pair_name(pair)   # EURUSDOTC (sin guión, para buy/trade)
+        # get_candles acepta tanto EURUSD-OTC como EURUSDOTC según la versión del SDK
         candles = iq.get_candles(api_pair, 60, 30, time.time())
         if not candles:
             candles = iq.get_candles(pair, 60, 30, time.time())
+        # Último recurso: par sin OTC (mercado real) como estimación
+        if not candles and "-OTC" in pair:
+            base_pair = pair.replace("-OTC", "")
+            candles = iq.get_candles(base_pair, 60, 30, time.time())
+            if not candles:
+                candles = iq.get_candles(base_pair.replace("-", ""), 60, 30, time.time())
 
         direction, probability, rsi = analyze_market(candles, min_rsi, max_rsi)
         logs = build_logs(pair, direction, rsi, probability)

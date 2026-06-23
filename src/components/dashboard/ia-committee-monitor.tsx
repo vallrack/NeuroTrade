@@ -10,7 +10,7 @@ import { doc, query, collection, orderBy, limit, addDoc, getDoc, setDoc } from '
 import { bridgeAnalyze, getBridgeUrl, getBridgeModeLabel, bridgeTrade, type AnalyzeResponse } from '@/lib/bridge';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { playSuccessChime, playAlarm } from '@/lib/sounds';
+import { playSuccessChime, playAlarm, playInvestSound, playWinSound, playLossSound } from '@/lib/sounds';
 import { TradingChart } from './trading-chart';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -75,10 +75,12 @@ export function IACommitteeMonitor() {
 
   const runGuardianCheck = useCallback((): boolean => {
     const balance = tradingStats?.balance ?? data?.balance ?? 0;
-    const minBalance = botParams?.minBalance ?? 2000;
-    if (balance < minBalance) {
+    // Piso mínimo = 2x el monto por operación (o mínimo $10 si no está configurado)
+    const investmentPerTrade = botParams?.investmentPerTrade ?? 500;
+    const minBalance = investmentPerTrade * 2;
+    if (balance > 0 && balance < minBalance) {
       playAlarm();
-      toast({ title: 'Guardián', description: `Saldo insuficiente ($${balance})`, variant: 'destructive' });
+      toast({ title: 'Guardián', description: `Saldo insuficiente ($${balance} < mínimo $${minBalance})`, variant: 'destructive' });
       return false;
     }
     const recentLosses = recentTrades.filter((t: { status?: string }) => t.status === 'loss').length;
@@ -110,6 +112,7 @@ export function IACommitteeMonitor() {
         return;
       }
       
+      playInvestSound();
       const amount = botParams?.investmentPerTrade || 4000;
       const result = await bridgeTrade({
         email: brokerConfig.email,
@@ -126,6 +129,14 @@ export function IACommitteeMonitor() {
           const timestamp = new Date().toISOString();
           const isWin = result.status === 'win';
           
+          if (isWin) {
+            playWinSound();
+          } else if (result.status === 'loss') {
+            playLossSound();
+          } else {
+            playInvestSound(); // Empate
+          }
+
           await addDoc(collection(firestore!, 'users', user.uid, 'trades'), {
             pair: activePair,
             direction,
@@ -155,7 +166,6 @@ export function IACommitteeMonitor() {
           console.error("Error guardando trade en Firebase:", dbErr);
         }
 
-        playSuccessChime();
         toast({
           title: `${direction} en ${activePair}`,
           description: `Resultado: ${result.status?.toUpperCase()} — $${result.profit}`,

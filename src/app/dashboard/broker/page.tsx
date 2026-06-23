@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
+
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,6 @@ import { Separator } from '@/components/ui/separator';
 import { 
   RefreshCw, 
   Settings, 
-  Link as LinkIcon, 
   ShieldCheck, 
   CheckCircle2, 
   Key,
@@ -27,14 +26,13 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc } from '@/firebase';
 import { cn } from '@/lib/utils';
-import { bridgeConnect, bridgeDisconnect, bridgeHealthCheck, getBridgeSource, setBridgeSource, getRenderUrl, getLocalUrl, setRenderUrl, setLocalUrl, getBridgeUrl, getLocalBridgeWarning, DEFAULT_RENDER_URL, DEFAULT_LOCAL_URL } from '@/lib/bridge';
+import { bridgeConnect, bridgeDisconnect, bridgeHealthCheck, getBridgeSource, setBridgeSource, getRenderUrl, getLocalUrl, setRenderUrl, setLocalUrl, getLocalBridgeWarning, DEFAULT_RENDER_URL, DEFAULT_LOCAL_URL } from '@/lib/bridge';
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
 
 function BrokerContent() {
   const [mounted, setMounted] = useState(false);
   const { user } = useUser();
   const firestore = useFirestore();
-  const router = useRouter();
   const { toast } = useToast();
   
   const [email, setEmail] = useState('');
@@ -94,10 +92,10 @@ function BrokerContent() {
     setTestingBridge(true);
     setBridgeStatus('unknown');
     try {
-      const url = bridgeSource === 'cloud' ? renderUrl : localUrl;
-      const isOnline = await bridgeHealthCheck(url);
-      setBridgeStatus(isOnline ? 'online' : 'offline');
-      setTestingMsg(isOnline ? 'CONEXIÓN EXITOSA' : 'PUENTE OFFLINE');
+      // bridgeHealthCheck usa getBridgeUrl() internamente
+      const result = await bridgeHealthCheck();
+      setBridgeStatus(result.online ? 'online' : 'offline');
+      setTestingMsg(result.online ? 'CONEXIÓN EXITOSA' : 'PUENTE OFFLINE');
     } catch {
       setBridgeStatus('offline');
       setTestingMsg('FALLO DE RED');
@@ -109,9 +107,14 @@ function BrokerContent() {
     if (!user || !firestore) return;
     setLoading(true);
     try {
-      const url = bridgeSource === 'cloud' ? renderUrl : localUrl;
-      const result = await bridgeConnect(url, {
-        userId: user.uid,
+      // Actualizar URL activa en localStorage antes de conectar
+      if (bridgeSource === 'cloud') {
+        setRenderUrl(renderUrl);
+      } else {
+        setLocalUrl(localUrl);
+      }
+
+      const result = await bridgeConnect({
         email,
         password,
         accountType: isReal ? 'real' : 'demo'
@@ -137,15 +140,20 @@ function BrokerContent() {
   };
 
   const handleDisconnect = async () => {
-    if (!user || !brokerRef) return;
+    if (!user || !brokerRef || !brokerConfig) return;
     setDisconnecting(true);
     try {
-      const url = bridgeSource === 'cloud' ? renderUrl : localUrl;
-      await bridgeDisconnect(url, user.uid);
+      // Enviar email y tipo de cuenta al bridge para que cierre la sesión correcta
+      await bridgeDisconnect({
+        email: brokerConfig.email || email,
+        accountType: brokerConfig.accountType || (isReal ? 'real' : 'demo'),
+      });
       await updateDoc(brokerRef, { status: 'disconnected' });
       toast({ title: "PUENTE CERRADO", description: "Comunicación finalizada." });
     } catch (e: any) {
-      toast({ title: "ERROR", description: e.message, variant: "destructive" });
+      // Aunque falle el bridge, marcamos como desconectado en Firestore
+      try { await updateDoc(brokerRef, { status: 'disconnected' }); } catch {}
+      toast({ title: "COMUNICACIÓN CERRADA", description: "Sesión finalizada localmente." });
     }
     setDisconnecting(false);
   };
@@ -319,7 +327,7 @@ function BrokerContent() {
                             placeholder={bridgeSource === 'cloud' ? 'https://tu-app.onrender.com' : 'http://localhost:5000'}
                             className={cn(
                               "bg-white/5 border-white/10 h-10 font-mono text-[11px]",
-                              getLocalBridgeWarning(bridgeSource === 'cloud' ? renderUrl : localUrl) && "border-amber-500/50 text-amber-200"
+                              getLocalBridgeWarning() && "border-amber-500/50 text-amber-200"
                             )}
                         />
                         <p className="text-[9px] text-muted-foreground leading-relaxed italic opacity-70">
