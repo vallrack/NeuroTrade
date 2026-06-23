@@ -47,7 +47,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [analyses, setAnalyses] = useState<Record<string, AnalysisState>>({});
-  const [isRunning, setIsRunning] = useState(false);
+  const [isRunning, setIsRunning] = useState(true); // Automático
   const [bridgeOnline, setBridgeOnline] = useState<boolean | null>(null);
 
   const loopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
