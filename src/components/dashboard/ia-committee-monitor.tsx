@@ -1,464 +1,113 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { useBotEngine } from '@/components/dashboard/bot-engine-provider';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Cpu, Activity, Zap, Loader2 } from 'lucide-react';
-import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
-import { doc, query, collection, orderBy, limit, addDoc, getDoc, setDoc } from 'firebase/firestore';
-import { bridgeAnalyze, getBridgeUrl, getBridgeModeLabel, bridgeTrade, type AnalyzeResponse } from '@/lib/bridge';
-import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
-import { playSuccessChime, playAlarm, playInvestSound, playWinSound, playLossSound } from '@/lib/sounds';
+import { Cpu, Zap, Activity } from 'lucide-react';
 import { TradingChart } from './trading-chart';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
-type CommitteeData = {
-  direction: 'CALL' | 'PUT' | 'NONE';
-  probability: number;
-  candles: AnalyzeResponse['candles'];
-  balance: number;
-  rsi?: number;
-};
 
 export function IACommitteeMonitor() {
-  const [mounted, setMounted] = useState(false);
-  const { user } = useUser();
-  const firestore = useFirestore();
-  const { toast } = useToast();
+  const { logs, analyses, isRunning, toggleEngine, bridgeOnline, activePairs } = useBotEngine();
 
-  const [data, setData] = useState<CommitteeData | null>(null);
-  const [bridgeOnline, setBridgeOnline] = useState<boolean | null>(null);
-  const [isExecuting, setIsExecuting] = useState(false);
-  const failureCount = useRef(0);
-
-  const executionCooldown = useRef(false);
-  const lastFetchTime = useRef(0);
-
-  useEffect(() => { setMounted(true); }, []);
-
-  const botParamsRef = useMemo(() => {
-    if (!mounted || !firestore) return null;
-    return doc(firestore, 'configuracion', 'bot_params');
-  }, [mounted, firestore]);
-  const { data: botParams } = useDoc(botParamsRef);
-
-  const brokerRef = useMemo(() => {
-    if (!mounted || !user || !firestore) return null;
-    return doc(firestore, 'users', user.uid, 'config', 'broker');
-  }, [mounted, user, firestore]);
-  const { data: brokerConfig } = useDoc(brokerRef);
-
-  const DEFAULT_PAIRS = ['EURUSD-OTC', 'GBPUSD-OTC', 'USDJPY-OTC', 'AUDCAD-OTC', 'EURGBP-OTC', 'NZDUSD-OTC'];
-  const availablePairs: string[] = (botParams?.pairs && Array.isArray(botParams.pairs) && botParams.pairs.length > 0)
-    ? botParams.pairs
-    : DEFAULT_PAIRS;
-
-  const [selectedPair, setSelectedPairState] = useState<string | null>(null);
-
-  // Recuperar selección previa al montar
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('nt_active_pair');
-      if (saved) setSelectedPairState(saved);
-    }
-  }, []);
-
-  const setSelectedPair = (pair: string) => {
-    setSelectedPairState(pair);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('nt_active_pair', pair);
-    }
-  };
-
-  const activePair = selectedPair && availablePairs.includes(selectedPair)
-    ? selectedPair
-    : availablePairs[0] || 'EURUSD-OTC';
-  const currentAccountType = brokerConfig?.accountType || 'demo';
-  const minConfidence = botParams?.min_confidence_score ?? 85;
-
-  const statsRef = useMemo(() => {
-    if (!mounted || !user || !firestore) return null;
-    return doc(firestore, 'users', user.uid, 'trading_stats', currentAccountType);
-  }, [mounted, user, firestore, currentAccountType]);
-  const { data: tradingStats } = useDoc(statsRef);
-
-  const tradesQuery = useMemo(() => {
-    if (!mounted || !user || !firestore) return null;
-    return query(collection(firestore, 'users', user.uid, 'trades'), orderBy('timestamp', 'desc'), limit(3));
-  }, [mounted, user, firestore]);
-  const { data: recentTradesRaw } = useCollection(tradesQuery);
-  const recentTrades = useMemo(() => {
-    if (!recentTradesRaw) return [];
-    return recentTradesRaw.filter((t: { accountType?: string }) => t.accountType === currentAccountType);
-  }, [recentTradesRaw, currentAccountType]);
-
-  const runGuardianCheck = useCallback((): boolean => {
-    const balance = tradingStats?.balance ?? data?.balance ?? 0;
-    // Piso mínimo = 2x el monto por operación (o mínimo $10 si no está configurado)
-    const investmentPerTrade = botParams?.investmentPerTrade ?? 500;
-    const minBalance = investmentPerTrade * 2;
-    if (balance > 0 && balance < minBalance) {
-      playAlarm();
-      toast({ title: 'Guardián', description: `Saldo insuficiente ($${balance} < mínimo $${minBalance})`, variant: 'destructive' });
-      return false;
-    }
-    const recentLosses = recentTrades.filter((t: { status?: string }) => t.status === 'loss').length;
-    const maxLosses = botParams?.maxLosses ?? 2;
-    if (recentLosses >= maxLosses) {
-      playAlarm();
-      toast({ title: 'Guardián', description: 'Límite de pérdidas consecutivas alcanzado', variant: 'destructive' });
-      return false;
-    }
-    const dailyProfit = tradingStats?.dailyProfit ?? 0;
-    const stopLoss = botParams?.stopLoss ?? 8000;
-    if (dailyProfit <= -stopLoss) {
-      playAlarm();
-      toast({ title: 'Guardián', description: 'Stop loss diario alcanzado', variant: 'destructive' });
-      return false;
-    }
-    return true;
-  }, [tradingStats, data, botParams, recentTrades, toast]);
-
-  const handleAutoTrade = useCallback(async (direction: 'CALL' | 'PUT') => {
-    if (!user || isExecuting || executionCooldown.current) return;
-    if (!runGuardianCheck()) return;
-
-    setIsExecuting(true);
-    executionCooldown.current = true;
-    try {
-      if (!brokerConfig?.email || !brokerConfig?.password) {
-        toast({ title: 'Configuración fallida', description: 'Credenciales del bróker no disponibles.', variant: 'destructive' });
-        return;
-      }
-      
-      playInvestSound();
-      const amount = botParams?.investmentPerTrade || 4000;
-      const result = await bridgeTrade({
-        email: brokerConfig.email,
-        password: brokerConfig.password,
-        pair: activePair,
-        direction,
-        amount,
-        accountType: currentAccountType
-      });
-      
-      if (result.success) {
-        // Almacenar en Firestore localmente donde YA hay autenticación
-        try {
-          const timestamp = new Date().toISOString();
-          const isWin = result.status === 'win';
-          
-          if (isWin) {
-            playWinSound();
-          } else if (result.status === 'loss') {
-            playLossSound();
-          } else {
-            playInvestSound(); // Empate
-          }
-
-          await addDoc(collection(firestore!, 'users', user.uid, 'trades'), {
-            pair: activePair,
-            direction,
-            amount: amount,
-            status: result.status,
-            profit: result.profit,
-            orderId: result.orderId,
-            timestamp,
-            accountType: currentAccountType,
-            broker: 'IQ Option',
-          });
-
-          const statsRef = doc(firestore!, 'users', user.uid, 'trading_stats', currentAccountType);
-          const statsSnap = await getDoc(statsRef);
-          const prev = statsSnap.data() || {};
-          
-          await setDoc(statsRef, {
-            balance: result.balance ?? prev.balance,
-            tradesCount: (prev.tradesCount || 0) + 1,
-            winsCount: (prev.winsCount || 0) + (isWin ? 1 : 0),
-            dailyProfit: (prev.dailyProfit || 0) + (result.profit || 0),
-            lastSync: timestamp,
-            status: 'connected',
-          }, { merge: true });
-          
-        } catch (dbErr) {
-          console.error("Error guardando trade en Firebase:", dbErr);
-        }
-
-        toast({
-          title: `${direction} en ${activePair}`,
-          description: `Resultado: ${result.status?.toUpperCase()} — $${result.profit}`,
-        });
-      } else {
-        playAlarm();
-        window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
-            detail: { success: true, logs: [{ timestamp: Date.now()/1000, message: `[ERROR] Puente devolvió: ${result.error}` }] } 
-        }));
-        toast({ title: 'Error de ejecución', description: result.error || 'Puente rechazó la operación.', variant: 'destructive' });
-      }
-    } catch (e: any) {
-      console.error(e);
-      playAlarm();
-      window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
-         detail: { success: true, logs: [{ timestamp: Date.now()/1000, message: `[CRÍTICO] Fallo en conexión HTTP o error de código: ${e.message}` }] } 
-      }));
-    } finally {
-      setIsExecuting(false);
-      setTimeout(() => { executionCooldown.current = false; }, 10000);
-    }
-  }, [user, isExecuting, activePair, botParams, currentAccountType, runGuardianCheck, toast]);
-
-  useEffect(() => {
-    if (!mounted || !user || !brokerConfig?.email || !brokerConfig?.password) return;
-    let isMounted = true;
-
-    const fetchData = async () => {
-      const now = Date.now();
-      if (now - lastFetchTime.current < 1200) return;
-      lastFetchTime.current = now;
-
-      try {
-        const json = await bridgeAnalyze({
-          email: brokerConfig.email,
-          password: brokerConfig.password,
-          pair: activePair,
-          accountType: currentAccountType,
-          minRsi: botParams?.minRsi ?? botParams?.midRsi ?? 38,
-          maxRsi: botParams?.maxRsi ?? 62,
-        });
-
-        if (!isMounted) return;
-
-        if (json.success) {
-          setBridgeOnline(true);
-          failureCount.current = 0;
-          const direction = (json.direction === 'CALL' || json.direction === 'PUT')
-            ? json.direction
-            : 'NONE';
-          const probability = json.probability ?? 50;
-
-          const comData: CommitteeData = {
-            direction: direction as 'CALL' | 'PUT' | 'NONE',
-            probability,
-            candles: json.candles || [],
-            balance: json.balance ?? 0,
-            rsi: json.rsi,
-          };
-          
-          setData(comData);
-
-          // SINCRONIZAR BALANCE A FIRESTORE (para que StatsGrid lo muestre en tiempo real)
-          if (json.balance != null && json.balance > 0 && firestore && user) {
-            try {
-              const statsDocRef = doc(firestore, 'users', user.uid, 'trading_stats', currentAccountType);
-              await setDoc(statsDocRef, {
-                balance: json.balance,
-                lastSync: new Date().toISOString(),
-                status: 'connected',
-              }, { merge: true });
-            } catch {
-              // silencioso — no bloquear el ciclo de análisis si falla el write
-            }
-          }
-
-          // EMISIÓN GLOBAL: Compartir datos con Consola y Eventos sin peticiones extra
-          window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
-            detail: { ...json, ...comData, timestamp: Date.now() } 
-          }));
-
-          // Lógica de Autotrading con Feedback
-          const minConfidence = botParams?.min_confidence_score ?? 85;
-          const isBotActive = botParams?.bot_activo;
-          
-          if (direction !== 'NONE' && (direction === 'CALL' || direction === 'PUT')) {
-            if (!isBotActive) {
-                window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
-                  detail: { success: true, logs: [{ timestamp: Date.now()/1000, message: `[SISTEMA] Señal ${direction} detectada pero el BOT está DESACTIVADO.` }] } 
-                }));
-            } else if (probability < minConfidence) {
-                window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
-                  detail: { success: true, logs: [{ timestamp: Date.now()/1000, message: `[V7-MAESTRO] Señal ${direction} filtrada por baja precisión (${probability}% < ${minConfidence}%).` }] } 
-                }));
-            } else {
-                // Agregar logs super detallados para entender qué pasa
-                const brokerStatus = brokerConfig?.status;
-                
-                if (brokerStatus !== 'connected') {
-                   window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
-                      detail: { success: true, logs: [{ timestamp: Date.now()/1000, message: `[ERROR] No opera porque brokerConfig.status es '${brokerStatus}'. Ve a Broker y reconecta.` }] } 
-                   }));
-                } else if (isExecuting) {
-                   window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
-                      detail: { success: true, logs: [{ timestamp: Date.now()/1000, message: `[WAIT] Ignorando señal porque ya hay una orden en ejecución.` }] } 
-                   }));
-                } else if (executionCooldown.current) {
-                   window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
-                      detail: { success: true, logs: [{ timestamp: Date.now()/1000, message: `[WAIT] Ignorando señal por tiempo de enfriamiento (cooldown).` }] } 
-                   }));
-                } else {
-                   window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
-                      detail: { success: true, logs: [{ timestamp: Date.now()/1000, message: `[V7-MAESTRO] EJECUTANDO ORDEN ${direction} POR $${botParams?.investmentPerTrade || 4000}...` }] } 
-                   }));
-                   handleAutoTrade(direction);
-                }
-            }
-          }
-        } else {
-          failureCount.current++;
-          if (failureCount.current >= 3) setBridgeOnline(false);
-        }
-      } catch {
-        if (isMounted) {
-          failureCount.current++;
-          if (failureCount.current >= 3) setBridgeOnline(false);
-        }
-      }
-    };
-
-    fetchData();
-    const id = setInterval(fetchData, 4000); // 4 segundos: ideal para Render Free
-    return () => { isMounted = false; clearInterval(id); };
-  }, [
-    mounted, user, activePair, botParams?.bot_activo, botParams?.minRsi, botParams?.midRsi,
-    botParams?.maxRsi, brokerConfig?.email, brokerConfig?.password, brokerConfig?.status,
-    currentAccountType, minConfidence, handleAutoTrade,
-  ]);
-
-  if (!mounted) return null;
-
-  const isCall = data?.direction === 'CALL';
-  const isPut = data?.direction === 'PUT';
+  // Tomamos el primer par para el Dashboard (o podríamos mostrar un selector)
+  const mainPair = activePairs[0] || 'EURUSD-OTC';
+  const analysis = analyses[mainPair];
 
   return (
-    <div className="space-y-6">
-      <Card className="bg-black/60 border-white/5 backdrop-blur-xl overflow-hidden shadow-2xl">
-        <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 pb-4 bg-white/5">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-500/10 rounded-lg">
-              <Cpu className="w-5 h-5 text-indigo-400 animate-pulse" />
-            </div>
-            <div>
-              <CardTitle className="text-xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent font-headline tracking-tight">
-                V7 TERMINAL MAESTRO
-              </CardTitle>
-              <div className="flex items-center gap-2 mt-1 font-mono text-[9px]">
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    'text-[9px] py-0',
-                    bridgeOnline
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                      : bridgeOnline === false
-                        ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                        : 'bg-slate-800 text-slate-500 border-slate-700'
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="lg:col-span-2 space-y-6">
+        <Card className="bg-card/30 border-white/5 backdrop-blur-xl shadow-2xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50" />
+          <CardHeader className="border-b border-white/5 relative z-10 flex flex-row items-center justify-between pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/20 rounded-xl">
+                <Cpu className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-xl font-headline tracking-tight">Monitor V7</CardTitle>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge variant="outline" className="font-mono text-[10px] border-primary/30 text-primary">
+                    {mainPair}
+                  </Badge>
+                  {isRunning ? (
+                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      EJECUTANDO
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                      PAUSADO
+                    </span>
                   )}
-                >
-                  {bridgeOnline ? `BRIDGE HFT ONLINE · ${getBridgeModeLabel()}` : bridgeOnline === false ? 'BRIDGE OFFLINE' : 'SYNC...'}
-                </Badge>
-                <Select value={activePair} onValueChange={setSelectedPair}>
-                  <SelectTrigger className="h-5 border-0 bg-white/5 hover:bg-white/10 text-[9px] uppercase tracking-widest text-slate-300 px-2 focus:ring-0">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-white/10">
-                    {availablePairs.map(p => (
-                      <SelectItem key={p} value={p} className="text-[10px] uppercase font-mono">{p}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col items-end font-mono">
-            <span className="text-[10px] text-slate-500 uppercase">Balance {currentAccountType}</span>
-            <span className="text-xl font-black text-emerald-400 drop-shadow-[0_0_10px_#10b981]">
-              ${data?.balance != null ? Number(data.balance).toLocaleString() : '---'}
-            </span>
-            {data?.rsi != null && (
-              <span className="text-[9px] text-slate-500 mt-0.5">RSI {data.rsi.toFixed(1)}</span>
-            )}
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-0">
-          <div className="h-[480px] w-full bg-slate-950 relative border-b border-white/5">
-            <TradingChart data={data?.candles || []} pair={activePair} />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-indigo-400" />
-                  Consenso Algorítmico Quantum
-                </h3>
-                <span className={cn(
-                  'text-lg font-black font-mono tracking-tighter',
-                  isCall ? 'text-emerald-400' : isPut ? 'text-red-400' : 'text-slate-500'
-                )}>
-                  {data?.direction && data.direction !== 'NONE' ? data.direction : 'ANALIZANDO...'}
-                </span>
-              </div>
-
-              <div className="relative pt-2">
-                <Progress value={data?.probability || 0} className="h-2 bg-slate-800" />
-                <div className="flex justify-between mt-2 font-mono">
-                  <span className="text-[10px] text-indigo-400">PRECISIÓN V7 BRIDGE</span>
-                  <span className="text-sm text-white font-bold">{data?.probability || 0}%</span>
                 </div>
               </div>
-
-              <div className="flex items-center justify-between bg-slate-900/40 p-3 rounded-xl border border-white/5">
-                <span className="text-[10px] text-slate-500 uppercase font-mono tracking-widest">Ejecutor IA</span>
-                <Badge className={cn(
-                  'font-mono text-[10px]',
-                  botParams?.bot_activo ? 'bg-emerald-500 text-black font-bold' : 'bg-slate-800 text-slate-500'
-                )}>
-                  {botParams?.bot_activo ? 'OFFICIAL ACTIVE' : 'MANUAL MODE'}
-                </Badge>
-              </div>
             </div>
+            <button 
+              onClick={toggleEngine}
+              className={`px-6 py-2 rounded-lg font-bold text-xs uppercase tracking-widest transition-all shadow-lg ${
+                isRunning 
+                  ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border border-rose-500/30' 
+                  : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30'
+              }`}
+            >
+              {isRunning ? 'APAGAR MOTOR' : 'ENCENDER MOTOR'}
+            </button>
+          </CardHeader>
+          <CardContent className="p-0 h-[400px]">
+            <TradingChart symbol={mainPair.replace('-OTC', '')} />
+          </CardContent>
+        </Card>
+      </div>
 
-            <div className="space-y-3">
-              {!data?.direction || data.direction === 'NONE' ? (
-                <div className="flex flex-col items-center justify-center p-8 border border-white/5 rounded-2xl bg-white/[0.02]">
-                  <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-3" />
-                  <span className="text-[10px] text-slate-500 animate-pulse font-mono tracking-[0.2em] uppercase">
-                    {bridgeOnline === false ? 'Puente no disponible — revise Broker Link' : 'Estableciendo vínculo seguro...'}
-                  </span>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-2">
-                  {['QUANTUM-X', 'SENTINEL', 'V7-MAESTRO'].map((name) => (
-                    <div key={name} className="flex items-center justify-between bg-slate-900/50 p-3 rounded-xl border border-white/5 hover:bg-slate-800/80 transition-all group">
-                      <div className="flex items-center gap-3">
-                        <Zap className={cn('w-4 h-4', isCall ? 'text-emerald-400' : isPut ? 'text-red-400' : 'text-slate-600')} />
-                        <span className="text-[11px] font-bold text-slate-300 font-mono tracking-widest">{name}</span>
-                      </div>
-                      <Badge className={cn(
-                        'text-[10px] font-mono border-0',
-                        isCall ? 'bg-emerald-500/20 text-emerald-300' : isPut ? 'bg-red-500/20 text-red-300' : 'bg-slate-800 text-slate-500'
-                      )}>
-                        {data.direction}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
+      <div className="space-y-6">
+        <Card className="bg-black/60 border-white/5 backdrop-blur-xl h-[490px] flex flex-col shadow-2xl">
+          <CardHeader className="border-b border-white/5 p-4 shrink-0 flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" />
+              <CardTitle className="text-xs font-bold font-mono tracking-widest text-primary">
+                EVENTOS DEL SISTEMA
+              </CardTitle>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {botParams?.bot_activo && (
-        <div className="flex items-center justify-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl animate-in fade-in slide-in-from-bottom-2 shadow-[0_0_30px_rgba(16,185,129,0.1)]">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]" />
-          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-[0.3em] font-mono">
-            Protección del Guardián Activa — IA en Modo Maestro Oficial
-          </span>
-        </div>
-      )}
+            <span className="text-[10px] text-muted-foreground">{logs.length} eventos</span>
+          </CardHeader>
+          <CardContent className="p-0 flex-1 overflow-y-auto custom-scrollbar relative">
+             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:100%_24px] pointer-events-none" />
+             <div className="p-4 space-y-4 relative z-10">
+               {logs.length === 0 && (
+                 <div className="text-xs text-slate-500 italic text-center mt-10">
+                   El sistema está en espera...
+                 </div>
+               )}
+               {logs.slice(0, 50).map((log) => (
+                 <div key={log.id} className="flex gap-3 text-xs border-b border-white/5 pb-3">
+                   <div className="shrink-0 mt-0.5">
+                     {log.type === 'success' && <div className="w-4 h-4 rounded-full border border-emerald-500/50 flex items-center justify-center"><div className="w-1.5 h-1.5 bg-emerald-400 rounded-full" /></div>}
+                     {log.type === 'error' && <div className="w-4 h-4 rounded-full border border-rose-500/50 flex items-center justify-center"><div className="w-1.5 h-1.5 bg-rose-400 rounded-full" /></div>}
+                     {log.type === 'warning' && <div className="w-4 h-4 rounded-full border border-amber-500/50 flex items-center justify-center"><div className="w-1.5 h-1.5 bg-amber-400 rounded-full" /></div>}
+                     {log.type === 'info' && <div className="w-4 h-4 rounded-full border border-slate-500/50 flex items-center justify-center"><div className="w-1.5 h-1.5 bg-slate-400 rounded-full" /></div>}
+                   </div>
+                   <div className="flex-1 space-y-1">
+                     <div className="flex justify-between items-center">
+                       <span className={`font-bold font-mono text-[10px] ${
+                         log.type === 'success' ? 'text-emerald-400' :
+                         log.type === 'error' ? 'text-rose-400' :
+                         log.type === 'warning' ? 'text-amber-400' : 'text-slate-400'
+                       }`}>
+                         {log.source}
+                       </span>
+                       <span className="text-[9px] text-slate-600 font-mono">
+                         {log.timestamp.toLocaleTimeString()}
+                       </span>
+                     </div>
+                     <p className="text-slate-300 font-mono text-[11px] leading-relaxed break-words">{log.message}</p>
+                   </div>
+                 </div>
+               ))}
+             </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

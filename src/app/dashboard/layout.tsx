@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 
+import { BotEngineProvider } from '@/components/dashboard/bot-engine-provider';
+
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useUser();
   const router = useRouter();
@@ -28,12 +30,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   if (!user) return null;
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset className="bg-background flex flex-col min-h-screen overflow-hidden">
-        {children}
-      </SidebarInset>
-    </SidebarProvider>
+    <BotEngineProvider>
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset className="bg-background flex flex-col min-h-screen overflow-hidden">
+          {children}
+        </SidebarInset>
+      </SidebarProvider>
+    </BotEngineProvider>
   );
 }
 
