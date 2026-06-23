@@ -3,136 +3,94 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useFirestore, useUser, useDoc } from '@/firebase';
-import { useRTDB } from '@/firebase/provider';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { ref as rtdbRef, onValue } from 'firebase/database';
+import { doc } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
-import { TrendingUp, TrendingDown, Wallet, Target, Activity, Zap } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, Target, Activity, Zap, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { useBotEngine } from '@/components/dashboard/bot-engine-provider';
 
 export function StatsGrid() {
   const { user } = useUser();
   const firestore = useFirestore();
-  const rtdb = useRTDB();
-  const [stats, setStats] = useState({
-    balance: 0,
-    dailyProfit: 0,
-    winRate: 0,
-    totalInvestment: 0
-  });
+  const { liveBalance, liveProfit, liveWins, liveLosses, sessionStartBalance } = useBotEngine();
 
   const brokerRef = useMemo(() => user ? doc(firestore, 'users', user.uid, 'config', 'broker') : null, [user, firestore]);
   const { data: brokerConfig } = useDoc(brokerRef);
   const accountType = brokerConfig?.accountType || 'demo';
 
-  useEffect(() => {
-    if (!firestore || !rtdb || !user) return;
-    
-    // ESCUCHA DINÁMICA FIRESTORE (Estadísticas como P/L, trades, etc.)
-    const statsRef = doc(firestore, 'users', user.uid, 'trading_stats', accountType);
-    
-    const unsubFirestore = onSnapshot(
-      statsRef, 
-      (docSnapshot) => {
-        if (docSnapshot.exists()) {
-          const data = docSnapshot.data();
-          const trades = data.tradesCount || 0;
-          const wins = data.winsCount || 0;
-          const winRate = trades > 0 ? Math.round((wins / trades) * 100) : 0;
-          
-          setStats(prev => ({
-            ...prev,
-            dailyProfit: data.dailyProfit || 0,
-            totalInvestment: data.totalInvestment || 0,
-            winRate: winRate,
-            balance: data.balance || 0
-          }));
-        } else {
-          setStats(prev => ({
-             ...prev,
-            balance: 0,
-            dailyProfit: 0,
-            winRate: 0,
-            totalInvestment: 0
-          }));
-        }
-      },
-      (error) => {
-        const permissionError = new FirestorePermissionError({ path: statsRef.path, operation: 'get' });
-        errorEmitter.emit('permission-error', permissionError);
-      }
-    );
+  // Calcular win rate desde contadores en tiempo real
+  const totalTrades = liveWins + liveLosses;
+  const winRate = totalTrades > 0 ? Math.round((liveWins / totalTrades) * 100) : 0;
 
-    // ESCUCHA DIRECA AL PUENTE (RTDB) - SOLO PARA BALANCE EN TIEMPO REAL
-    const bridgeRef = rtdbRef(rtdb, `users/${user.uid}/trading_stats/${accountType}`);
-    const unsubRTDB = onValue(bridgeRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const bridgeData = snapshot.val();
-        if (bridgeData && bridgeData.balance !== undefined) {
-          setStats(prev => ({ ...prev, balance: bridgeData.balance }));
-        }
-      }
-    });
+  // P&L de sesión
+  const sessionPnl = sessionStartBalance != null && liveBalance != null
+    ? liveBalance - sessionStartBalance
+    : liveProfit;
 
-    return () => {
-      unsubFirestore();
-      unsubRTDB();
-    };
-  }, [firestore, rtdb, user, accountType]);
-
-  // BALANCE EN TIEMPO REAL vía evento global del bridge (más rápido que Firestore)
-  useEffect(() => {
-    const handleBridgeData = (e: any) => {
-      const json = e.detail;
-      if (json?.success && json?.balance != null && json.balance > 0) {
-        setStats(prev => ({ ...prev, balance: json.balance }));
-      }
-    };
-    window.addEventListener('nt_bridge_data', handleBridgeData);
-    return () => window.removeEventListener('nt_bridge_data', handleBridgeData);
-  }, []);
-
-  const winRateColor = stats.winRate >= 65 ? 'text-green-500' : stats.winRate < 55 ? 'text-red-500' : 'text-yellow-500';
+  const winRateColor = winRate >= 65 ? 'text-green-500' : winRate < 55 ? 'text-red-500' : 'text-yellow-500';
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <MetricCard
         title={`Saldo ${accountType.toUpperCase()}`}
-        value={`$${(stats.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+        value={liveBalance != null
+          ? `$${liveBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          : '---'
+        }
         icon={<Wallet className={cn("h-4 w-4", accountType === 'real' ? "text-secondary" : "text-primary")} />}
         subtitle={`Canal ${accountType.toUpperCase()}`}
         pulse={accountType === 'real'}
+        live
       />
       <MetricCard
-        title="P/L Diario"
-        value={`$${(stats.dailyProfit || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-        icon={(stats.dailyProfit || 0) >= 0 ? <TrendingUp className="h-4 w-4 text-green-500" /> : <TrendingDown className="h-4 w-4 text-red-500" />}
+        title="P/L Sesión"
+        value={`${sessionPnl >= 0 ? '+' : ''}$${sessionPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+        icon={sessionPnl >= 0
+          ? <TrendingUp className="h-4 w-4 text-green-500" />
+          : <TrendingDown className="h-4 w-4 text-red-500" />}
         subtitle="Rendimiento Neto"
-        trend={(stats.dailyProfit || 0) >= 0 ? 'up' : 'down'}
+        trend={sessionPnl >= 0 ? 'up' : 'down'}
+        valueClassName={sessionPnl >= 0 ? 'text-green-400' : 'text-red-400'}
       />
       <MetricCard
         title="Win Rate V7"
-        value={`${stats.winRate || 0}%`}
+        value={`${winRate}%`}
         icon={<Target className="h-4 w-4 text-secondary" />}
-        subtitle="Precisión IA"
+        subtitle={`${liveWins}W / ${liveLosses}L — ${totalTrades} ops`}
         valueClassName={winRateColor}
       />
       <MetricCard
-        title="Volumen"
-        value={`$${(stats.totalInvestment || 0).toLocaleString()}`}
+        title="Exposición"
+        value={`$${((liveWins + liveLosses) * (brokerConfig?.investmentPerTrade || 500)).toLocaleString()}`}
         icon={<Zap className="h-4 w-4 text-accent" />}
-        subtitle="Exposición"
+        subtitle="Volumen de Sesión"
       />
     </div>
   );
 }
 
-function MetricCard({ title, value, icon, subtitle, trend, valueClassName, pulse }: any) {
+function MetricCard({ title, value, icon, subtitle, trend, valueClassName, pulse, live }: {
+  title: string;
+  value: string;
+  icon: React.ReactNode;
+  subtitle: string;
+  trend?: 'up' | 'down';
+  valueClassName?: string;
+  pulse?: boolean;
+  live?: boolean;
+}) {
   return (
     <Card className="bg-card/40 backdrop-blur-md border-white/5 hover:border-primary/40 transition-all duration-500 group relative overflow-hidden">
-      <div className={cn("absolute top-0 left-0 w-full h-[2px] transition-all", trend === 'up' ? "bg-green-500/0 group-hover:bg-green-500/30" : "bg-primary/0 group-hover:bg-primary/30")} />
+      <div className={cn("absolute top-0 left-0 w-full h-[2px] transition-all",
+        trend === 'up' ? "bg-green-500/0 group-hover:bg-green-500/30" : "bg-primary/0 group-hover:bg-primary/30")} />
+      {live && (
+        <div className="absolute top-2 right-2">
+          <span className="flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+          </span>
+        </div>
+      )}
       <CardContent className="p-4 md:p-6">
         <div className="flex justify-between items-start mb-2">
           <p className="text-[9px] md:text-[10px] font-black text-muted-foreground uppercase tracking-widest">{title}</p>
