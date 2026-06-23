@@ -7,7 +7,6 @@ import { Progress } from '@/components/ui/progress';
 import { Cpu, Activity, Zap, Loader2 } from 'lucide-react';
 import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
 import { doc, query, collection, orderBy, limit, addDoc, getDoc, setDoc } from 'firebase/firestore';
-import { executeTrade } from '@/lib/actions';
 import { bridgeAnalyze, getBridgeUrl, getBridgeModeLabel, bridgeTrade, type AnalyzeResponse } from '@/lib/bridge';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
