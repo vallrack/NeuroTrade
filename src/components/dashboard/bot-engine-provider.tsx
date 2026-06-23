@@ -2,9 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
-import { doc, collection, addDoc, getDoc, setDoc, query, orderBy, limit, getDocs } from 'firebase/firestore';
-import { bridgeAnalyze, bridgeTrade, getBridgeUrl, fetchWithTimeout, type AnalyzeResponse } from '@/lib/bridge';
-import { playSuccessChime, playAlarm, playInvestSound, playWinSound, playLossSound } from '@/lib/sounds';
+import { doc, collection, addDoc, getDoc, setDoc, query, orderBy, limit } from 'firebase/firestore';
+import { bridgeAnalyze, bridgeTrade, getBridgeUrl, fetchWithTimeout } from '@/lib/bridge';
+import { playInvestSound, playWinSound, playLossSound } from '@/lib/sounds';
 
 export type LogEntry = {
   id: string;
@@ -47,32 +47,51 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [analyses, setAnalyses] = useState<Record<string, AnalysisState>>({});
-  const [isRunning, setIsRunning] = useState(true); // Automático
+  const [isRunning, setIsRunning] = useState(true);
   const [bridgeOnline, setBridgeOnline] = useState<boolean | null>(null);
 
+  // ─── Refs para que el loop siempre lea el último valor sin reiniciarse ───
   const loopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isExecutingRef = useRef(false);
+  const isRunningRef = useRef(true);
+  const bridgeOnlineRef = useRef<boolean | null>(null);
+  const brokerConfigRef = useRef<any>(null);
+  const botParamsRef2 = useRef<any>(null);
+  const recentTradesRef = useRef<any[]>([]);
+  const userRef = useRef(user);
+  const firestoreRef = useRef(firestore);
+
+  // Sincronizar refs con el estado/props más recientes
+  useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
+  useEffect(() => { bridgeOnlineRef.current = bridgeOnline; }, [bridgeOnline]);
+  useEffect(() => { userRef.current = user; }, [user]);
+  useEffect(() => { firestoreRef.current = firestore; }, [firestore]);
 
   // Firestore Refs
-  const brokerRef = user && firestore ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
-  const botParamsRef = firestore ? doc(firestore, 'configuracion', 'bot_params') : null;
+  const brokerDocRef = user && firestore ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
+  const botParamsDocRef = firestore ? doc(firestore, 'configuracion', 'bot_params') : null;
 
-  const { data: brokerConfig } = useDoc(brokerRef);
-  const { data: botParams } = useDoc(botParamsRef);
+  const { data: brokerConfig } = useDoc(brokerDocRef);
+  const { data: botParams } = useDoc(botParamsDocRef);
 
   const currentAccountType = brokerConfig?.accountType || 'demo';
-  
+
   // Trades para verificar pérdidas recientes (para Martingala y Guardian)
-  const tradesQuery = user && firestore 
-    ? query(collection(firestore, 'users', user.uid, 'trades'), orderBy('timestamp', 'desc'), limit(5)) 
+  const tradesQuery = user && firestore
+    ? query(collection(firestore, 'users', user.uid, 'trades'), orderBy('timestamp', 'desc'), limit(5))
     : null;
   const { data: recentTradesRaw } = useCollection(tradesQuery);
   const recentTrades = recentTradesRaw?.filter((t: any) => t.accountType === currentAccountType) || [];
 
+  // Mantener refs actualizadas con Firestore data
+  useEffect(() => { brokerConfigRef.current = brokerConfig; }, [brokerConfig]);
+  useEffect(() => { botParamsRef2.current = botParams; }, [botParams]);
+  useEffect(() => { recentTradesRef.current = recentTrades; }, [recentTrades]);
+
   const addLog = useCallback((source: string, message: string, type: LogEntry['type'] = 'info') => {
     setLogs(prev => {
       const newLogs = [{ id: Math.random().toString(36).substring(7), timestamp: new Date(), source, message, type }, ...prev];
-      return newLogs.slice(0, 200); // Mantener max 200 logs en memoria
+      return newLogs.slice(0, 200);
     });
   }, []);
 
@@ -81,16 +100,14 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Health check del puente
+  // Health check del puente — loop independiente, no afecta al engine loop
   useEffect(() => {
     let interval: NodeJS.Timeout;
     const checkBridge = async () => {
       try {
         const res = await fetchWithTimeout(`${getBridgeUrl()}/health`, {
           cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache'
-          }
+          headers: { 'Cache-Control': 'no-cache' }
         }, 5000);
         setBridgeOnline(res.ok);
       } catch {
@@ -102,73 +119,74 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, []);
 
-  const calculateAmount = (balance: number): number => {
-    if (!botParams) return 10;
-    
-    const mode = botParams.moneyManagementMode || 'fixed';
-    const base = botParams.investmentPerTrade || 500;
-
+  const calculateAmount = useCallback((balance: number): number => {
+    const params = botParamsRef2.current;
+    if (!params) return 10;
+    const mode = params.moneyManagementMode || 'fixed';
+    const base = params.investmentPerTrade || 500;
     if (mode === 'fixed') return base;
-    
     if (mode === 'compound') {
-      const percent = botParams.compoundPercentage || 5;
+      const percent = params.compoundPercentage || 5;
       const amt = Math.floor(balance * (percent / 100));
-      return amt < 1 ? 1 : amt; // mínimo 1$ (o 1 COP)
+      return amt < 1 ? 1 : amt;
     }
-    
     if (mode === 'martingale') {
-      const multiplier = botParams.martingaleMultiplier || 2.1;
-      const lastTrade = recentTrades.length > 0 ? recentTrades[0] : null;
+      const multiplier = params.martingaleMultiplier || 2.1;
+      const lastTrade = recentTradesRef.current[0] ?? null;
       if (lastTrade && lastTrade.status === 'loss') {
-        const prevAmount = lastTrade.amount || base;
-        return Math.floor(prevAmount * multiplier);
+        return Math.floor((lastTrade.amount || base) * multiplier);
       }
       return base;
     }
-
     return base;
-  };
+  }, []);
 
-  const runGuardianCheck = (balance: number, proposedAmount: number): boolean => {
+  const runGuardianCheck = useCallback((balance: number, proposedAmount: number): boolean => {
     if (balance > 0 && balance < proposedAmount) {
       addLog('SISTEMA', `Saldo insuficiente ($${balance} < requerido $${proposedAmount})`, 'warning');
       return false;
     }
-    
-    // Aquí puedes agregar más validaciones del guardián (Stop Loss diario, rachas de pérdida, etc)
-    const recentLosses = recentTrades.filter((t: any) => t.status === 'loss').length;
-    const maxLosses = botParams?.maxLosses ?? 3; // Permitir rachas configurables
-    // Limitamos la revisión a las últimas 3 operaciones
-    const currentLosingStreak = recentTrades.slice(0, maxLosses).every((t: any) => t.status === 'loss');
-    
-    if (currentLosingStreak && recentTrades.length >= maxLosses) {
+    const params = botParamsRef2.current;
+    const maxLosses = params?.maxLosses ?? 3;
+    const trades = recentTradesRef.current;
+    const currentLosingStreak = trades.slice(0, maxLosses).every((t: any) => t.status === 'loss');
+    if (currentLosingStreak && trades.length >= maxLosses) {
       addLog('SISTEMA', `Pausa de seguridad: ${maxLosses} pérdidas consecutivas.`, 'error');
-      setIsRunning(false); // Apagar el bot por seguridad
+      setIsRunning(false);
       return false;
     }
-
     return true;
-  };
+  }, [addLog]);
 
-  const engineLoop = async () => {
-    if (!bridgeOnline || !brokerConfig?.email || !brokerConfig?.password || isExecutingRef.current) {
+  // ─── ENGINE LOOP — solo se inicia UNA VEZ por sesión ─────────────────────
+  const engineLoop = useCallback(async () => {
+    // Leer SIEMPRE desde refs, no desde closure
+    const config = brokerConfigRef.current;
+    const params = botParamsRef2.current;
+    const isBridgeOnline = bridgeOnlineRef.current;
+    const running = isRunningRef.current;
+    const currentUser = userRef.current;
+    const currentFirestore = firestoreRef.current;
+    const accountType = config?.accountType || 'demo';
+
+    if (!isBridgeOnline || !config?.email || !config?.password || isExecutingRef.current) {
       loopTimeoutRef.current = setTimeout(engineLoop, 3000);
       return;
     }
 
-    const pairs: string[] = (botParams?.pairs && Array.isArray(botParams.pairs) && botParams.pairs.length > 0)
-      ? botParams.pairs
+    const pairs: string[] = (params?.pairs && Array.isArray(params.pairs) && params.pairs.length > 0)
+      ? params.pairs
       : ['EURUSD-OTC'];
-    
-    const minConfidence = botParams?.min_confidence_score ?? 85;
+
+    const minConfidence = params?.min_confidence_score ?? 85;
 
     for (const pair of pairs) {
       try {
         const result = await bridgeAnalyze({
-          email: brokerConfig.email,
-          password: brokerConfig.password,
+          email: config.email,
+          password: config.password,
           pair,
-          accountType: currentAccountType,
+          accountType,
           minRsi: 30,
           maxRsi: 70
         });
@@ -180,7 +198,6 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
         const { direction, probability, rsi, candles, balance } = result;
 
-        // Actualizar el estado para la UI (Terminal HFT)
         setAnalyses(prev => ({
           ...prev,
           [pair]: { direction, probability, rsi, candles, lastUpdated: new Date() }
@@ -190,8 +207,8 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
         if (direction !== 'NONE' && probability >= minConfidence) {
           addLog('QUANTUM-X', `Señal ${direction} en ${pair} - precisión ${probability.toFixed(0)}%`, 'success');
-          
-          if (!isRunning) {
+
+          if (!isRunningRef.current) {
             addLog('SISTEMA', `Señal en ${pair} omitida porque el MOTOR ESTÁ PAUSADO.`, 'warning');
             continue;
           }
@@ -202,40 +219,36 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           }
 
           const amount = calculateAmount(balance || 0);
-
           if (!runGuardianCheck(balance || 0, amount)) continue;
 
-          // DISPARAR OPERACIÓN
           isExecutingRef.current = true;
           addLog('V7-MAESTRO', `EJECUTANDO ORDEN ${direction} POR $${amount} EN ${pair}...`, 'warning');
           playInvestSound();
 
           const tradeResult = await bridgeTrade({
-            email: brokerConfig.email,
-            password: brokerConfig.password,
+            email: config.email,
+            password: config.password,
             pair,
             direction,
             amount,
-            accountType: currentAccountType
+            accountType
           });
 
-          if (tradeResult.success && user && firestore) {
+          if (tradeResult.success && currentUser && currentFirestore) {
             const timestamp = new Date().toISOString();
-            const profit = tradeResult.profit;
-            const status = tradeResult.status;
+            const { profit, status } = tradeResult;
 
-            await addDoc(collection(firestore, 'users', user.uid, 'trades'), {
+            await addDoc(collection(currentFirestore, 'users', currentUser.uid, 'trades'), {
               pair, direction, amount, status, profit,
               orderId: tradeResult.orderId,
-              timestamp, accountType: currentAccountType,
+              timestamp, accountType,
               broker: 'IQ Option',
             });
 
-            // Actualizar Stats
-            const statsRefLocal = doc(firestore, 'users', user.uid, 'trading_stats', currentAccountType);
-            const statsSnap = await getDoc(statsRefLocal);
-            const currentStats = statsSnap.data() || { 
-              balance: tradeResult.balance, totalTrades: 0, winRate: 0, wins: 0, losses: 0, dailyProfit: 0 
+            const statsRef = doc(currentFirestore, 'users', currentUser.uid, 'trading_stats', accountType);
+            const statsSnap = await getDoc(statsRef);
+            const currentStats = statsSnap.data() || {
+              balance: tradeResult.balance, totalTrades: 0, winRate: 0, wins: 0, losses: 0, dailyProfit: 0
             };
 
             const isWin = status === 'win';
@@ -244,9 +257,9 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
             const newLosses = (currentStats.losses || 0) + (isLoss ? 1 : 0);
             const newTotal = (currentStats.totalTrades || 0) + 1;
             const newWinRate = Math.round((newWins / newTotal) * 100);
-            const newDailyProfit = (currentStats.dailyProfit || 0) + profit;
+            const newDailyProfit = (currentStats.dailyProfit || 0) + (profit ?? 0);
 
-            await setDoc(statsRefLocal, {
+            await setDoc(statsRef, {
               balance: tradeResult.balance,
               totalTrades: newTotal,
               wins: newWins,
@@ -259,7 +272,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
             if (isWin) playWinSound();
             else if (isLoss) playLossSound();
 
-            addLog('SISTEMA', `Operación finalizada: ${status.toUpperCase()} | Beneficio: $${profit}`, isWin ? 'success' : 'error');
+            addLog('SISTEMA', `Operación finalizada: ${status!.toUpperCase()} | Beneficio: $${profit}`, isWin ? 'success' : 'error');
           } else {
             addLog('SISTEMA', `Fallo al ejecutar orden: ${tradeResult.error}`, 'error');
           }
@@ -269,28 +282,30 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
       } catch (err: any) {
         if (!err.message?.includes('The user aborted a request')) {
-           addLog('SISTEMA', `Fallo en conexión HTTP o error de código: ${err.message}`, 'error');
+          addLog('SISTEMA', `Fallo en conexión HTTP o error de código: ${err.message}`, 'error');
         }
         isExecutingRef.current = false;
       }
-      
-      // Breve pausa entre pares para no saturar IQ Option
+
       await new Promise(r => setTimeout(r, 1500));
     }
 
-    // Volver a llamar el loop
     loopTimeoutRef.current = setTimeout(engineLoop, 2000);
-  };
+  }, [addLog, calculateAmount, runGuardianCheck]);
 
+  // ─── Arrancar el loop UNA SOLA VEZ cuando el usuario esté listo ──────────
   useEffect(() => {
-    if (mounted && user) {
+    if (!mounted || !user) return;
+    // Pequeña espera para que Firestore cargue los datos antes de arrancar
+    const startDelay = setTimeout(() => {
       engineLoop();
-    }
+    }, 2000);
     return () => {
+      clearTimeout(startDelay);
       if (loopTimeoutRef.current) clearTimeout(loopTimeoutRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, user, isRunning, bridgeOnline, brokerConfig]);
+  // Solo depende de mounted y user — los datos se leen por refs
+  }, [mounted, user, engineLoop]);
 
   return (
     <BotEngineContext.Provider value={{
