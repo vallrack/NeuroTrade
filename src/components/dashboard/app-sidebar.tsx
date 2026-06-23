@@ -14,7 +14,8 @@ import {
   Globe,
   LineChart,
   BookOpen,
-  Users
+  Users,
+  CalendarClock
 } from "lucide-react"
 
 import {
@@ -82,6 +83,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
         { title: "Terminal HFT", url: "/dashboard/terminal", icon: LineChart },
         { title: "Auditoría", url: "/dashboard/history", icon: History },
+        { title: "Piloto Automático", url: "/dashboard/autopilot", icon: CalendarClock },
       ],
     },
     {

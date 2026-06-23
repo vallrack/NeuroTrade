@@ -42,7 +42,16 @@ export function SuperAdminTools() {
         max_drawdown: 5,
         min_confidence_score: 85,
         pairs: ["EURUSD-OTC", "GBPUSD-OTC", "USDJPY-OTC"],
+        regularPairs: ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD"],
+        otcPairs: ["EURUSD-OTC", "GBPUSD-OTC", "USDJPY-OTC", "AUDUSD-OTC"],
         strategy_mode: "conservative",
+        autopilot: {
+          enabled: false,
+          autoConnectBridge: true,
+          pairMode: "auto",
+          scheduleMode: "auto",
+          slots: []
+        },
         updatedAt: new Date().toISOString()
       }, { merge: true });
 

@@ -1,9 +1,13 @@
 'use client';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore, initializeFirestore } from 'firebase/firestore';
+import { Firestore, initializeFirestore, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
 import { getDatabase, Database } from 'firebase/database';
+import { setLogLevel } from 'firebase/app';
 import { firebaseConfig } from './config';
+
+// Suprimir warnings de WebChannel en la consola — son reintentos normales de red
+setLogLevel('error');
 
 let cachedApp: FirebaseApp | null = null;
 let cachedFirestore: Firestore | null = null;
@@ -16,8 +20,10 @@ export function initializeFirebase() {
   if (!cachedApp) {
     cachedApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
+    // Forzar long polling para evitar errores de WebChannel en entornos de producción
     cachedFirestore = initializeFirestore(cachedApp, {
       experimentalForceLongPolling: true,
+      cacheSizeBytes: CACHE_SIZE_UNLIMITED,
     });
 
     cachedAuth = getAuth(cachedApp);
