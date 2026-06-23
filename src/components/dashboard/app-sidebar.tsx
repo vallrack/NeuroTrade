@@ -36,8 +36,11 @@ import { doc } from "firebase/firestore"
 import { getAuth, signOut } from "firebase/auth";
 import Link from "next/link"
 
+import { usePathname } from "next/navigation"
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const router = useRouter();
+  const pathname = usePathname();
   const { setOpenMobile } = useSidebar();
   const { toast } = useToast();
   const { user } = useUser();
@@ -46,6 +49,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // Obtener perfil para verificar rol
   const { data: profile } = useDoc(user ? doc(firestore, 'users', user.uid) : null);
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super-admin';
+
+  // FIX CRÍTICO: Next.js + Radix UI sheet freeze bug.
+  // Cerramos el menú SÓLO cuando la ruta finalmente ha cambiado, no durante el clic.
+  React.useEffect(() => {
+    setOpenMobile(false);
+  }, [pathname, setOpenMobile]);
 
   const handleLogout = async () => {
     try {
@@ -122,7 +131,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       tooltip={item.title}
                       className="px-3 py-5 rounded-lg transition-all hover:bg-white/5 active:scale-95 group/btn"
                     >
-                      <Link href={item.url} onClick={() => setOpenMobile(false)}>
+                      <Link href={item.url}>
                         <div className="flex items-center gap-3 w-full cursor-pointer">
                           <item.icon className="text-muted-foreground group-hover/btn:text-primary transition-colors w-4 h-4" />
                           <span className="font-bold text-[10px] uppercase tracking-wide group-data-[collapsible=icon]:hidden">{item.title}</span>

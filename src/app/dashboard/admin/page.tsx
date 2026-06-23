@@ -4,8 +4,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useMemo } from 'react';
-import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/components/dashboard/app-sidebar';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -98,26 +97,21 @@ export default function AdminPage() {
 
   if (!isAdmin && !usersLoading) {
     return (
-      <SidebarProvider>
-        <AppSidebar />
-        <SidebarInset className="flex items-center justify-center min-h-screen">
-          <div className="text-center space-y-4">
-            <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto">
-              <Shield className="h-10 w-10 text-red-500" />
-            </div>
-            <h2 className="text-2xl font-headline font-bold text-red-500">ACCESO DENEGADO</h2>
-            <p className="text-sm text-muted-foreground max-w-xs">Solo los administradores del sistema pueden acceder a este panel.</p>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto">
+            <Shield className="h-10 w-10 text-red-500" />
           </div>
-        </SidebarInset>
-      </SidebarProvider>
+          <h2 className="text-2xl font-headline font-bold text-red-500">ACCESO DENEGADO</h2>
+          <p className="text-sm text-muted-foreground max-w-xs">Solo los administradores del sistema pueden acceder a este panel.</p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center px-6 border-b border-white/5 bg-background/80 backdrop-blur-md sticky top-0 z-10">
+    <>
+      <header className="flex h-16 shrink-0 items-center px-6 border-b border-white/5 bg-background/80 backdrop-blur-md sticky top-0 z-10">
           <SidebarTrigger />
           <div className="ml-4 flex items-center gap-3">
             <h1 className="font-headline text-xl font-bold flex items-center gap-2">
@@ -239,8 +233,7 @@ export default function AdminPage() {
               ))}
             </CardContent>
           </Card>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+      </main>
+    </>
   );
 }

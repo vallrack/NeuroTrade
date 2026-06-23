@@ -4,8 +4,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useMemo } from 'react';
-import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/components/dashboard/app-sidebar';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -98,10 +97,8 @@ export default function SettingsPage() {
   }
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center px-6 border-b border-white/5 bg-background/80 backdrop-blur-md sticky top-0 z-30">
+    <>
+      <header className="flex h-16 shrink-0 items-center px-6 border-b border-white/5 bg-background/80 backdrop-blur-md sticky top-0 z-30">
           <SidebarTrigger />
           <h1 className="ml-4 font-headline text-xl font-bold flex items-center gap-2">
             <SettingsIcon className="h-5 w-5 text-primary" />
@@ -259,8 +256,7 @@ export default function SettingsPage() {
               </Button>
             </div>
           </form>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+      </main>
+    </>
   );
 }

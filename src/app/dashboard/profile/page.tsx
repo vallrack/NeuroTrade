@@ -2,8 +2,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/components/dashboard/app-sidebar';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -21,10 +20,8 @@ export default function ProfilePage() {
   const { data: profile } = useDoc(profileRef);
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-16 items-center px-6 border-b border-white/5 bg-background/80 backdrop-blur-md sticky top-0 z-10">
+    <>
+      <header className="flex h-16 items-center px-6 border-b border-white/5 bg-background/80 backdrop-blur-md sticky top-0 z-10">
           <SidebarTrigger />
           <h1 className="ml-4 font-headline text-xl font-bold flex items-center gap-2">
             <UserCircle className="h-5 w-5 text-primary" />
@@ -124,8 +121,7 @@ export default function ProfilePage() {
               </CardContent>
             </Card>
           </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+      </main>
+    </>
   );
 }

@@ -1,8 +1,7 @@
 
 'use client';
 
-import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/components/dashboard/app-sidebar';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { 
   BookOpen, Brain, TrendingUp, ShieldCheck, Zap, Info, Target, 
@@ -14,10 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function ManualPage() {
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset className="bg-background">
-        <header className="flex h-16 items-center px-6 border-b border-white/5 bg-background/80 backdrop-blur-md sticky top-0 z-10">
+    <>
+      <header className="flex h-16 items-center px-6 border-b border-white/5 bg-background/80 backdrop-blur-md sticky top-0 z-10">
           <SidebarTrigger />
           <h1 className="ml-4 font-headline text-xl font-bold flex items-center gap-2 uppercase tracking-tight">
             <BookOpen className="h-5 w-5 text-primary" />
@@ -190,8 +187,7 @@ export default function ManualPage() {
               </section>
             </TabsContent>
           </Tabs>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+      </main>
+    </>
   );
 }
