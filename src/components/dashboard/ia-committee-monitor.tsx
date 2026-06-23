@@ -261,8 +261,28 @@ export function IACommitteeMonitor() {
                 window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
                   detail: { success: true, logs: [{ timestamp: Date.now()/1000, message: `[V7-MAESTRO] Señal ${direction} filtrada por baja precisión (${probability}% < ${minConfidence}%).` }] } 
                 }));
-            } else if (brokerConfig.status === 'connected') {
-                handleAutoTrade(direction);
+            } else {
+                // Agregar logs super detallados para entender qué pasa
+                const brokerStatus = brokerConfig?.status;
+                
+                if (brokerStatus !== 'connected') {
+                   window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
+                      detail: { success: true, logs: [{ timestamp: Date.now()/1000, message: `[ERROR] No opera porque brokerConfig.status es '${brokerStatus}'. Ve a Broker y reconecta.` }] } 
+                   }));
+                } else if (isExecuting) {
+                   window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
+                      detail: { success: true, logs: [{ timestamp: Date.now()/1000, message: `[WAIT] Ignorando señal porque ya hay una orden en ejecución.` }] } 
+                   }));
+                } else if (executionCooldown.current) {
+                   window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
+                      detail: { success: true, logs: [{ timestamp: Date.now()/1000, message: `[WAIT] Ignorando señal por tiempo de enfriamiento (cooldown).` }] } 
+                   }));
+                } else {
+                   window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
+                      detail: { success: true, logs: [{ timestamp: Date.now()/1000, message: `[V7-MAESTRO] EJECUTANDO ORDEN ${direction} POR $${botParams?.investmentPerTrade || 4000}...` }] } 
+                   }));
+                   handleAutoTrade(direction);
+                }
             }
           }
         } else {
