@@ -37,10 +37,11 @@ export function SuperAdminTools() {
     try {
       await setDoc(doc(firestore, 'configuracion', 'bot_params'), {
         bot_activo: true,
-        investmentPerTrade: 100,
+        investmentPerTrade: 500,
+        stopLoss: 8000,
         max_drawdown: 5,
         min_confidence_score: 85,
-        pairs: ["EURUSD", "GBPUSD"],
+        pairs: ["EURUSD-OTC", "GBPUSD-OTC", "USDJPY-OTC"],
         strategy_mode: "conservative",
         updatedAt: new Date().toISOString()
       }, { merge: true });

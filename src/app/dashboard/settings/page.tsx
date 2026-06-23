@@ -24,7 +24,6 @@ import {
   Database
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { updateBotConfig } from '@/lib/actions';
 import { useFirestore, useDoc } from '@/firebase';
 import { doc } from 'firebase/firestore';
 
