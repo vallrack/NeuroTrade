@@ -50,13 +50,27 @@ export function IACommitteeMonitor() {
   }, [mounted, user, firestore]);
   const { data: brokerConfig } = useDoc(brokerRef);
 
-  const [selectedPair, setSelectedPair] = useState<string | null>(null);
-
-  // Pares desde Firestore — el usuario los configura en Seguridad/Risk
   const DEFAULT_PAIRS = ['EURUSD-OTC', 'GBPUSD-OTC', 'USDJPY-OTC', 'AUDCAD-OTC', 'EURGBP-OTC', 'NZDUSD-OTC'];
   const availablePairs: string[] = (botParams?.pairs && Array.isArray(botParams.pairs) && botParams.pairs.length > 0)
     ? botParams.pairs
     : DEFAULT_PAIRS;
+
+  const [selectedPair, setSelectedPairState] = useState<string | null>(null);
+
+  // Recuperar selección previa al montar
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('nt_active_pair');
+      if (saved) setSelectedPairState(saved);
+    }
+  }, []);
+
+  const setSelectedPair = (pair: string) => {
+    setSelectedPairState(pair);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('nt_active_pair', pair);
+    }
+  };
 
   const activePair = selectedPair && availablePairs.includes(selectedPair)
     ? selectedPair
