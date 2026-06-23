@@ -13,7 +13,7 @@ export const DEFAULT_LOCAL_URL = 'http://127.0.0.1:5000';
 export const DEFAULT_BRIDGE_TOKEN = 'neurotrade-secret-2024';
 
 /** Timeout en ms para peticiones al puente (Render puede tardar ~30s en despertar) */
-const FETCH_TIMEOUT_MS = 35_000;
+const FETCH_TIMEOUT_MS = 75_000;
 
 /** Fetch con timeout. Lanza AbortError si supera el límite. */
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = FETCH_TIMEOUT_MS): Promise<Response> {
