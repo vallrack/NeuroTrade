@@ -285,7 +285,19 @@ def trade():
         api_pair = api_pair_name(pair)
         dir_lower = direction.lower()
 
-        check, order_id = iq.buy(amount, api_pair, dir_lower, expiration)
+        try:
+            check, order_id = iq.buy(amount, api_pair, dir_lower, expiration)
+        except KeyError as e:
+            if "OTC" in api_pair and "-" not in api_pair:
+                # Fallback: iqoptionapi might expect EURUSD-OTC instead of EURUSDOTC
+                fallback_pair = api_pair.replace("OTC", "-OTC")
+                try:
+                    check, order_id = iq.buy(amount, fallback_pair, dir_lower, expiration)
+                except KeyError:
+                    return jsonify({"success": False, "error": f"Par no disponible o cerrado: {pair}"}), 400
+            else:
+                return jsonify({"success": False, "error": f"Par no disponible o cerrado: {pair}"}), 400
+
         if not check:
             return jsonify({"success": False, "error": "Orden rechazada por IQ Option"}), 400
 
