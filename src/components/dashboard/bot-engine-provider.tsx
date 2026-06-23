@@ -134,6 +134,28 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { botParamsRef2.current = botParams; }, [botParams]);
   useEffect(() => { recentTradesRef.current = recentTrades; }, [recentTrades]);
 
+  // ─── RESET COMPLETO cuando cambia la cuenta conectada ────────────────────────
+  const prevAccountKeyRef = useRef<string>('');
+  useEffect(() => {
+    if (!brokerConfig) return;
+    const accountKey = `${brokerConfig.email}|${brokerConfig.accountType}|${brokerConfig.status}`;
+    if (accountKey === prevAccountKeyRef.current) return;
+    prevAccountKeyRef.current = accountKey;
+
+    // Resetear stats de sesion para no contaminar la nueva cuenta
+    setLiveBalance(null);
+    setLiveProfit(0);
+    setLiveWins(0);
+    setLiveLosses(0);
+    setSessionStartBalance(null);
+    sessionStartBalanceRef.current = null;
+    sessionProfitRef.current = 0;
+    sessionWinsRef.current = 0;
+    sessionLossesRef.current = 0;
+    setAnalyses({});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brokerConfig?.email, brokerConfig?.accountType, brokerConfig?.status]);
+
   const addLog = useCallback((source: string, message: string, type: LogEntry['type'] = 'info') => {
     setLogs(prev => {
       const newLogs = [{ id: Math.random().toString(36).substring(7), timestamp: new Date(), source, message, type }, ...prev];
@@ -144,6 +166,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   const clearLogs = () => setLogs([]);
   const toggleEngine = () => setIsRunning(prev => !prev);
 
+
   useEffect(() => { setMounted(true); }, []);
 
   // ─── Función de sincronización de balance ─────────────────────────────────────
@@ -151,11 +174,21 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     const currentUser = userRef.current;
     const currentFirestore = firestoreRef.current;
     const currentRTDB = rtdbRef2.current;
+    const currentBroker = brokerConfigRef.current;
+
+    // GUARDIA: solo aplicar balance si coincide con la cuenta actualmente conectada
+    // Esto evita mostrar el balance de la cuenta anterior al cambiar de cuenta
+    if (currentBroker?.accountType && currentBroker.accountType !== accountType) {
+      return; // Balance de otra cuenta — ignorar
+    }
+    if (currentBroker?.status === 'disconnected') {
+      return; // Cuenta desconectada — no actualizar
+    }
 
     // 1. Estado React (inmediato, visible en UI)
     setLiveBalance(balance);
 
-    // Inicializar balance de sesión al primer dato
+    // Inicializar balance de sesión al primer dato válido
     if (sessionStartBalanceRef.current === null && balance > 0) {
       sessionStartBalanceRef.current = balance;
       setSessionStartBalance(balance);
@@ -184,6 +217,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
       });
     }
   }, []);
+
 
   // Health check del puente
   useEffect(() => {
