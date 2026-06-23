@@ -41,7 +41,7 @@ import { usePathname } from "next/navigation"
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const router = useRouter();
   const pathname = usePathname();
-  const { setOpenMobile } = useSidebar();
+  const { setOpenMobile, isMobile } = useSidebar();
   const { toast } = useToast();
   const { user } = useUser();
   const firestore = useFirestore();
@@ -50,11 +50,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: profile } = useDoc(user ? doc(firestore, 'users', user.uid) : null);
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super-admin';
   const handleNavigation = (url: string) => {
-    setOpenMobile(false);
-    // Delay to allow Sheet closing animation before navigating
-    setTimeout(() => {
-      router.push(url);
-    }, 150);
+    if (isMobile) {
+      setOpenMobile(false);
+      setTimeout(() => {
+        router.push(url);
+      }, 150);
+    } else {
+      window.location.href = url;
+    }
   };
 
   const handleLogout = async () => {
