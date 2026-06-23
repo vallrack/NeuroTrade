@@ -146,7 +146,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   };
 
   const engineLoop = async () => {
-    if (!isRunning || !bridgeOnline || !brokerConfig?.email || !brokerConfig?.password || isExecutingRef.current) {
+    if (!bridgeOnline || !brokerConfig?.email || !brokerConfig?.password || isExecutingRef.current) {
       loopTimeoutRef.current = setTimeout(engineLoop, 3000);
       return;
     }
@@ -158,8 +158,6 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     const minConfidence = botParams?.min_confidence_score ?? 85;
 
     for (const pair of pairs) {
-      if (!isRunning) break; // Si el usuario lo apagó durante el ciclo
-
       try {
         const result = await bridgeAnalyze({
           email: brokerConfig.email,
@@ -188,6 +186,11 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
         if (direction !== 'NONE' && probability >= minConfidence) {
           addLog('QUANTUM-X', `Señal ${direction} en ${pair} - precisión ${probability.toFixed(0)}%`, 'success');
           
+          if (!isRunning) {
+            addLog('SISTEMA', `Señal en ${pair} omitida porque el MOTOR ESTÁ PAUSADO.`, 'warning');
+            continue;
+          }
+
           if (isExecutingRef.current) {
             addLog('SISTEMA', `Ignorando señal en ${pair} porque hay otra operación en curso.`, 'warning');
             continue;
