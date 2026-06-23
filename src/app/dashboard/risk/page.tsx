@@ -48,11 +48,13 @@ export default function RiskPage() {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
-    investmentPerTrade: 500,
+    moneyManagementMode: 'fixed', // 'fixed' | 'compound' | 'martingale'
+    investmentPerTrade: 500, // Fijo, o Inversión Inicial
+    compoundPercentage: 5,   // % del saldo para interés compuesto
+    martingaleMultiplier: 2.1,
     stopLoss: 8000,
     takeProfit: 10000,
     maxDailyTrades: 20,
-    martingaleMultiplier: 2.1,
     min_confidence_score: 85,
   });
   const [activePairs, setActivePairs] = useState<string[]>(['EURUSD-OTC', 'GBPUSD-OTC']);
@@ -69,11 +71,13 @@ export default function RiskPage() {
   useEffect(() => {
     if (botParams) {
       setFormData({
+        moneyManagementMode: botParams.moneyManagementMode || 'fixed',
         investmentPerTrade: botParams.investmentPerTrade || 500,
+        compoundPercentage: botParams.compoundPercentage || 5,
+        martingaleMultiplier: botParams.martingaleMultiplier || 2.1,
         stopLoss: botParams.stopLoss || 8000,
         takeProfit: botParams.takeProfit || 10000,
         maxDailyTrades: botParams.maxDailyTrades || 20,
-        martingaleMultiplier: botParams.martingaleMultiplier || 2.1,
         min_confidence_score: botParams.min_confidence_score || 85,
       });
       if (botParams.pairs && Array.isArray(botParams.pairs)) {
@@ -158,28 +162,93 @@ export default function RiskPage() {
 
         {/* ── Parámetros de Riesgo ─────────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Monto por operación */}
+          {/* Gestión de Capital (Money Management) */}
           <Card className="bg-black/40 border-white/5 backdrop-blur-xl group hover:border-primary/20 transition-all">
             <CardHeader className="pb-2">
               <div className="p-2 bg-primary/10 rounded-lg w-fit mb-2">
                 <TrendingUp className="w-5 h-5 text-primary" />
               </div>
-              <CardTitle className="text-sm font-bold uppercase tracking-widest text-slate-400">Apalancamiento V7</CardTitle>
+              <CardTitle className="text-sm font-bold uppercase tracking-widest text-slate-400">Gestión de Capital</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-[10px] uppercase font-bold text-slate-500">Monto por Operación</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-mono text-sm">$</span>
-                  <Input
-                    type="number"
-                    value={formData.investmentPerTrade}
-                    onChange={e => handleInputChange('investmentPerTrade', e.target.value)}
-                    className="bg-white/5 border-white/10 pl-8 h-12 font-mono text-lg font-bold text-white"
-                  />
-                </div>
+                <Label className="text-[10px] uppercase font-bold text-slate-500">Estrategia M.M.</Label>
+                <Select
+                  value={formData.moneyManagementMode}
+                  onValueChange={v => setFormData(p => ({ ...p, moneyManagementMode: v }))}
+                >
+                  <SelectTrigger className="bg-white/5 border-white/10 h-10 font-bold text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-white/10">
+                    <SelectItem value="fixed">Interés Fijo (Tradicional)</SelectItem>
+                    <SelectItem value="compound">Interés Compuesto</SelectItem>
+                    <SelectItem value="martingale">Martingala (Recuperación)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <p className="text-[10px] text-muted-foreground leading-relaxed italic">Inversión calculada por cada ciclo de la IA.</p>
+
+              {formData.moneyManagementMode === 'fixed' && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Inversión Fija ($)</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-mono text-sm">$</span>
+                    <Input
+                      type="number"
+                      value={formData.investmentPerTrade}
+                      onChange={e => handleInputChange('investmentPerTrade', e.target.value)}
+                      className="bg-white/5 border-white/10 pl-8 h-10 font-mono text-lg font-bold text-white"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic">El bot siempre invertirá este monto exacto.</p>
+                </div>
+              )}
+
+              {formData.moneyManagementMode === 'compound' && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Porcentaje del Saldo (%)</Label>
+                  <div className="relative">
+                    <Input
+                      type="number" min="1" max="100"
+                      value={formData.compoundPercentage}
+                      onChange={e => handleInputChange('compoundPercentage', e.target.value)}
+                      className="bg-white/5 border-white/10 pr-8 h-10 font-mono text-lg font-bold text-white"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 font-mono text-sm">%</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic">Ej: Si tienes $10,000 y pones 5%, invertirá $500.</p>
+                </div>
+              )}
+
+              {formData.moneyManagementMode === 'martingale' && (
+                <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase font-bold text-slate-500">Inversión Base ($)</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-mono text-sm">$</span>
+                      <Input
+                        type="number"
+                        value={formData.investmentPerTrade}
+                        onChange={e => handleInputChange('investmentPerTrade', e.target.value)}
+                        className="bg-white/5 border-white/10 pl-8 h-10 font-mono text-lg font-bold text-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase font-bold text-slate-500">Multiplicador</Label>
+                    <div className="relative">
+                      <Input
+                        type="number" step="0.1" min="1" max="3"
+                        value={formData.martingaleMultiplier}
+                        onChange={e => handleInputChange('martingaleMultiplier', e.target.value)}
+                        className="bg-white/5 border-white/10 pr-8 h-10 font-mono text-lg font-bold text-purple-400"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 font-mono text-sm">x</span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic">Si pierde, multiplica la base por este factor para recuperar.</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -230,31 +299,6 @@ export default function RiskPage() {
                 </div>
               </div>
               <p className="text-[10px] text-muted-foreground leading-relaxed italic">Umbral mínimo para permitir una entrada al mercado.</p>
-            </CardContent>
-          </Card>
-
-          {/* Martingala */}
-          <Card className="bg-black/40 border-white/5 backdrop-blur-xl group hover:border-purple-400/20 transition-all">
-            <CardHeader className="pb-2">
-              <div className="p-2 bg-purple-400/10 rounded-lg w-fit mb-2">
-                <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-              </div>
-              <CardTitle className="text-sm font-bold uppercase tracking-widest text-slate-400">Multiplicador Martingala</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-[10px] uppercase font-bold text-slate-500">Factor (ej. 2.1)</Label>
-                <div className="relative">
-                  <Input
-                    type="number" step="0.1" min="1" max="3"
-                    value={formData.martingaleMultiplier}
-                    onChange={e => handleInputChange('martingaleMultiplier', e.target.value)}
-                    className="bg-white/5 border-white/10 h-12 font-mono text-lg font-bold text-purple-400 pr-10"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 font-mono text-sm">x</span>
-                </div>
-              </div>
-              <p className="text-[10px] text-muted-foreground leading-relaxed italic">Si pierdes, multiplicará tu siguiente inversión por este factor.</p>
             </CardContent>
           </Card>
         </div>
