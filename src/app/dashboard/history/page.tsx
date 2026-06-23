@@ -33,20 +33,19 @@ export default function HistoryPage() {
 
   const tradesQuery = useMemo(() => {
     if (!mounted || !user || !firestore) return null;
-    // Consulta simplificada para evitar errores de índice compuesto inmediatos
     return query(
       collection(firestore, 'users', user.uid, 'trades'),
-      orderBy('timestamp', 'desc'),
-      limit(50)
+      limit(100)
     );
   }, [mounted, user, firestore]);
 
   const { data: allTrades, loading } = useCollection(tradesQuery);
 
-  // Filtrado en el cliente para evitar el requisito de índice compuesto
+  // Filtrado en el cliente y ordenamiento
   const trades = useMemo(() => {
     if (!allTrades) return [];
-    return allTrades.filter((t: any) => t.accountType === currentAccountType);
+    const filtered = allTrades.filter((t: any) => t.accountType === currentAccountType);
+    return filtered.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [allTrades, currentAccountType]);
 
   const exportToCSV = () => {
