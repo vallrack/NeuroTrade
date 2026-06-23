@@ -232,6 +232,31 @@ export default function RiskPage() {
               <p className="text-[10px] text-muted-foreground leading-relaxed italic">Umbral mínimo para permitir una entrada al mercado.</p>
             </CardContent>
           </Card>
+
+          {/* Martingala */}
+          <Card className="bg-black/40 border-white/5 backdrop-blur-xl group hover:border-purple-400/20 transition-all">
+            <CardHeader className="pb-2">
+              <div className="p-2 bg-purple-400/10 rounded-lg w-fit mb-2">
+                <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+              </div>
+              <CardTitle className="text-sm font-bold uppercase tracking-widest text-slate-400">Multiplicador Martingala</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase font-bold text-slate-500">Factor (ej. 2.1)</Label>
+                <div className="relative">
+                  <Input
+                    type="number" step="0.1" min="1" max="3"
+                    value={formData.martingaleMultiplier}
+                    onChange={e => handleInputChange('martingaleMultiplier', e.target.value)}
+                    className="bg-white/5 border-white/10 h-12 font-mono text-lg font-bold text-purple-400 pr-10"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 font-mono text-sm">x</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground leading-relaxed italic">Si pierdes, multiplicará tu siguiente inversión por este factor.</p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* ── Gestión de Pares ─────────────────────────────────────── */}
