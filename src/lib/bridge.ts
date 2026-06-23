@@ -51,7 +51,6 @@ export function setBridgeSource(source: BridgeSource): void {
 export function getRenderUrl(): string {
   if (typeof window !== 'undefined') {
     return (
-      localStorage.getItem(LS_RENDER) ||
       process.env.NEXT_PUBLIC_BRIDGE_URL ||
       DEFAULT_RENDER_URL
     ).replace(/\/$/, '');
@@ -71,8 +70,9 @@ export function getLocalUrl(): string {
 }
 
 export function setRenderUrl(url: string): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(LS_RENDER, url.replace(/\/$/, ''));
+  // Ignorado para evitar sobreescribir la ruta en Render
+  // if (typeof window === 'undefined') return;
+  // localStorage.setItem(LS_RENDER, url.replace(/\/$/, ''));
 }
 
 export function setLocalUrl(url: string): void {

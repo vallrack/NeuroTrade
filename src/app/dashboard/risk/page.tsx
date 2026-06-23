@@ -63,9 +63,9 @@ export default function RiskPage() {
   useEffect(() => { setMounted(true); }, []);
 
   const botParamsRef = useMemo(() => {
-    if (!mounted || !firestore) return null;
-    return doc(firestore, 'configuracion', 'bot_params');
-  }, [mounted, firestore]);
+    if (!mounted || !user || !firestore) return null;
+    return doc(firestore, 'users', user.uid, 'config', 'bot_params');
+  }, [mounted, user, firestore]);
 
   const { data: botParams, loading: paramsLoading } = useDoc(botParamsRef);
 

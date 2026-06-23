@@ -12,7 +12,7 @@ import {
   CheckCircle2, Globe, ShieldCheck, Play, Pause, RefreshCw
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useDoc } from '@/firebase';
+import { useUser, useFirestore, useDoc } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import {
   ALL_REGULAR_PAIRS, ALL_OTC_PAIRS, TIMEZONES,
@@ -169,12 +169,13 @@ export default function AutopilotPage() {
   const [mounted, setMounted] = useState(false);
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const { user } = useUser();
   const firestore = useFirestore();
 
   const botParamsDocRef = useMemo(() => {
-    if (!mounted || !firestore) return null;
-    return doc(firestore, 'configuracion', 'bot_params');
-  }, [mounted, firestore]);
+    if (!mounted || !user || !firestore) return null;
+    return doc(firestore, 'users', user.uid, 'config', 'bot_params');
+  }, [mounted, user, firestore]);
 
   const { data: botParams } = useDoc(botParamsDocRef);
 

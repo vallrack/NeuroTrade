@@ -35,7 +35,7 @@ export function SuperAdminTools() {
     if (!user || !firestore) return;
     setSeeding(true);
     try {
-      await setDoc(doc(firestore, 'configuracion', 'bot_params'), {
+      await setDoc(doc(firestore, 'users', user.uid, 'config', 'bot_params'), {
         bot_activo: true,
         investmentPerTrade: 500,
         stopLoss: 8000,

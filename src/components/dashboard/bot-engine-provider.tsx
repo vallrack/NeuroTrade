@@ -117,7 +117,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
   // Firestore listeners
   const brokerDocRef = user && firestore ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
-  const botParamsDocRef = firestore ? doc(firestore, 'configuracion', 'bot_params') : null;
+  const botParamsDocRef = user && firestore ? doc(firestore, 'users', user.uid, 'config', 'bot_params') : null;
 
   const { data: brokerConfig } = useDoc(brokerDocRef);
   const { data: botParams } = useDoc(botParamsDocRef);
@@ -189,7 +189,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     setLiveBalance(balance);
 
     // Inicializar balance de sesión al primer dato válido
-    if (sessionStartBalanceRef.current === null && balance > 0) {
+    if (sessionStartBalanceRef.current === null && balance >= 0) {
       sessionStartBalanceRef.current = balance;
       setSessionStartBalance(balance);
     }
@@ -200,7 +200,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     }));
 
     // 3. Guardar en RTDB (tiempo real, más rápido que Firestore)
-    if (currentRTDB && currentUser && balance > 0) {
+    if (currentRTDB && currentUser && balance >= 0) {
       try {
         await rtdbSet(
           rtdbRef(currentRTDB, `users/${currentUser.uid}/trading_stats/${accountType}/balance`),
@@ -210,7 +210,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     }
 
     // 4. Guardar en Firestore (para persistencia)
-    if (currentFirestore && currentUser && balance > 0) {
+    if (currentFirestore && currentUser && balance >= 0) {
       const statsRef = doc(currentFirestore, 'users', currentUser.uid, 'trading_stats', accountType);
       await saveWithRetry(async () => {
         await setDoc(statsRef, { balance, lastSync: new Date().toISOString() }, { merge: true });
@@ -268,7 +268,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
   const runGuardianCheck = useCallback((balance: number, proposedAmount: number, params: any): boolean => {
     // Verificar saldo suficiente
-    if (balance > 0 && balance < proposedAmount) {
+    if (balance >= 0 && balance < proposedAmount) {
       addLog('SISTEMA', `Saldo insuficiente ($${balance.toFixed(2)} < requerido $${proposedAmount})`, 'warning');
       return false;
     }
@@ -357,7 +357,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
         });
 
         // Sincronizar balance del analyze response
-        if (result.success && result.balance != null && result.balance > 0) {
+        if (result.success && result.balance != null && result.balance >= 0) {
           await syncBalance(result.balance, accountType);
         }
 
@@ -411,7 +411,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           });
 
           // ─── Sincronizar balance INMEDIATAMENTE tras el trade ──────────────────
-          if (tradeResult.balance != null && tradeResult.balance > 0) {
+          if (tradeResult.balance != null && tradeResult.balance >= 0) {
             await syncBalance(tradeResult.balance, accountType);
           }
 

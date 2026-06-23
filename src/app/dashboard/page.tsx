@@ -51,9 +51,9 @@ export default function DashboardPage() {
   const { data: profile } = useDoc(profileRef);
 
   const botParamsRef = useMemo(() => {
-    if (!mounted || !firestore) return null;
-    return doc(firestore, 'configuracion', 'bot_params');
-  }, [mounted, firestore]);
+    if (!mounted || !firestore || !user) return null;
+    return doc(firestore, 'users', user.uid, 'config', 'bot_params');
+  }, [mounted, firestore, user]);
   
   const { data: botParams } = useDoc(botParamsRef);
 

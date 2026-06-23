@@ -187,10 +187,11 @@ export async function executeTrade(
   }
 }
 
-export async function updateBotConfig(data: Record<string, unknown>) {
+export async function updateBotConfig(userId: string, data: Record<string, unknown>) {
   try {
     const db = getServerDb();
-    const configRef = doc(db, 'configuracion', 'bot_params');
+    if (!userId) throw new Error('UID_REQUIRED');
+    const configRef = doc(db, 'users', userId, 'config', 'bot_params');
     await setDoc(
       configRef,
       { ...data, updatedAt: new Date().toISOString() },
@@ -202,10 +203,11 @@ export async function updateBotConfig(data: Record<string, unknown>) {
   }
 }
 
-export async function triggerKillSwitch() {
+export async function triggerKillSwitch(userId: string) {
   try {
     const db = getServerDb();
-    const configRef = doc(db, 'configuracion', 'bot_params');
+    if (!userId) throw new Error('UID_REQUIRED');
+    const configRef = doc(db, 'users', userId, 'config', 'bot_params');
     await updateDoc(configRef, { bot_activo: false });
     return { success: true };
   } catch {

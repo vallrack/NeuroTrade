@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useUser } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { PowerOff, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -24,6 +24,7 @@ export function KillSwitch() {
   const [isKilling, setIsKilling] = useState(false);
   const { toast } = useToast();
 
+  const { user } = useUser();
   const firestore = useFirestore();
 
   const handleKill = async () => {
@@ -32,8 +33,8 @@ export function KillSwitch() {
     
     let success = false;
     try {
-      if (firestore) {
-        await updateDoc(doc(firestore, 'configuracion', 'bot_params'), { bot_activo: false });
+      if (firestore && user) {
+        await updateDoc(doc(firestore, 'users', user.uid, 'config', 'bot_params'), { bot_activo: false });
         success = true;
       }
     } catch (e) {

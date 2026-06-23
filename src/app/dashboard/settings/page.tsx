@@ -24,11 +24,12 @@ import {
   Database
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useDoc } from '@/firebase';
+import { useFirestore, useDoc, useUser } from '@/firebase';
 import { doc } from 'firebase/firestore';
 
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
+  const { user } = useUser();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const firestore = useFirestore();
@@ -38,9 +39,9 @@ export default function SettingsPage() {
   }, []);
 
   const botParamsRef = useMemo(() => {
-    if (!mounted || !firestore) return null;
-    return doc(firestore, 'configuracion', 'bot_params');
-  }, [mounted, firestore]);
+    if (!mounted || !firestore || !user) return null;
+    return doc(firestore, 'users', user.uid, 'config', 'bot_params');
+  }, [mounted, firestore, user]);
 
   const { data: botParams, loading: paramsLoading } = useDoc(botParamsRef);
 

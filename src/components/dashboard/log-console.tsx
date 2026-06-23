@@ -15,11 +15,13 @@ export function LogConsole() {
   const [logs, setLogs] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const botParamsRef = doc(firestore, 'configuracion', 'bot_params');
-  const { data: botParams } = useDoc(botParamsRef);
+  const { user } = useUser();
+
+  const botParamsRef = user && firestore ? doc(firestore, 'users', user.uid, 'config', 'bot_params') : null;
+  const { data: botParams } = useDoc(botParamsRef as any);
   const activePairs = useMemo(() => botParams?.pairs || ['EURUSD-OTC'], [botParams]);
 
-  const { user } = useUser();
+
   const brokerRef = user && firestore ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
   const { data: brokerConfig } = useDoc(brokerRef as any);
   const brokerConfigRef = useRef(brokerConfig);
