@@ -6,9 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Cpu, Activity, Zap, Loader2 } from 'lucide-react';
 import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
-import { doc, query, collection, orderBy, limit } from 'firebase/firestore';
+import { doc, query, collection, orderBy, limit, addDoc, getDoc, setDoc } from 'firebase/firestore';
 import { executeTrade } from '@/lib/actions';
-import { bridgeAnalyze, getBridgeUrl, getBridgeModeLabel, type AnalyzeResponse } from '@/lib/bridge';
+import { bridgeAnalyze, getBridgeUrl, getBridgeModeLabel, bridgeTrade, type AnalyzeResponse } from '@/lib/bridge';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { playSuccessChime, playAlarm } from '@/lib/sounds';
@@ -106,14 +106,56 @@ export function IACommitteeMonitor() {
     setIsExecuting(true);
     executionCooldown.current = true;
     try {
-      const result = await executeTrade(user.uid, {
+      if (!brokerConfig?.email || !brokerConfig?.password) {
+        toast({ title: 'Configuración fallida', description: 'Credenciales del bróker no disponibles.', variant: 'destructive' });
+        return;
+      }
+      
+      const amount = botParams?.investmentPerTrade || 4000;
+      const result = await bridgeTrade({
+        email: brokerConfig.email,
+        password: brokerConfig.password,
         pair: activePair,
         direction,
-        amount: botParams?.investmentPerTrade || 4000,
-        accountType: currentAccountType,
-        bridgeUrl: getBridgeUrl(),
+        amount,
+        accountType: currentAccountType
       });
+      
       if (result.success) {
+        // Almacenar en Firestore localmente donde YA hay autenticación
+        try {
+          const timestamp = new Date().toISOString();
+          const isWin = result.status === 'win';
+          
+          await addDoc(collection(firestore!, 'users', user.uid, 'trades'), {
+            pair: activePair,
+            direction,
+            amount: amount,
+            status: result.status,
+            profit: result.profit,
+            orderId: result.orderId,
+            timestamp,
+            accountType: currentAccountType,
+            broker: 'IQ Option',
+          });
+
+          const statsRef = doc(firestore!, 'users', user.uid, 'trading_stats', currentAccountType);
+          const statsSnap = await getDoc(statsRef);
+          const prev = statsSnap.data() || {};
+          
+          await setDoc(statsRef, {
+            balance: result.balance ?? prev.balance,
+            tradesCount: (prev.tradesCount || 0) + 1,
+            winsCount: (prev.winsCount || 0) + (isWin ? 1 : 0),
+            dailyProfit: (prev.dailyProfit || 0) + (result.profit || 0),
+            lastSync: timestamp,
+            status: 'connected',
+          }, { merge: true });
+          
+        } catch (dbErr) {
+          console.error("Error guardando trade en Firebase:", dbErr);
+        }
+
         playSuccessChime();
         toast({
           title: `${direction} en ${activePair}`,
@@ -121,7 +163,7 @@ export function IACommitteeMonitor() {
         });
       } else {
         playAlarm();
-        toast({ title: 'Error de ejecución', description: result.error, variant: 'destructive' });
+        toast({ title: 'Error de ejecución', description: result.error || 'Puente rechazó la operación.', variant: 'destructive' });
       }
     } catch (e) {
       console.error(e);

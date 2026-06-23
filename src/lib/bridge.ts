@@ -245,3 +245,15 @@ export async function bridgeDisconnect(payload: {
 }): Promise<{ success: boolean }> {
   return bridgePost('/disconnect', payload);
 }
+
+export async function bridgeTrade(payload: {
+  email: string;
+  password: string;
+  pair: string;
+  direction: 'CALL' | 'PUT';
+  amount: number;
+  accountType: string;
+}): Promise<TradeResponse> {
+  return bridgePost<TradeResponse>('/trade', payload);
+}
+

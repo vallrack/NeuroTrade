@@ -2,8 +2,9 @@
 'use client';
 
 import { useState } from 'react';
-import { triggerKillSwitch } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
+import { useFirestore } from '@/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 import { PowerOff, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { playAlarm } from '@/lib/sounds';
@@ -23,13 +24,25 @@ export function KillSwitch() {
   const [isKilling, setIsKilling] = useState(false);
   const { toast } = useToast();
 
+  const firestore = useFirestore();
+
   const handleKill = async () => {
     setIsKilling(true);
     playAlarm();
-    const result = await triggerKillSwitch();
+    
+    let success = false;
+    try {
+      if (firestore) {
+        await updateDoc(doc(firestore, 'configuracion', 'bot_params'), { bot_activo: false });
+        success = true;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    
     setIsKilling(false);
     
-    if (result.success) {
+    if (success) {
       toast({
         title: "PARADA GLOBAL ACTIVADA",
         description: "Todas las actividades del bot han sido abortadas inmediatamente.",

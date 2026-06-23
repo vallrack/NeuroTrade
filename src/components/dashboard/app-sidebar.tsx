@@ -49,12 +49,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // Obtener perfil para verificar rol
   const { data: profile } = useDoc(user ? doc(firestore, 'users', user.uid) : null);
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super-admin';
-
-  // FIX CRÍTICO: Next.js + Radix UI sheet freeze bug.
-  // Cerramos el menú SÓLO cuando la ruta finalmente ha cambiado, no durante el clic.
-  React.useEffect(() => {
+  const handleNavigation = (url: string) => {
     setOpenMobile(false);
-  }, [pathname, setOpenMobile]);
+    // Delay to allow Sheet closing animation before navigating
+    setTimeout(() => {
+      router.push(url);
+    }, 150);
+  };
 
   const handleLogout = async () => {
     try {
@@ -127,16 +128,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 {group.items.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
-                      asChild
                       tooltip={item.title}
-                      className="px-3 py-5 rounded-lg transition-all hover:bg-white/5 active:scale-95 group/btn"
+                      onClick={() => handleNavigation(item.url)}
+                      className={`px-3 py-5 rounded-lg transition-all hover:bg-white/5 active:scale-95 group/btn cursor-pointer ${pathname === item.url ? 'bg-primary/10 text-primary hover:bg-primary/20' : ''}`}
                     >
-                      <Link href={item.url}>
-                        <div className="flex items-center gap-3 w-full cursor-pointer">
-                          <item.icon className="text-muted-foreground group-hover/btn:text-primary transition-colors w-4 h-4" />
-                          <span className="font-bold text-[10px] uppercase tracking-wide group-data-[collapsible=icon]:hidden">{item.title}</span>
-                        </div>
-                      </Link>
+                      <div className="flex items-center gap-3 w-full">
+                        <item.icon className={`transition-colors w-4 h-4 ${pathname === item.url ? 'text-primary' : 'text-muted-foreground group-hover/btn:text-primary'}`} />
+                        <span className={`font-bold text-[10px] uppercase tracking-wide group-data-[collapsible=icon]:hidden ${pathname === item.url ? 'text-primary' : ''}`}>
+                          {item.title}
+                        </span>
+                      </div>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
