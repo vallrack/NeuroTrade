@@ -1,13 +1,27 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useBotEngine } from '@/components/dashboard/bot-engine-provider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Cpu, Zap, Activity } from 'lucide-react';
+import { Cpu, Zap, Activity, Loader2 } from 'lucide-react';
 import { TradingChart } from './trading-chart';
 
 export function IACommitteeMonitor() {
+  const [mounted, setMounted] = useState(false);
   const { logs, analyses, isRunning, toggleEngine, bridgeOnline, activePairs } = useBotEngine();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="min-h-[400px] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   // Tomamos el primer par para el Dashboard (o podríamos mostrar un selector)
   const mainPair = activePairs[0] || 'EURUSD-OTC';
