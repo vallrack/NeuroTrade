@@ -82,6 +82,18 @@ export function StatsGrid() {
     };
   }, [firestore, rtdb, user, accountType]);
 
+  // BALANCE EN TIEMPO REAL vía evento global del bridge (más rápido que Firestore)
+  useEffect(() => {
+    const handleBridgeData = (e: any) => {
+      const json = e.detail;
+      if (json?.success && json?.balance != null && json.balance > 0) {
+        setStats(prev => ({ ...prev, balance: json.balance }));
+      }
+    };
+    window.addEventListener('nt_bridge_data', handleBridgeData);
+    return () => window.removeEventListener('nt_bridge_data', handleBridgeData);
+  }, []);
+
   const winRateColor = stats.winRate >= 65 ? 'text-green-500' : stats.winRate < 55 ? 'text-red-500' : 'text-yellow-500';
 
   return (

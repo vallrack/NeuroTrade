@@ -222,6 +222,20 @@ export function IACommitteeMonitor() {
           
           setData(comData);
 
+          // SINCRONIZAR BALANCE A FIRESTORE (para que StatsGrid lo muestre en tiempo real)
+          if (json.balance != null && json.balance > 0 && firestore && user) {
+            try {
+              const statsDocRef = doc(firestore, 'users', user.uid, 'trading_stats', currentAccountType);
+              await setDoc(statsDocRef, {
+                balance: json.balance,
+                lastSync: new Date().toISOString(),
+                status: 'connected',
+              }, { merge: true });
+            } catch {
+              // silencioso — no bloquear el ciclo de análisis si falla el write
+            }
+          }
+
           // EMISIÓN GLOBAL: Compartir datos con Consola y Eventos sin peticiones extra
           window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
             detail: { ...json, ...comData, timestamp: Date.now() } 
