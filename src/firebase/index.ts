@@ -17,7 +17,7 @@ export function initializeFirebase() {
     cachedApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
     cachedFirestore = initializeFirestore(cachedApp, {
-      experimentalAutoDetectLongPolling: true,
+      experimentalForceLongPolling: true,
     });
 
     cachedAuth = getAuth(cachedApp);
