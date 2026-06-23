@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useUser, useFirestore, useCollection } from '@/firebase';
-import { collection, query, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Shield, UserPlus, Loader2, Users, CheckCircle, XCircle, Crown, Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -68,7 +68,17 @@ export default function AdminPage() {
 
       const result = await res.json();
 
-      if (res.ok) {
+      if (res.ok && result.uid) {
+        // Crear perfil en Firestore localmente aprovechando que somos SuperAdmin
+        await setDoc(doc(firestore, 'users', result.uid), {
+          email: newEmail,
+          displayName: newName,
+          role: newRole || 'operator',
+          disabled: false,
+          createdAt: new Date().toISOString(),
+          createdByAdmin: true,
+        });
+
         toast({ title: '✅ OPERADOR REGISTRADO', description: `${newEmail} ha sido añadido con rol ${newRole}.` });
         setNewEmail(''); setNewName(''); setNewPassword(''); setNewRole('operator');
       } else {

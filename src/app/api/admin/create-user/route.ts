@@ -1,20 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
-
-// Inicializa Firebase Admin (solo en el servidor)
-function getAdminApp() {
-  if (getApps().length > 0) return getApps()[0];
-  return initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-    databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
-  });
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,30 +8,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Faltan campos obligatorios.' }, { status: 400 });
     }
 
-    const app = getAdminApp();
-    const auth = getAuth(app);
-    const db = getFirestore(app);
+    const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Falta la API KEY de Firebase.' }, { status: 500 });
+    }
 
-    // Crear usuario en Firebase Auth
-    const userRecord = await auth.createUser({
-      email,
-      password,
-      displayName,
+    // Usar la REST API pública de Firebase para evitar la necesidad de llaves de Firebase Admin
+    const authRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        password,
+        returnSecureToken: true
+      })
     });
 
-    // Crear perfil en Firestore con rol asignado
-    await db.collection('users').doc(userRecord.uid).set({
-      email,
-      displayName,
-      role: role || 'operator',
-      disabled: false,
-      createdAt: new Date().toISOString(),
-      createdByAdmin: true,
-    });
+    const authData = await authRes.json();
 
-    return NextResponse.json({ uid: userRecord.uid, success: true });
+    if (!authRes.ok) {
+      return NextResponse.json({ error: authData.error?.message || 'Error al crear el usuario en Auth' }, { status: 400 });
+    }
+
+    // Devolvemos el UID al cliente, para que el cliente (que es SuperAdmin)
+    // escriba el documento en Firestore con sus propios permisos.
+    return NextResponse.json({ uid: authData.localId, success: true });
   } catch (err: any) {
     console.error('[ADMIN CREATE USER]', err);
-    return NextResponse.json({ error: err.message || 'Error interno.' }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
