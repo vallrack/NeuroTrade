@@ -4,29 +4,20 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useUser();
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (mounted && !loading && !user) {
+    if (!loading && !user) {
       router.push('/login');
     }
-  }, [mounted, loading, user, router]);
+  }, [loading, user, router]);
 
-  if (!mounted || loading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-10 w-10 text-primary animate-spin" />
@@ -44,4 +35,12 @@ export default function DashboardLayout({
       </SidebarInset>
     </SidebarProvider>
   );
+}
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return <AuthGuard>{children}</AuthGuard>;
 }

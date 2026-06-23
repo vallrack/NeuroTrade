@@ -1,7 +1,7 @@
 
 'use client';
 
-export const dynamic = 'force-dynamic';
+
 
 import { useState, useEffect, useMemo } from 'react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
