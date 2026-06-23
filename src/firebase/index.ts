@@ -7,9 +7,9 @@ import { getDatabase, Database } from 'firebase/database';
 import { firebaseConfig } from './config';
 
 /**
- * PROTOCOLO DE INSTANCIA ÚNICA V7
+ * PROTOCOLO DE INSTANCIA ÃšNICA V7
  * Evita el error "Unexpected state" asegurando que solo exista 
- * un túnel activo por sesión de navegador.
+ * un tÃºnel activo por sesiÃ³n de navegador.
  */
 let cachedApp: FirebaseApp | null = null;
 let cachedFirestore: Firestore | null = null;
