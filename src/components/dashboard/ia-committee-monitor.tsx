@@ -193,11 +193,17 @@ export function IACommitteeMonitor() {
         });
       } else {
         playAlarm();
+        window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
+            detail: { success: true, logs: [{ timestamp: Date.now()/1000, message: `[ERROR] Puente devolvió: ${result.error}` }] } 
+        }));
         toast({ title: 'Error de ejecución', description: result.error || 'Puente rechazó la operación.', variant: 'destructive' });
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
       playAlarm();
+      window.dispatchEvent(new CustomEvent('nt_bridge_data', { 
+         detail: { success: true, logs: [{ timestamp: Date.now()/1000, message: `[CRÍTICO] Fallo en conexión HTTP o error de código: ${e.message}` }] } 
+      }));
     } finally {
       setIsExecuting(false);
       setTimeout(() => { executionCooldown.current = false; }, 10000);
