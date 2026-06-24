@@ -206,14 +206,27 @@ def trade():
         order_id = None
 
         try:
-            check, order_id = iq_instance.buy(amount, api_pair, dir_lower, expiration)
+            def do_binary_buy():
+                return iq_instance.buy(amount, api_pair, dir_lower, expiration)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(do_binary_buy)
+                check, order_id = future.result(timeout=6)
+        except concurrent.futures.TimeoutError:
+            print(f"[WORKER {WORKER_PORT}] Timeout en Binarias para {api_pair}. Mercado cerrado o sin respuesta.")
+            check = False
         except KeyError:
             if "OTC" in api_pair and "-" not in api_pair:
                 fallback_pair = api_pair.replace("OTC", "-OTC")
                 try:
-                    check, order_id = iq_instance.buy(amount, fallback_pair, dir_lower, expiration)
-                except KeyError:
-                    pass
+                    def do_fallback_buy():
+                        return iq_instance.buy(amount, fallback_pair, dir_lower, expiration)
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                        future = executor.submit(do_fallback_buy)
+                        check, order_id = future.result(timeout=6)
+                except Exception:
+                    check = False
+            else:
+                check = False
 
         # FALLBACK A OPCIONES DIGITALES
         if not check and "OTC" not in pair:
@@ -223,7 +236,7 @@ def trade():
             try:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                     future = executor.submit(do_buy)
-                    check, order_id = future.result(timeout=10)
+                    check, order_id = future.result(timeout=8)
             except concurrent.futures.TimeoutError:
                 return jsonify({"success": False, "error": "IQ Option no respondió a la compra (Timeout). Mercado cerrado."}), 400
             except Exception as e:
