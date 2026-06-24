@@ -59,6 +59,8 @@ export default function RiskPage() {
     maxDailyTrades: 20,
     min_confidence_score: 85,
     reverseMode: 'off',
+    manipulationVolMultiplier: 1.5,
+    manipulationMaxBody: 0.3,
   });
   const [activePairs, setActivePairs] = useState<string[]>(['EURUSD-OTC', 'GBPUSD-OTC']);
 
@@ -91,6 +93,8 @@ export default function RiskPage() {
         maxDailyTrades: botParams.maxDailyTrades || 20,
         min_confidence_score: botParams.min_confidence_score || 85,
         reverseMode: botParams.reverseMode || 'off',
+        manipulationVolMultiplier: botParams.manipulationVolMultiplier || 1.5,
+        manipulationMaxBody: botParams.manipulationMaxBody || 0.3,
       });
       if (botParams.pairs && Array.isArray(botParams.pairs)) {
         setActivePairs(botParams.pairs);
@@ -357,6 +361,46 @@ export default function RiskPage() {
               </p>
             </CardContent>
           </Card>
+
+          {/* Configuración Inteligente (Solo si está en Auto) */}
+          {formData.reverseMode === 'auto' && (
+            <Card className="bg-purple-900/10 border-purple-500/20 backdrop-blur-xl md:col-span-1 lg:col-span-3">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-bold uppercase tracking-widest text-purple-400">
+                  Sensibilidad Anti-Manipulación
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-slate-400">Pico de Volumen (Múltiplo)</Label>
+                  <div className="relative">
+                    <Input
+                      type="number" step="0.1" min="1.0" max="5.0"
+                      value={formData.manipulationVolMultiplier}
+                      onChange={e => handleInputChange('manipulationVolMultiplier', e.target.value)}
+                      className="bg-white/5 border-white/10 h-10 font-mono text-sm text-purple-300 pr-10"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 font-mono text-xs">x</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic">Ej: 1.5x significa que el volumen debe ser 50% mayor al promedio.</p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-slate-400">Tamaño Máx. del Cuerpo</Label>
+                  <div className="relative">
+                    <Input
+                      type="number" step="0.05" min="0.05" max="1.0"
+                      value={formData.manipulationMaxBody}
+                      onChange={e => handleInputChange('manipulationMaxBody', e.target.value)}
+                      className="bg-white/5 border-white/10 h-10 font-mono text-sm text-purple-300 pr-10"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 font-mono text-xs">p</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic">Ej: 0.3 significa que el cuerpo debe ser menos del 30% del tamaño de la vela.</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* ── Gestión de Pares ─────────────────────────────────────── */}

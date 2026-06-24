@@ -258,6 +258,8 @@ export async function bridgeAnalyze(payload: {
   accountType: string;
   minRsi?: number;
   maxRsi?: number;
+  manipulationVolMultiplier?: number;
+  manipulationMaxBody?: number;
 }): Promise<AnalyzeResponse> {
   try {
     return await bridgePost<AnalyzeResponse>('/analyze', payload);

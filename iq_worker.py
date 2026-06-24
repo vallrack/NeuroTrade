@@ -58,7 +58,7 @@ def calculate_rsi(closes, period=14):
     rs = avg_gain / avg_loss
     return round(100 - (100 / (1 + rs)), 2)
 
-def detect_manipulation(candles):
+def detect_manipulation(candles, vol_multiplier=1.5, max_body_percent=0.3):
     if not candles or len(candles) < 5:
         return False, ""
     
@@ -79,10 +79,10 @@ def detect_manipulation(candles):
     wick_up = last_candle['max'] - max(last_candle['close'], last_candle['open'])
     wick_down = min(last_candle['close'], last_candle['open']) - last_candle['min']
     
-    # 1. Volumen anómalo (50% superior al promedio)
-    if last_candle['volume'] > avg_vol * 1.5:
-        # 2. Cuerpo pequeño (<30% de la vela total)
-        if body_percent < 0.3:
+    # 1. Volumen anómalo
+    if last_candle['volume'] > avg_vol * vol_multiplier:
+        # 2. Cuerpo pequeño
+        if body_percent < max_body_percent:
             # 3. Mechas desproporcionadas
             if wick_down > wick_up * 2:
                 return True, "Falso quiebre bajista (Caza de Liquidez detectada por mecha inferior gigante)"
@@ -181,13 +181,15 @@ def analyze():
     update_activity()
     try:
         data = request.json or {}
-        pair = normalize_pair(data.get("pair", "EURUSD-OTC"))
+        email = data.get("email")
+        password = data.get("password")
+        pair = api_pair_name(data.get("pair", "EURUSD-OTC"))
         min_rsi = float(data.get("minRsi", DEFAULT_MIN_RSI))
         max_rsi = float(data.get("maxRsi", DEFAULT_MAX_RSI))
+        vol_multiplier = float(data.get("manipulationVolMultiplier", 1.5))
+        max_body_percent = float(data.get("manipulationMaxBody", 0.3))
 
         if not iq_instance or not iq_instance.check_connect():
-            email = data.get("email")
-            password = data.get("password")
             if email and password:
                 print(f"[WORKER {WORKER_PORT}] Sesión caída en analyze. Auto-reconectando...")
                 iq_instance = IQ_Option(email, password)
@@ -213,7 +215,7 @@ def analyze():
                 candles = iq_instance.get_candles(base_pair.replace("-", ""), 60, 30, time.time())
 
         direction, probability, rsi = analyze_market(candles, min_rsi, max_rsi)
-        is_manipulated, manipulation_reason = detect_manipulation(candles)
+        is_manipulated, manipulation_reason = detect_manipulation(candles, vol_multiplier, max_body_percent)
         
         logs = build_logs(pair, direction, rsi, probability)
 

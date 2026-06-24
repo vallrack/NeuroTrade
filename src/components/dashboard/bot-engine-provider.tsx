@@ -366,7 +366,9 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           pair,
           accountType,
           minRsi: 30,
-          maxRsi: 70
+          maxRsi: 70,
+          manipulationVolMultiplier: params?.manipulationVolMultiplier,
+          manipulationMaxBody: params?.manipulationMaxBody
         });
 
         // Sincronizar balance del analyze response
