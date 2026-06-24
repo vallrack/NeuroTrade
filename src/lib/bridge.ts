@@ -136,7 +136,7 @@ export interface AnalyzeResponse {
 export interface TradeResponse {
   success: boolean;
   profit?: number;
-  status?: 'win' | 'loss' | 'tie';
+  status?: 'win' | 'loss' | 'tie' | 'PENDING' | 'COMPLETED';
   orderId?: string;
   balance?: number;
   error?: string;
@@ -274,5 +274,11 @@ export async function bridgeTrade(payload: {
   accountType: string;
 }): Promise<TradeResponse> {
   return bridgePost<TradeResponse>('/trade', payload);
+}
+
+export async function bridgeTradeResult(payload: {
+  orderId: string;
+}): Promise<{ success: boolean; result?: { status: string; profit: number; win: boolean }; error?: string }> {
+  return bridgePost('/trade_result', payload);
 }
 

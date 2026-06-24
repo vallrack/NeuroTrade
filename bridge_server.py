@@ -17,6 +17,7 @@ CORS(
 
 BRIDGE_TOKEN = os.environ.get("BRIDGE_TOKEN", "neurotrade-secret-2024")
 sessions = {}
+trade_results = {}
 
 # Umbrales RSI V7 (configurables por request)
 DEFAULT_MIN_RSI = 38
@@ -325,27 +326,46 @@ def trade():
             reason = order_id if isinstance(order_id, str) else "Orden rechazada por IQ Option (Mercado Binario y Digital bloqueado o pago al 0%)"
             return jsonify({"success": False, "error": reason}), 400
 
-        try:
-            if trade_mode == "binary":
-                profit = iq.check_win_v3(order_id)
-            else:
-                raw_profit = iq.check_win_digital_v2(order_id)
-                profit = float(raw_profit) if raw_profit is not None else 0.0
-        except Exception:
-            profit = 0.0
+        def wait_for_trade(iq_instance, oid, t_mode):
+            try:
+                if t_mode == "binary":
+                    profit = iq_instance.check_win_v3(oid)
+                else:
+                    raw_profit = iq_instance.check_win_digital_v2(oid)
+                    profit = float(raw_profit) if raw_profit is not None else 0.0
+            except Exception:
+                profit = 0.0
 
-        status = "win" if profit > 0 else ("loss" if profit < 0 else "tie")
+            status = "win" if profit > 0 else ("loss" if profit < 0 else "tie")
+            trade_results[str(oid)] = {
+                "status": "COMPLETED",
+                "profit": profit,
+                "win": status == "win"
+            }
+
+        trade_results[str(order_id)] = {"status": "PENDING"}
+        import threading
+        threading.Thread(target=wait_for_trade, args=(iq, order_id, trade_mode)).start()
 
         return jsonify({
             "success": True,
-            "profit": profit,
-            "status": status,
-            "orderId": order_id,
-            "balance": iq.get_balance(),
+            "orderId": str(order_id),
+            "status": "PENDING",
+            "balance": iq.get_balance()
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route("/trade_result", methods=["POST"])
+def trade_result():
+    try:
+        data = request.json or {}
+        order_id = str(data.get("orderId"))
+        if order_id in trade_results:
+            return jsonify({"success": True, "result": trade_results[order_id]})
+        return jsonify({"success": False, "error": "Order no encontrada"}), 404
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

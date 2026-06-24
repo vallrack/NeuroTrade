@@ -5,7 +5,7 @@ import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
 import { useRTDB } from '@/firebase/provider';
 import { doc, collection, addDoc, getDoc, setDoc, query, orderBy, limit } from 'firebase/firestore';
 import { ref as rtdbRef, set as rtdbSet } from 'firebase/database';
-import { bridgeAnalyze, bridgeTrade, getBridgeUrl, fetchWithTimeout } from '@/lib/bridge';
+import { bridgeAnalyze, bridgeTrade, bridgeTradeResult, getBridgeUrl, fetchWithTimeout } from '@/lib/bridge';
 import { playInvestSound, playWinSound, playLossSound } from '@/lib/sounds';
 import { getActivePairs, getMarketStatus, type MarketStatus } from '@/lib/market-schedule';
 
@@ -412,7 +412,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           addLog('V7-MAESTRO', `EJECUTANDO ${direction} $${amount} en ${pair}...`, 'warning');
           playInvestSound();
 
-          const tradeResult = await bridgeTrade({
+          let tradeResult = await bridgeTrade({
             email: config.email,
             password: config.password,
             pair,
@@ -420,6 +420,31 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
             amount,
             accountType
           });
+
+          // ─── Polling para órdenes asíncronas ─────────────────────────────────
+          if (tradeResult.success && tradeResult.status === 'PENDING' && tradeResult.orderId) {
+            addLog('SISTEMA', `Orden ${tradeResult.orderId} enviada. Esperando cierre (no bloqueante)...`, 'info');
+            let pending = true;
+            let checks = 0;
+            while (pending && checks < 60) { // Max 5 min
+              await new Promise(r => setTimeout(r, 5000));
+              try {
+                const pollRes = await bridgeTradeResult({ orderId: tradeResult.orderId });
+                if (pollRes.success && pollRes.result && pollRes.result.status === 'COMPLETED') {
+                  tradeResult = { ...tradeResult, ...pollRes.result };
+                  pending = false;
+                }
+              } catch (e) {
+                // Ignore network errors during polling
+              }
+              checks++;
+            }
+            if (pending) {
+              addLog('SISTEMA', `Timeout esperando resultado de orden ${tradeResult.orderId}.`, 'error');
+              isExecutingRef.current = false;
+              continue;
+            }
+          }
 
           // ─── Sincronizar balance INMEDIATAMENTE tras el trade ──────────────────
           if (tradeResult.balance != null && tradeResult.balance >= 0) {
