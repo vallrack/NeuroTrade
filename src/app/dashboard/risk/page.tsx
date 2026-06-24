@@ -69,6 +69,14 @@ export default function RiskPage() {
 
   const { data: botParams, loading: paramsLoading } = useDoc(botParamsRef);
 
+  // Verificar rol del usuario (mismo patrón que app-sidebar)
+  const profileRef = useMemo(() => {
+    if (!mounted || !user || !firestore) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [mounted, user, firestore]);
+  const { data: profile } = useDoc(profileRef);
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'super-admin';
+
   useEffect(() => {
     if (botParams) {
       setFormData({
@@ -144,6 +152,17 @@ export default function RiskPage() {
     !activePairs.includes(pairSearch.trim().toUpperCase());
 
   if (!mounted) return null;
+
+  if (paramsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-xs text-muted-foreground font-mono uppercase tracking-widest">Cargando parámetros de riesgo...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

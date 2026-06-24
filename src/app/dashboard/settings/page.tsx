@@ -45,6 +45,14 @@ export default function SettingsPage() {
 
   const { data: botParams, loading: paramsLoading } = useDoc(botParamsRef);
 
+  // Verificar rol del usuario (mismo patrón que app-sidebar)
+  const profileRef = useMemo(() => {
+    if (!mounted || !firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [mounted, firestore, user]);
+  const { data: profile } = useDoc(profileRef);
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'super-admin';
+
   const [minConfidence, setMinConfidence] = useState('85');
   const [maxDrawdown, setMaxDrawdown] = useState('5');
   const [strategyMode, setStrategyMode] = useState('conservative');
@@ -92,6 +100,17 @@ export default function SettingsPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (paramsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-xs text-muted-foreground font-mono uppercase tracking-widest">Cargando configuración...</p>
+        </div>
       </div>
     );
   }

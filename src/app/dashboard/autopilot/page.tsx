@@ -179,6 +179,14 @@ export default function AutopilotPage() {
 
   const { data: botParams } = useDoc(botParamsDocRef);
 
+  // Verificar rol del usuario (mismo patrón que app-sidebar)
+  const profileDocRef = useMemo(() => {
+    if (!mounted || !user || !firestore) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [mounted, user, firestore]);
+  const { data: profile } = useDoc(profileDocRef);
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'super-admin';
+
   // Estado local
   const [autopilotEnabled, setAutopilotEnabled] = useState(false);
   const [autoConnectBridge, setAutoConnectBridge] = useState(true);

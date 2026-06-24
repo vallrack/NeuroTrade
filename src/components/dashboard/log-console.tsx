@@ -1,100 +1,30 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { useRTDB, useDoc, useFirestore, useUser } from '@/firebase';
-import { ref, onValue, query, limitToLast } from 'firebase/database';
-import { doc } from 'firebase/firestore';
+import { useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { bridgeAnalyze } from '@/lib/bridge';
+import { useBotEngine } from '@/components/dashboard/bot-engine-provider';
 
 export function LogConsole() {
-  const rtdb = useRTDB();
-  const firestore = useFirestore();
-  const [logs, setLogs] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { logs: engineLogs } = useBotEngine();
 
-  const { user } = useUser();
+  // Mapea los logs del motor al formato visual del panel
+  const logs = useMemo(() => {
+    return engineLogs.slice(-100).map((l: any) => {
+      let direction = 'NONE';
+      if (l.message.includes('CALL')) direction = 'CALL';
+      if (l.message.includes('PUT')) direction = 'PUT';
 
-  const botParamsRef = user && firestore ? doc(firestore, 'users', user.uid, 'config', 'bot_params') : null;
-  const { data: botParams } = useDoc(botParamsRef as any);
-  const activePairs = useMemo(() => botParams?.pairs || ['EURUSD-OTC'], [botParams]);
+      return {
+        ...l,
+        direction,
+      };
+    });
+  }, [engineLogs]);
 
-
-  const brokerRef = user && firestore ? doc(firestore, 'users', user.uid, 'config', 'broker') : null;
-  const { data: brokerConfig } = useDoc(brokerRef as any);
-  const brokerConfigRef = useRef(brokerConfig);
-
-  useEffect(() => {
-    brokerConfigRef.current = brokerConfig;
-  }, [brokerConfig]);
-
-  useEffect(() => {
-    if (!user) return;
-    
-    const handleNewData = (e: any) => {
-      const data = e.detail;
-      if (data.success && data.logs) {
-        setLogs(prev => {
-          const newEntries = data.logs.map((l: any) => {
-            let agent = 'SYSTEM';
-            if (l.message.includes('[QUANTUM]')) agent = 'QUANTUM-X';
-            if (l.message.includes('[SENTINEL]')) agent = 'CYBER-SENTINEL';
-            if (l.message.includes('[IA MAIN]')) agent = 'V7-MAESTRO';
-
-            let direction = 'NONE';
-            if (l.message.includes('CALL')) direction = 'CALL';
-            if (l.message.includes('PUT')) direction = 'PUT';
-
-            return {
-              id: Math.random().toString(36),
-              timestamp: (l.timestamp || Date.now() / 1000) * 1000,
-              message: l.message.replace(/\[.*?\]\s*/, ''),
-              direction,
-              agentId: agent,
-            };
-          });
-          const combined = [...prev, ...newEntries];
-          return combined.slice(-100);
-        });
-      }
-    };
-
-    window.addEventListener('nt_bridge_data', handleNewData);
-    
-    // Listener para limpiar logs manualmente
-    const handleClear = () => setLogs([]);
-    window.addEventListener('nt_clear_logs', handleClear);
-
-    return () => {
-      window.removeEventListener('nt_bridge_data', handleNewData);
-      window.removeEventListener('nt_clear_logs', handleClear);
-    };
-  }, [user]);
-
-  // Integración con Realtime Database si está disponible
-  useEffect(() => {
-    if (!rtdb) return;
-    try {
-      const logsRef = query(ref(rtdb, 'logs/bot_reasoning'), limitToLast(50));
-      const unsub = onValue(logsRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-          const logsArray = Object.keys(data).map(key => ({
-            id: key,
-            ...data[key]
-          }));
-          const sortedLogs = logsArray.sort((a: any, b: any) => a.timestamp - b.timestamp);
-          setLogs(sortedLogs);
-        }
-      });
-      return () => unsub();
-    } catch (e) {
-      console.warn('RTDB Logs offline, usando simulador local.');
-    }
-  }, [rtdb]);
-
+  // Auto-scroll al final cuando llegan nuevos logs
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -114,21 +44,36 @@ export function LogConsole() {
           <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping" />
         </div>
       </CardHeader>
-      <CardContent 
-        className="flex-1 overflow-y-auto p-4 font-code text-[10px] space-y-2 custom-scrollbar bg-black/20" 
+      <CardContent
+        className="flex-1 overflow-y-auto p-4 font-code text-[10px] space-y-2 custom-scrollbar bg-black/20"
         ref={scrollRef}
       >
-        {logs.map((log, i) => (
+        {logs.length === 0 && (
+          <div className="text-slate-500 italic text-[10px] mt-2 animate-pulse">
+            Sintonizando flujo de datos maestro...
+          </div>
+        )}
+        {logs.map((log: any, i: number) => (
           <div key={log.id || i} className={cn(
             "log-entry transition-all duration-300 animate-in fade-in slide-in-from-left-1",
             log.direction === 'CALL' ? 'log-entry-call' : log.direction === 'PUT' ? 'log-entry-put' : 'log-entry-none'
           )}>
-            <span className="text-muted-foreground/40 font-mono">[{new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}]</span>
-            {' '}
-            <span className={cn("font-bold tracking-tighter", log.agentId ? 'text-primary' : 'text-foreground')}>
-              {log.agentId ? `${log.agentId.toUpperCase()}> ` : ''}
+            <span className="text-muted-foreground/40 font-mono">
+              [{new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}]
             </span>
-            <span className="text-foreground/80 font-mono tracking-tight">{log.message}</span>
+            {' '}
+            <span className={cn("font-bold tracking-tighter", log.source ? 'text-indigo-400' : 'text-foreground')}>
+              {log.source ? `${log.source}>` : ''}
+            </span>
+            {' '}
+            <span className={cn(
+              "font-mono tracking-tight",
+              log.type === 'success' ? 'text-emerald-400' :
+              log.type === 'error'   ? 'text-rose-400' :
+              log.type === 'warning' ? 'text-amber-400' : 'text-foreground/80'
+            )}>
+              {log.message}
+            </span>
           </div>
         ))}
       </CardContent>
