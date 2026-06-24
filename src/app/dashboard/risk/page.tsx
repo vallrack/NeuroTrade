@@ -58,7 +58,7 @@ export default function RiskPage() {
     takeProfit: 10000,
     maxDailyTrades: 20,
     min_confidence_score: 85,
-    reverseMode: false,
+    reverseMode: 'off',
   });
   const [activePairs, setActivePairs] = useState<string[]>(['EURUSD-OTC', 'GBPUSD-OTC']);
 
@@ -90,7 +90,7 @@ export default function RiskPage() {
         takeProfit: botParams.takeProfit || 10000,
         maxDailyTrades: botParams.maxDailyTrades || 20,
         min_confidence_score: botParams.min_confidence_score || 85,
-        reverseMode: botParams.reverseMode || false,
+        reverseMode: botParams.reverseMode || 'off',
       });
       if (botParams.pairs && Array.isArray(botParams.pairs)) {
         setActivePairs(botParams.pairs);
@@ -334,16 +334,26 @@ export default function RiskPage() {
               <CardTitle className="text-sm font-bold uppercase tracking-widest text-slate-400">Modo Inverso</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between mt-2">
+              <div className="space-y-2 mt-2">
                 <Label className="text-xs font-bold text-white uppercase tracking-wider">Estrategia Contrariana</Label>
-                <Switch
-                  checked={formData.reverseMode}
-                  onCheckedChange={v => setFormData(prev => ({ ...prev, reverseMode: v }))}
-                  className="data-[state=checked]:bg-purple-500"
-                />
+                <Select
+                  value={formData.reverseMode}
+                  onValueChange={v => setFormData(prev => ({ ...prev, reverseMode: v }))}
+                >
+                  <SelectTrigger className="bg-white/5 border-white/10 text-white w-full">
+                    <SelectValue placeholder="Seleccionar modo" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-white/10 text-white">
+                    <SelectItem value="off">Inactivo (Operación Normal)</SelectItem>
+                    <SelectItem value="always">Siempre Inverso (100% Contrariano)</SelectItem>
+                    <SelectItem value="auto">Inteligente (Auto-Detección de Manipulación)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <p className="text-[10px] text-muted-foreground leading-relaxed italic">
-                Inverte la dirección de la operación (CALL → PUT, PUT → CALL) justo antes de enviar la orden. Ideal para mercados manipulados como el OTC.
+                {formData.reverseMode === 'off' && "El bot opera a favor de la tendencia según los indicadores tradicionales."}
+                {formData.reverseMode === 'always' && "Invierte TODAS las operaciones (CALL → PUT, PUT → CALL). Ideal para mercados fuertemente manipulados."}
+                {formData.reverseMode === 'auto' && "El bot opera normal pero invierte la operación SOLO si la IA detecta una trampa de liquidez (mechas largas con alto volumen)."}
               </p>
             </CardContent>
           </Card>

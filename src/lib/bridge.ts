@@ -120,6 +120,8 @@ export interface AnalyzeResponse {
   direction?: 'CALL' | 'PUT' | 'NONE';
   probability?: number;
   rsi?: number;
+  isManipulated?: boolean;
+  manipulationReason?: string;
   pair?: string;
   candles?: Array<{
     from: number;

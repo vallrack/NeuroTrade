@@ -58,6 +58,39 @@ def calculate_rsi(closes, period=14):
     rs = avg_gain / avg_loss
     return round(100 - (100 / (1 + rs)), 2)
 
+def detect_manipulation(candles):
+    if not candles or len(candles) < 5:
+        return False, ""
+    
+    last_candle = candles[-1]
+    prev_candles = candles[-5:-1]
+    
+    avg_vol = sum(c['volume'] for c in prev_candles) / 4 if prev_candles else 1
+    if avg_vol == 0:
+        avg_vol = 1
+        
+    body = abs(last_candle['close'] - last_candle['open'])
+    total_size = last_candle['max'] - last_candle['min']
+    
+    if total_size == 0:
+        return False, ""
+        
+    body_percent = body / total_size
+    wick_up = last_candle['max'] - max(last_candle['close'], last_candle['open'])
+    wick_down = min(last_candle['close'], last_candle['open']) - last_candle['min']
+    
+    # 1. Volumen anómalo (50% superior al promedio)
+    if last_candle['volume'] > avg_vol * 1.5:
+        # 2. Cuerpo pequeño (<30% de la vela total)
+        if body_percent < 0.3:
+            # 3. Mechas desproporcionadas
+            if wick_down > wick_up * 2:
+                return True, "Falso quiebre bajista (Caza de Liquidez detectada por mecha inferior gigante)"
+            elif wick_up > wick_down * 2:
+                return True, "Falso quiebre alcista (Caza de Liquidez detectada por mecha superior gigante)"
+                
+    return False, ""
+
 def analyze_market(candles, min_rsi=DEFAULT_MIN_RSI, max_rsi=DEFAULT_MAX_RSI):
     if not candles or len(candles) < 3:
         return "NONE", 50, 50.0
@@ -180,6 +213,8 @@ def analyze():
                 candles = iq_instance.get_candles(base_pair.replace("-", ""), 60, 30, time.time())
 
         direction, probability, rsi = analyze_market(candles, min_rsi, max_rsi)
+        is_manipulated, manipulation_reason = detect_manipulation(candles)
+        
         logs = build_logs(pair, direction, rsi, probability)
 
         return jsonify({
@@ -188,6 +223,8 @@ def analyze():
             "direction": direction,
             "probability": probability,
             "rsi": rsi,
+            "isManipulated": is_manipulated,
+            "manipulationReason": manipulation_reason,
             "pair": pair,
             "candles": candles[-20:] if candles else [],
             "logs": logs,

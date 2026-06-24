@@ -21,6 +21,8 @@ export type AnalysisState = {
   direction: 'CALL' | 'PUT' | 'NONE';
   probability: number;
   rsi?: number;
+  isManipulated?: boolean;
+  manipulationReason?: string;
   candles?: any[];
   lastUpdated: Date;
 };
@@ -381,11 +383,11 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           continue;
         }
 
-        const { direction, probability, rsi, candles, balance } = result;
+        const { direction, probability, rsi, isManipulated, manipulationReason, candles, balance } = result;
 
         setAnalyses(prev => ({
           ...prev,
-          [pair]: { direction, probability, rsi, candles, lastUpdated: new Date() }
+          [pair]: { direction, probability, rsi, isManipulated, manipulationReason, candles, lastUpdated: new Date() }
         }));
 
         addLog('SISTEMA', `${pair} — RSI: ${rsi} | ${direction} (${probability.toFixed(0)}%)`, 'info');
@@ -413,9 +415,13 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           let finalDirection = direction;
           let maestroLog = `EJECUTANDO ${direction} $${amount} en ${pair}...`;
 
-          if (params?.reverseMode) {
+          if (params?.reverseMode === 'always') {
             finalDirection = direction === 'CALL' ? 'PUT' : 'CALL';
             maestroLog = `[MODO INVERSO] EJECUTANDO ${finalDirection} $${amount} en ${pair} (Señal original: ${direction})...`;
+          } else if (params?.reverseMode === 'auto' && isManipulated) {
+            finalDirection = direction === 'CALL' ? 'PUT' : 'CALL';
+            maestroLog = `[AUTO-REVERSO] EJECUTANDO ${finalDirection} $${amount} en ${pair} (Trampa detectada)...`;
+            addLog('SENTINEL', `Manipulación en ${pair}: ${manipulationReason}. Aplicando reverso.`, 'error');
           }
 
           addLog('V7-MAESTRO', maestroLog, 'warning');
