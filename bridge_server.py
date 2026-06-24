@@ -301,7 +301,7 @@ def trade():
 
         # FALLBACK A OPCIONES DIGITALES (solo para pares regulares)
         if not check and "OTC" not in pair:
-            print(f"[{session_key}] Ejecutando {dir_lower} {amount} en {api_pair} (Digital)")
+            print(f"Ejecutando {dir_lower} {amount} en {api_pair} (Digital)")
             
             import concurrent.futures
             
