@@ -57,6 +57,7 @@ export default function RiskPage() {
     takeProfit: 10000,
     maxDailyTrades: 20,
     min_confidence_score: 85,
+    reverseMode: false,
   });
   const [activePairs, setActivePairs] = useState<string[]>(['EURUSD-OTC', 'GBPUSD-OTC']);
 
@@ -88,6 +89,7 @@ export default function RiskPage() {
         takeProfit: botParams.takeProfit || 10000,
         maxDailyTrades: botParams.maxDailyTrades || 20,
         min_confidence_score: botParams.min_confidence_score || 85,
+        reverseMode: botParams.reverseMode || false,
       });
       if (botParams.pairs && Array.isArray(botParams.pairs)) {
         setActivePairs(botParams.pairs);
@@ -319,6 +321,29 @@ export default function RiskPage() {
                 </div>
               </div>
               <p className="text-[10px] text-muted-foreground leading-relaxed italic">Umbral mínimo para permitir una entrada al mercado.</p>
+            </CardContent>
+          </Card>
+
+          {/* Modo Inverso */}
+          <Card className="bg-black/40 border-white/5 backdrop-blur-xl group hover:border-purple-500/20 transition-all">
+            <CardHeader className="pb-2">
+              <div className="p-2 bg-purple-500/10 rounded-lg w-fit mb-2">
+                <Target className="w-5 h-5 text-purple-400" />
+              </div>
+              <CardTitle className="text-sm font-bold uppercase tracking-widest text-slate-400">Modo Inverso</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between mt-2">
+                <Label className="text-xs font-bold text-white uppercase tracking-wider">Estrategia Contrariana</Label>
+                <Switch
+                  checked={formData.reverseMode}
+                  onCheckedChange={v => setFormData(prev => ({ ...prev, reverseMode: v }))}
+                  className="data-[state=checked]:bg-purple-500"
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground leading-relaxed italic">
+                Inverte la dirección de la operación (CALL → PUT, PUT → CALL) justo antes de enviar la orden. Ideal para mercados manipulados como el OTC.
+              </p>
             </CardContent>
           </Card>
         </div>

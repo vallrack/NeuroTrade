@@ -409,14 +409,23 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           if (!runGuardianCheck(currentBalance, amount, params)) continue;
 
           isExecutingRef.current = true;
-          addLog('V7-MAESTRO', `EJECUTANDO ${direction} $${amount} en ${pair}...`, 'warning');
+
+          let finalDirection = direction;
+          let maestroLog = `EJECUTANDO ${direction} $${amount} en ${pair}...`;
+
+          if (params?.reverseMode) {
+            finalDirection = direction === 'CALL' ? 'PUT' : 'CALL';
+            maestroLog = `[MODO INVERSO] EJECUTANDO ${finalDirection} $${amount} en ${pair} (Señal original: ${direction})...`;
+          }
+
+          addLog('V7-MAESTRO', maestroLog, 'warning');
           playInvestSound();
 
           let tradeResult = await bridgeTrade({
             email: config.email,
             password: config.password,
             pair,
-            direction,
+            direction: finalDirection,
             amount,
             accountType
           });
