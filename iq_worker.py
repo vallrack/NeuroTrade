@@ -194,15 +194,15 @@ def analyze():
                 print(f"[WORKER {WORKER_PORT}] Sesión caída en analyze. Auto-reconectando...")
                 iq_instance = IQ_Option(email, password)
                 check, reason = iq_instance.connect()
-                if check:
-                    acc_type = data.get("accountType", "demo")
-                    target_mode = "PRACTICE" if acc_type.lower() == "demo" else "REAL"
-                    iq_instance.change_balance(target_mode)
-                    time.sleep(1)
-                else:
-                    return jsonify({"success": False, "error": f"Fallo de auto-reconexión: {reason}"}), 401
+                if not check:
+                    return jsonify({"success": False, "error": f"Auto-reconexión fallida: {reason}"}), 401
             else:
                 return jsonify({"success": False, "error": "Sesión desconectada. Falta email/password para reconectar."}), 401
+
+        # Sincronizar siempre el tipo de cuenta con la UI
+        acc_type = data.get("accountType", "demo")
+        target_mode = "PRACTICE" if acc_type.lower() == "demo" else "REAL"
+        iq_instance.change_balance(target_mode)
 
         api_pair = api_pair_name(pair)
         candles = iq_instance.get_candles(api_pair, 60, 30, time.time())
@@ -256,15 +256,15 @@ def trade():
                 print(f"[WORKER {WORKER_PORT}] Sesión caída en trade. Auto-reconectando...")
                 iq_instance = IQ_Option(email, password)
                 check_conn, reason = iq_instance.connect()
-                if check_conn:
-                    acc_type = data.get("accountType", "demo")
-                    target_mode = "PRACTICE" if acc_type.lower() == "demo" else "REAL"
-                    iq_instance.change_balance(target_mode)
-                    time.sleep(1)
-                else:
+                if not check_conn:
                     return jsonify({"success": False, "error": f"Fallo de auto-reconexión: {reason}"}), 401
             else:
                 return jsonify({"success": False, "error": "Sesión desconectada. Falta email/password para reconectar."}), 401
+
+        # Sincronizar siempre el tipo de cuenta con la UI
+        acc_type = data.get("accountType", "demo")
+        target_mode = "PRACTICE" if acc_type.lower() == "demo" else "REAL"
+        iq_instance.change_balance(target_mode)
 
         api_pair = api_pair_name(pair)
         dir_lower = direction.lower()
