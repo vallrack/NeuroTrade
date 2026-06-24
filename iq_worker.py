@@ -302,7 +302,7 @@ def trade():
                 check = False
 
         # FALLBACK A OPCIONES DIGITALES
-        if not check and "OTC" not in pair:
+        if not check:
             print(f"[WORKER {WORKER_PORT}] Ejecutando {dir_lower} {amount} en {api_pair} (Digital)")
             def do_buy():
                 return iq_instance.buy_digital_spot(api_pair, amount, dir_lower, expiration)
