@@ -303,9 +303,10 @@ def trade():
 
         # FALLBACK A OPCIONES DIGITALES
         if not check:
-            print(f"[WORKER {WORKER_PORT}] Ejecutando {dir_lower} {amount} en {api_pair} (Digital)")
+            digital_pair = pair if "OTC" in pair else api_pair
+            print(f"[WORKER {WORKER_PORT}] Ejecutando {dir_lower} {amount} en {digital_pair} (Digital)")
             def do_buy():
-                return iq_instance.buy_digital_spot(api_pair, amount, dir_lower, expiration)
+                return iq_instance.buy_digital_spot(digital_pair, amount, dir_lower, expiration)
             try:
                 executor_dig = concurrent.futures.ThreadPoolExecutor(max_workers=1)
                 future_dig = executor_dig.submit(do_buy)
