@@ -24,7 +24,7 @@ export function NotificationBell() {
   const [mounted, setMounted] = useState(false);
   const [unseenCount, setUnseenCount] = useState(0);
   const [animating, setAnimating] = useState(false);
-  const prevTradesLen = useRef(0);
+  const prevTopTradeId = useRef<string | null>(null);
 
   const { recentTrades, liveWins, liveLosses, liveProfit } = useBotEngine();
 
@@ -32,21 +32,21 @@ export function NotificationBell() {
 
   // Detectar nuevas operaciones para el badge y la animación de la campana
   useEffect(() => {
-    if (!mounted) return;
-    const currentLen = recentTrades.length;
+    if (!mounted || recentTrades.length === 0) return;
+    
+    const topTradeId = recentTrades[0].id;
 
-    if (currentLen > prevTradesLen.current && prevTradesLen.current !== 0) {
+    if (prevTopTradeId.current !== null && topTradeId !== prevTopTradeId.current) {
       // Llegó un nuevo trade
-      const newOnes = currentLen - prevTradesLen.current;
       if (!open) {
-        setUnseenCount(prev => prev + newOnes);
+        setUnseenCount(prev => prev + 1);
         // Agitar la campana
         setAnimating(true);
         setTimeout(() => setAnimating(false), 600);
       }
     }
-    prevTradesLen.current = currentLen;
-  }, [recentTrades.length, mounted, open]);
+    prevTopTradeId.current = topTradeId;
+  }, [recentTrades, mounted, open]);
 
   const handleOpen = () => {
     setOpen(prev => {
