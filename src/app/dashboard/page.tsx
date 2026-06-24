@@ -17,6 +17,7 @@ import { SuperAdminTools } from '@/components/dashboard/super-admin-tools';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { NotificationBell } from '@/components/dashboard/notification-bell';
 
 export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
@@ -88,6 +89,7 @@ export default function DashboardPage() {
               L-5 MASTER ACCESS
             </Badge>
           )}
+          <NotificationBell />
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push('/dashboard/settings')}>
             <Settings className="h-4 w-4" />
           </Button>

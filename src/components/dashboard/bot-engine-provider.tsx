@@ -330,7 +330,15 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     }
 
     // ── 3. Verificar condiciones base ──
-    if (!isBridgeOnline || !config?.email || !config?.password || isExecutingRef.current) {
+    if (!isBridgeOnline || !config?.email || !config?.password || !config?.status || config.status !== 'connected' || isExecutingRef.current) {
+      if (config && config.status !== 'connected' && config.status !== undefined) {
+        // Registrar UNA sola vez que el broker no está vinculado (no spammear)
+        const now = Date.now();
+        if (now - lastScheduleLogRef.current > 2 * 60 * 1000) {
+          addLog('SISTEMA', 'Broker no conectado. Vincula tu cuenta en Broker Link para operar.', 'warning');
+          lastScheduleLogRef.current = now;
+        }
+      }
       loopTimeoutRef.current = setTimeout(engineLoop, 3000);
       return;
     }
@@ -347,6 +355,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     // ── 4. Analizar cada par ──
     for (const pair of pairs) {
       try {
+        addLog('BRIDGE', `Analizando ${pair} → ${getBridgeUrl()}/analyze`, 'info');
         const result = await bridgeAnalyze({
           email: config.email,
           password: config.password,

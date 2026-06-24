@@ -15,8 +15,9 @@ import { Switch } from '@/components/ui/switch';
 import { useUser, useFirestore, useCollection } from '@/firebase';
 import { collection, query, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, UserPlus, Loader2, Users, CheckCircle, XCircle, Crown, Eye, EyeOff } from 'lucide-react';
+import { Shield, UserPlus, Loader2, Users, CheckCircle, XCircle, Crown, Eye, EyeOff, Clock, CalendarCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { NotificationBell } from '@/components/dashboard/notification-bell';
 
 export default function AdminPage() {
   const [mounted, setMounted] = useState(false);
@@ -33,6 +34,25 @@ export default function AdminPage() {
   const [newName, setNewName] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState('operator');
+  const [subscriptionPlan, setSubscriptionPlan] = useState<'1m' | '3m' | '1y' | 'lifetime'>('1m');
+
+  const PLAN_LABELS: Record<string, string> = {
+    '1m': '1 Mes',
+    '3m': '3 Meses',
+    '1y': '1 Año',
+    'lifetime': 'Vitalicia',
+  };
+
+  function calcSubscriptionDates(plan: string): { start: string; end: string | null } {
+    const start = new Date();
+    const startIso = start.toISOString();
+    if (plan === 'lifetime') return { start: startIso, end: null };
+    const end = new Date(start);
+    if (plan === '1m') end.setMonth(end.getMonth() + 1);
+    else if (plan === '3m') end.setMonth(end.getMonth() + 3);
+    else if (plan === '1y') end.setFullYear(end.getFullYear() + 1);
+    return { start: startIso, end: end.toISOString() };
+  }
 
   // AISLAMIENTO DE FIREBASE PARA COMPATIBILIDAD CON BUILD
   useEffect(() => {
@@ -70,6 +90,7 @@ export default function AdminPage() {
 
       if (res.ok && result.uid) {
         // Crear perfil en Firestore localmente aprovechando que somos SuperAdmin
+        const { start: subscriptionStart, end: subscriptionEnd } = calcSubscriptionDates(subscriptionPlan);
         await setDoc(doc(firestore, 'users', result.uid), {
           email: newEmail,
           displayName: newName,
@@ -77,10 +98,13 @@ export default function AdminPage() {
           disabled: false,
           createdAt: new Date().toISOString(),
           createdByAdmin: true,
+          subscriptionPlan,
+          subscriptionStart,
+          subscriptionEnd,
         });
 
-        toast({ title: '✅ OPERADOR REGISTRADO', description: `${newEmail} ha sido añadido con rol ${newRole}.` });
-        setNewEmail(''); setNewName(''); setNewPassword(''); setNewRole('operator');
+        toast({ title: '✅ OPERADOR REGISTRADO', description: `${newEmail} — Plan: ${PLAN_LABELS[subscriptionPlan]} — Rol: ${newRole}.` });
+        setNewEmail(''); setNewName(''); setNewPassword(''); setNewRole('operator'); setSubscriptionPlan('1m');
       } else {
         toast({ title: 'ERROR', description: result.error || 'No se pudo crear el usuario.', variant: 'destructive' });
       }
@@ -132,6 +156,9 @@ export default function AdminPage() {
               Super Admin
             </Badge>
           </div>
+          <div className="ml-auto">
+            <NotificationBell />
+          </div>
         </header>
 
         <main className="p-6 space-y-8 max-w-5xl mx-auto">
@@ -181,6 +208,32 @@ export default function AdminPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                {/* Plan de suscripción */}
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider flex items-center gap-1">
+                    <Clock className="h-3 w-3" /> Plan de Suscripción
+                  </Label>
+                  <Select value={subscriptionPlan} onValueChange={(v) => setSubscriptionPlan(v as any)}>
+                    <SelectTrigger className="bg-zinc-900/50 border-white/10 h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1m">1 Mes</SelectItem>
+                      <SelectItem value="3m">3 Meses</SelectItem>
+                      <SelectItem value="1y">1 Año</SelectItem>
+                      <SelectItem value="lifetime">Vitalicia ♾️</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {subscriptionPlan !== 'lifetime' && (
+                    <p className="text-[9px] text-muted-foreground flex items-center gap-1">
+                      <CalendarCheck className="h-3 w-3" />
+                      Expira: {(() => {
+                        const { end } = calcSubscriptionDates(subscriptionPlan);
+                        return end ? new Date(end).toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' }) : '--';
+                      })()}
+                    </p>
+                  )}
+                </div>
                 <div className="md:col-span-2 flex justify-end">
                   <Button type="submit" disabled={creating} className="gap-2 px-8 font-headline tracking-widest uppercase shadow-lg shadow-primary/20">
                     {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
@@ -214,6 +267,19 @@ export default function AdminPage() {
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-white truncate">{u.displayName || '—'}</p>
                       <p className="text-[9px] text-muted-foreground truncate">{u.email}</p>
+                      {u.subscriptionEnd && (
+                        <p className={cn('text-[9px] flex items-center gap-0.5 mt-0.5', 
+                          new Date(u.subscriptionEnd) < new Date() ? 'text-red-400' :
+                          (new Date(u.subscriptionEnd).getTime() - Date.now()) < 5 * 24 * 60 * 60 * 1000 ? 'text-amber-400' :
+                          'text-muted-foreground'
+                        )}>
+                          <Clock className="h-2.5 w-2.5" />
+                          {new Date(u.subscriptionEnd) < new Date() ? 'EXPIRADA' : `Hasta: ${new Date(u.subscriptionEnd).toLocaleDateString('es-CO')}`}
+                        </p>
+                      )}
+                      {u.subscriptionPlan === 'lifetime' && (
+                        <p className="text-[9px] text-primary flex items-center gap-0.5 mt-0.5">♾️ Vitalicia</p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">

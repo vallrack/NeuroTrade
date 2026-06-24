@@ -14,6 +14,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { NotificationBell } from '@/components/dashboard/notification-bell';
 import {
   ALL_REGULAR_PAIRS, ALL_OTC_PAIRS, TIMEZONES,
   isForexMarketOpen, isCurrentlyInSchedule, type ScheduleSlot, type AutopilotConfig
@@ -298,13 +299,14 @@ export default function AutopilotPage() {
           <CalendarClock className="h-5 w-5 text-primary" />
           Piloto Automático
         </h1>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
           <Badge className={`gap-1.5 text-[10px] font-bold ${
             forexOpen ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
           }`}>
             <span className={`h-1.5 w-1.5 rounded-full ${forexOpen ? 'bg-green-400 animate-pulse' : 'bg-amber-400'}`} />
             {forexOpen ? 'FOREX ABIERTO' : 'FOREX CERRADO — OTC DISPONIBLE'}
           </Badge>
+          <NotificationBell />
         </div>
       </header>
 

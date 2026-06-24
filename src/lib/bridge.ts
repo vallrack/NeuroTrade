@@ -203,16 +203,31 @@ export async function bridgeHealthCheck(retries = 2): Promise<{
 }
 
 export async function bridgePost<T>(path: string, body: Record<string, unknown>): Promise<T> {
-  const res = await fetchWithTimeout(
-    `${getBridgeUrl()}${path}`,
-    {
-      method: 'POST',
-      headers: getBridgeHeaders(),
-      body: JSON.stringify(body),
-      mode: 'cors',
-    },
-    40_000,
-  );
+  const bridgeUrl = getBridgeUrl();
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      `${bridgeUrl}${path}`,
+      {
+        method: 'POST',
+        headers: getBridgeHeaders(),
+        body: JSON.stringify(body),
+        mode: 'cors',
+      },
+      40_000,
+    );
+  } catch (netErr: any) {
+    // Distinguir entre error de red/CORS y timeout
+    if (netErr?.name === 'AbortError') {
+      throw new Error(`TIMEOUT — El puente no respondió en 40s. URL: ${bridgeUrl}${path}`);
+    }
+    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    const isHttp = bridgeUrl.startsWith('http://');
+    if (isHttps && isHttp) {
+      throw new Error(`MIXED-CONTENT BLOQUEADO — Estás en HTTPS pero el puente es HTTP (${bridgeUrl}). Usa modo RENDER o un túnel HTTPS.`);
+    }
+    throw new Error(`Puente no alcanzable (${bridgeUrl}${path}): ${netErr?.message || 'Failed to fetch'}`);
+  }
   if (!res.ok) {
     const errText = await res.text().catch(() => `HTTP ${res.status}`);
     throw new Error(errText || `HTTP ${res.status}`);
