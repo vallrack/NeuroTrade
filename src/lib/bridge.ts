@@ -234,6 +234,16 @@ export async function bridgePost<T>(path: string, body: Record<string, unknown>)
   }
   if (!res.ok) {
     const errText = await res.text().catch(() => `HTTP ${res.status}`);
+    try {
+      const parsed = JSON.parse(errText);
+      if (parsed && typeof parsed.error === 'string') {
+        throw new Error(parsed.error);
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message !== 'Unexpected token' && !e.message.includes('JSON')) {
+        throw e; // Rethrow if it's the error we just created
+      }
+    }
     throw new Error(errText || `HTTP ${res.status}`);
   }
   return res.json() as Promise<T>;
@@ -247,7 +257,11 @@ export async function bridgeAnalyze(payload: {
   minRsi?: number;
   maxRsi?: number;
 }): Promise<AnalyzeResponse> {
-  return bridgePost<AnalyzeResponse>('/analyze', payload);
+  try {
+    return await bridgePost<AnalyzeResponse>('/analyze', payload);
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
 }
 
 export async function bridgeConnect(payload: {
