@@ -153,7 +153,21 @@ def analyze():
         max_rsi = float(data.get("maxRsi", DEFAULT_MAX_RSI))
 
         if not iq_instance or not iq_instance.check_connect():
-            return jsonify({"success": False, "error": "Sesión desconectada. Reconfigurando puente."}), 401
+            email = data.get("email")
+            password = data.get("password")
+            if email and password:
+                print(f"[WORKER {WORKER_PORT}] Sesión caída en analyze. Auto-reconectando...")
+                iq_instance = IQ_Option(email, password)
+                check, reason = iq_instance.connect()
+                if check:
+                    acc_type = data.get("accountType", "demo")
+                    target_mode = "PRACTICE" if acc_type.lower() == "demo" else "REAL"
+                    iq_instance.change_balance(target_mode)
+                    time.sleep(1)
+                else:
+                    return jsonify({"success": False, "error": f"Fallo de auto-reconexión: {reason}"}), 401
+            else:
+                return jsonify({"success": False, "error": "Sesión desconectada. Falta email/password para reconectar."}), 401
 
         api_pair = api_pair_name(pair)
         candles = iq_instance.get_candles(api_pair, 60, 30, time.time())
@@ -197,7 +211,21 @@ def trade():
         if amount <= 0:
             return jsonify({"success": False, "error": "Monto inválido"}), 400
         if not iq_instance or not iq_instance.check_connect():
-            return jsonify({"success": False, "error": "Sesión desconectada"}), 401
+            email = data.get("email")
+            password = data.get("password")
+            if email and password:
+                print(f"[WORKER {WORKER_PORT}] Sesión caída en trade. Auto-reconectando...")
+                iq_instance = IQ_Option(email, password)
+                check_conn, reason = iq_instance.connect()
+                if check_conn:
+                    acc_type = data.get("accountType", "demo")
+                    target_mode = "PRACTICE" if acc_type.lower() == "demo" else "REAL"
+                    iq_instance.change_balance(target_mode)
+                    time.sleep(1)
+                else:
+                    return jsonify({"success": False, "error": f"Fallo de auto-reconexión: {reason}"}), 401
+            else:
+                return jsonify({"success": False, "error": "Sesión desconectada. Falta email/password para reconectar."}), 401
 
         api_pair = api_pair_name(pair)
         dir_lower = direction.lower()
