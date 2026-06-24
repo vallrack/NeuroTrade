@@ -282,7 +282,7 @@ def trade():
             executor_bin = concurrent.futures.ThreadPoolExecutor(max_workers=1)
             future_bin = executor_bin.submit(do_binary_buy)
             try:
-                check, order_id = future_bin.result(timeout=6)
+                check, order_id = future_bin.result(timeout=15)
             finally:
                 executor_bin.shutdown(wait=False, cancel_futures=True)
         except concurrent.futures.TimeoutError:
@@ -297,7 +297,7 @@ def trade():
                     executor_fall = concurrent.futures.ThreadPoolExecutor(max_workers=1)
                     future_fall = executor_fall.submit(do_fallback_buy)
                     try:
-                        check, order_id = future_fall.result(timeout=6)
+                        check, order_id = future_fall.result(timeout=15)
                     finally:
                         executor_fall.shutdown(wait=False, cancel_futures=True)
                 except Exception:
@@ -315,7 +315,7 @@ def trade():
                 executor_dig = concurrent.futures.ThreadPoolExecutor(max_workers=1)
                 future_dig = executor_dig.submit(do_buy)
                 try:
-                    check, order_id = future_dig.result(timeout=8)
+                    check, order_id = future_dig.result(timeout=15)
                 finally:
                     executor_dig.shutdown(wait=False, cancel_futures=True)
             except concurrent.futures.TimeoutError:
