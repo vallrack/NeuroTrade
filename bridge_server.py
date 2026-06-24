@@ -285,6 +285,7 @@ def trade():
         api_pair = api_pair_name(pair)
         dir_lower = direction.lower()
 
+        trade_mode = "binary"
         try:
             check, order_id = iq.buy(amount, api_pair, dir_lower, expiration)
         except KeyError as e:
@@ -294,14 +295,32 @@ def trade():
                 try:
                     check, order_id = iq.buy(amount, fallback_pair, dir_lower, expiration)
                 except KeyError:
-                    return jsonify({"success": False, "error": f"Par no disponible o cerrado: {pair}"}), 400
+                    check = False
             else:
-                return jsonify({"success": False, "error": f"Par no disponible o cerrado: {pair}"}), 400
+                check = False
+
+        # FALLBACK A OPCIONES DIGITALES (solo para pares regulares)
+        if not check and "OTC" not in pair:
+            try:
+                check, order_id = iq.buy_digital_spot(api_pair, amount, dir_lower, expiration)
+                if check:
+                    trade_mode = "digital"
+            except Exception:
+                pass
 
         if not check:
-            return jsonify({"success": False, "error": "Orden rechazada por IQ Option"}), 400
+            reason = order_id if isinstance(order_id, str) else "Orden rechazada por IQ Option (Mercado Binario y Digital bloqueado o pago al 0%)"
+            return jsonify({"success": False, "error": reason}), 400
 
-        profit = iq.check_win_v3(order_id)
+        try:
+            if trade_mode == "binary":
+                profit = iq.check_win_v3(order_id)
+            else:
+                raw_profit = iq.check_win_digital_v2(order_id)
+                profit = float(raw_profit) if raw_profit is not None else 0.0
+        except Exception:
+            profit = 0.0
+
         status = "win" if profit > 0 else ("loss" if profit < 0 else "tie")
 
         return jsonify({

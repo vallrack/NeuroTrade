@@ -40,6 +40,8 @@ interface BotEngineContextValue {
   liveWins: number;
   liveLosses: number;
   sessionStartBalance: number | null;
+  // ─ Historial de operaciones (para campana) ─
+  recentTrades: any[];
 }
 
 const BotEngineContext = createContext<BotEngineContextValue | null>(null);
@@ -125,7 +127,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   const currentAccountType = brokerConfig?.accountType || 'demo';
 
   const tradesQuery = user && firestore
-    ? query(collection(firestore, 'users', user.uid, 'trades'), orderBy('timestamp', 'desc'), limit(5))
+    ? query(collection(firestore, 'users', user.uid, 'trades'), orderBy('timestamp', 'desc'), limit(20))
     : null;
   const { data: recentTradesRaw } = useCollection(tradesQuery);
   const recentTrades = recentTradesRaw?.filter((t: any) => t.accountType === currentAccountType) || [];
@@ -530,6 +532,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
       activePairs: uiPairs.length > 0 ? uiPairs : (params?.pairs ?? ['EURUSD-OTC']),
       marketStatus,
       liveBalance, liveProfit, liveWins, liveLosses, sessionStartBalance,
+      recentTrades,
     }}>
       {children}
     </BotEngineContext.Provider>
