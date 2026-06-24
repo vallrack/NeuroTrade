@@ -24,38 +24,45 @@ export function EquityChart() {
   useEffect(() => {
     if (!firestore || !user) return;
 
-    // Consultamos el rendimiento específico del usuario y del tipo de cuenta
+    // Consultamos los últimos 50 trades
     const q = query(
-      collection(firestore, 'users', user.uid, `rendimiento_${accountType}`), 
-      orderBy('date', 'asc'), 
-      limit(30)
+      collection(firestore, 'users', user.uid, 'trades'), 
+      orderBy('timestamp', 'desc'), 
+      limit(50)
     );
     
     const unsub = onSnapshot(
       q, 
       (snapshot) => {
-        let records = snapshot.docs.map(docSnapshot => {
-          const docData = docSnapshot.data();
-          return {
-            date: new Date(docData.date).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }),
-            equity: docData.equity
-          };
-        });
+        // Filtrar localmente por accountType para no requerir un índice compuesto
+        const allTrades = snapshot.docs.map(d => d.data());
+        const filtered = allTrades.filter(t => t.accountType === accountType);
         
-        // Si el historial está vacío (cuenta nueva), mostrar al menos el balance actual como punto de partida
-        if (records.length === 0 && tradingStats?.balance !== undefined) {
-            records = [
-              { date: 'Inicio', equity: tradingStats.balance },
-              { date: 'Actual', equity: tradingStats.balance }
-            ];
-        } else if (records.length === 1) {
-            records.push({ date: 'Actual', equity: records[0].equity });
+        // Están en orden descendente (el más reciente primero)
+        let currentBalance = tradingStats?.balance || 0;
+        
+        const records = [];
+        
+        // Construimos la curva hacia atrás
+        for (let i = 0; i < filtered.length; i++) {
+          const t = filtered[i];
+          records.unshift({
+            date: new Date(t.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+            equity: currentBalance
+          });
+          currentBalance -= (t.profit || 0);
         }
+        
+        // Agregar el punto de inicio
+        records.unshift({
+          date: 'Inicio',
+          equity: currentBalance
+        });
         
         setData(records);
       },
       (serverError) => {
-        console.warn("Esperando datos de rendimiento...");
+        console.warn("Esperando datos de trades...");
       }
     );
     return () => unsub();

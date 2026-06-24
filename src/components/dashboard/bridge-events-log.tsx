@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Activity, Wifi, WifiOff, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { bridgeAnalyze } from '@/lib/bridge';
+import { useBotEngine } from '@/components/dashboard/bot-engine-provider';
 
 interface BridgeEvent {
   id: string;
@@ -28,78 +28,16 @@ function EventIcon({ type }: { type: BridgeEvent['type'] }) {
 
 export function BridgeEventsLog() {
   const [mounted, setMounted] = useState(false);
-  const { user } = useUser();
-  const firestore = useFirestore();
-  const [events, setEvents] = useState<BridgeEvent[]>([]);
-  const [connected, setConnected] = useState<boolean | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const lastFetchTime = useRef(0);
-  const consecutiveFailures = useRef(0);
+
+  const { logs: engineLogs, bridgeOnline } = useBotEngine();
+
+  // Filtramos logs ruidosos para mostrar solo eventos clave en este panel
+  const events = useMemo(() => {
+    return engineLogs.filter(l => l.source !== 'BRIDGE');
+  }, [engineLogs]);
 
   useEffect(() => { setMounted(true); }, []);
-
-  const brokerRef = useMemo(() => {
-    if (!mounted || !user || !firestore) return null;
-    return doc(firestore, 'users', user.uid, 'config', 'broker');
-  }, [mounted, user, firestore]);
-  const { data: brokerConfig } = useDoc(brokerRef);
-
-  const botParamsRef = useMemo(() => {
-    if (!mounted || !user || !firestore) return null;
-    return doc(firestore, 'users', user.uid, 'config', 'bot_params');
-  }, [mounted, user, firestore]);
-  const { data: botParams } = useDoc(botParamsRef);
-
-  const addEvent = (ev: Omit<BridgeEvent, 'id' | 'timestamp'>) =>
-    setEvents(prev => [{
-      ...ev,
-      id: Math.random().toString(36).slice(2),
-      timestamp: Date.now(),
-    }, ...prev].slice(0, 150)); // máximo 150 eventos en memoria
-
-  useEffect(() => {
-    if (!mounted || !user) return;
-
-    const handleIncomingData = (e: any) => {
-      const json = e.detail;
-      const pair = json.pair || 'EURUSD-OTC';
-
-      if (json.success) {
-        setConnected(true);
-        consecutiveFailures.current = 0;
-        
-        // Solo generar evento si tenemos datos reales de análisis (con rsi o direction definidos)
-        const direction = json.direction;
-        const hasDirection = direction === 'CALL' || direction === 'PUT' || direction === 'NONE';
-        const rsiStr = json.rsi != null ? json.rsi.toFixed(1) : '?';
-        
-        if (hasDirection) {
-          addEvent({
-            type: 'success',
-            source: 'BRIDGE',
-            message: `✔ ${pair} — RSI ${rsiStr} — señal ${direction}`,
-          });
-        } else if (json.logs && json.logs.length > 0) {
-          // Evento de log del sistema (no de análisis) — mostrar solo si tiene texto útil
-          const logMsg = json.logs[0]?.message;
-          if (logMsg) {
-            addEvent({ type: 'info', source: 'SISTEMA', message: logMsg });
-          }
-        }
-      } else {
-        consecutiveFailures.current++;
-        if (consecutiveFailures.current >= 3) {
-          setConnected(false);
-          addEvent({ type: 'error', source: 'RED', message: `✘ Respuesta de error del Bridge.` });
-        }
-      }
-    };
-
-    addEvent({ type: 'info', source: 'V7', message: 'Sintonizando flujo de datos maestro...' });
-
-    window.addEventListener('nt_bridge_data', handleIncomingData);
-    return () => window.removeEventListener('nt_bridge_data', handleIncomingData);
-  }, [mounted, user]);
 
   // Auto-scroll al evento más reciente (arriba)
   useEffect(() => {
@@ -119,9 +57,9 @@ export function BridgeEventsLog() {
         </CardTitle>
         <div className="flex items-center gap-2">
           <span className="text-[9px] text-slate-500 font-mono">{events.length} eventos</span>
-          {connected === true  && <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] px-2 py-0 font-mono gap-1"><Wifi className="w-2.5 h-2.5" />ONLINE</Badge>}
-          {connected === false && <Badge className="bg-red-500/10 text-red-400 border-red-500/20 text-[9px] px-2 py-0 font-mono gap-1"><WifiOff className="w-2.5 h-2.5" />OFFLINE</Badge>}
-          {connected === null  && <Badge className="bg-slate-800 text-slate-500 text-[9px] px-2 py-0 font-mono">SYNC...</Badge>}
+          {bridgeOnline === true  && <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] px-2 py-0 font-mono gap-1"><Wifi className="w-2.5 h-2.5" />ONLINE</Badge>}
+          {bridgeOnline === false && <Badge className="bg-red-500/10 text-red-400 border-red-500/20 text-[9px] px-2 py-0 font-mono gap-1"><WifiOff className="w-2.5 h-2.5" />OFFLINE</Badge>}
+          {bridgeOnline === null  && <Badge className="bg-slate-800 text-slate-500 text-[9px] px-2 py-0 font-mono">SYNC...</Badge>}
         </div>
       </CardHeader>
 
