@@ -4,7 +4,7 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn bridge_server:app
+    startCommand: gunicorn bridge_server:app --timeout 120
     healthCheckPath: /health
     envVars:
       - key: BRIDGE_TOKEN

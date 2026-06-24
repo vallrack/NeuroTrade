@@ -206,6 +206,9 @@ export async function bridgePost<T>(path: string, body: Record<string, unknown>)
   const bridgeUrl = getBridgeUrl();
   let res: Response;
   try {
+    // Para operaciones de trading, esperar hasta 2 minutos (por si la expiración es de 1 min)
+    const timeoutMs = path === '/trade' ? 120_000 : 40_000;
+    
     res = await fetchWithTimeout(
       `${bridgeUrl}${path}`,
       {
@@ -214,12 +217,13 @@ export async function bridgePost<T>(path: string, body: Record<string, unknown>)
         body: JSON.stringify(body),
         mode: 'cors',
       },
-      40_000,
+      timeoutMs,
     );
   } catch (netErr: any) {
     // Distinguir entre error de red/CORS y timeout
     if (netErr?.name === 'AbortError') {
-      throw new Error(`TIMEOUT — El puente no respondió en 40s. URL: ${bridgeUrl}${path}`);
+      const timeoutSecs = path === '/trade' ? 120 : 40;
+      throw new Error(`TIMEOUT — El puente no respondió en ${timeoutSecs}s. URL: ${bridgeUrl}${path}`);
     }
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
     const isHttp = bridgeUrl.startsWith('http://');
