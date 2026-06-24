@@ -229,7 +229,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
         const res = await fetchWithTimeout(`${getBridgeUrl()}/health`, {
           cache: 'no-store',
           headers: { 'Cache-Control': 'no-cache' }
-        }, 5000);
+        }, 15000);
         setBridgeOnline(res.ok);
       } catch {
         setBridgeOnline(false);

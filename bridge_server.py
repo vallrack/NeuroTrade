@@ -301,12 +301,25 @@ def trade():
 
         # FALLBACK A OPCIONES DIGITALES (solo para pares regulares)
         if not check and "OTC" not in pair:
+            print(f"[{session_key}] Ejecutando {dir_lower} {amount} en {api_pair} (Digital)")
+            
+            import concurrent.futures
+            
+            def do_buy():
+                return iq.buy_digital_spot(api_pair, amount, dir_lower, expiration)
+
             try:
-                check, order_id = iq.buy_digital_spot(api_pair, amount, dir_lower, expiration)
-                if check:
-                    trade_mode = "digital"
-            except Exception:
-                pass
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(do_buy)
+                    # Si en 10 segundos IQ Option no responde, abortamos para no bloquear Gunicorn
+                    check, order_id = future.result(timeout=10)
+            except concurrent.futures.TimeoutError:
+                return jsonify({"success": False, "error": "IQ Option no respondió a la compra (Timeout). Mercado cerrado o error de broker."}), 400
+            except Exception as e:
+                return jsonify({"success": False, "error": f"Excepción en compra: {str(e)}"}), 500
+            
+            if check:
+                trade_mode = "digital"
 
         if not check:
             reason = order_id if isinstance(order_id, str) else "Orden rechazada por IQ Option (Mercado Binario y Digital bloqueado o pago al 0%)"
