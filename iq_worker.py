@@ -199,10 +199,12 @@ def analyze():
             else:
                 return jsonify({"success": False, "error": "Sesión desconectada. Falta email/password para reconectar."}), 401
 
-        # Sincronizar siempre el tipo de cuenta con la UI
+        # Sincronizar siempre el tipo de cuenta con la UI solo si es necesario
         acc_type = data.get("accountType", "demo")
         target_mode = "PRACTICE" if acc_type.lower() == "demo" else "REAL"
-        iq_instance.change_balance(target_mode)
+        if getattr(iq_instance, '_current_target_mode', None) != target_mode:
+            iq_instance.change_balance(target_mode)
+            iq_instance._current_target_mode = target_mode
 
         api_pair = api_pair_name(pair)
         candles = iq_instance.get_candles(api_pair, 60, 30, time.time())
@@ -261,10 +263,12 @@ def trade():
             else:
                 return jsonify({"success": False, "error": "Sesión desconectada. Falta email/password para reconectar."}), 401
 
-        # Sincronizar siempre el tipo de cuenta con la UI
+        # Sincronizar siempre el tipo de cuenta con la UI solo si es necesario
         acc_type = data.get("accountType", "demo")
         target_mode = "PRACTICE" if acc_type.lower() == "demo" else "REAL"
-        iq_instance.change_balance(target_mode)
+        if getattr(iq_instance, '_current_target_mode', None) != target_mode:
+            iq_instance.change_balance(target_mode)
+            iq_instance._current_target_mode = target_mode
 
         api_pair = api_pair_name(pair)
         dir_lower = direction.lower()
