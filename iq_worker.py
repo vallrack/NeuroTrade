@@ -236,9 +236,12 @@ def trade():
         try:
             def do_binary_buy():
                 return iq_instance.buy(amount, api_pair, dir_lower, expiration)
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(do_binary_buy)
-                check, order_id = future.result(timeout=6)
+            executor_bin = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+            future_bin = executor_bin.submit(do_binary_buy)
+            try:
+                check, order_id = future_bin.result(timeout=6)
+            finally:
+                executor_bin.shutdown(wait=False, cancel_futures=True)
         except concurrent.futures.TimeoutError:
             print(f"[WORKER {WORKER_PORT}] Timeout en Binarias para {api_pair}. Mercado cerrado o sin respuesta.")
             check = False
@@ -248,9 +251,12 @@ def trade():
                 try:
                     def do_fallback_buy():
                         return iq_instance.buy(amount, fallback_pair, dir_lower, expiration)
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                        future = executor.submit(do_fallback_buy)
-                        check, order_id = future.result(timeout=6)
+                    executor_fall = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+                    future_fall = executor_fall.submit(do_fallback_buy)
+                    try:
+                        check, order_id = future_fall.result(timeout=6)
+                    finally:
+                        executor_fall.shutdown(wait=False, cancel_futures=True)
                 except Exception:
                     check = False
             else:
@@ -262,9 +268,12 @@ def trade():
             def do_buy():
                 return iq_instance.buy_digital_spot(api_pair, amount, dir_lower, expiration)
             try:
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(do_buy)
-                    check, order_id = future.result(timeout=8)
+                executor_dig = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+                future_dig = executor_dig.submit(do_buy)
+                try:
+                    check, order_id = future_dig.result(timeout=8)
+                finally:
+                    executor_dig.shutdown(wait=False, cancel_futures=True)
             except concurrent.futures.TimeoutError:
                 return jsonify({"success": False, "error": "IQ Option no respondió a la compra (Timeout). Mercado cerrado."}), 400
             except Exception as e:
