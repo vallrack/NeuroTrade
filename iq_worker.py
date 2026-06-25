@@ -206,15 +206,14 @@ def analyze():
             iq_instance.change_balance(target_mode)
             iq_instance._current_target_mode = target_mode
 
-        api_pair = api_pair_name(pair)
-        candles = iq_instance.get_candles(api_pair, 60, 30, time.time())
+        # Pedir las velas una sola vez con el par exacto (ej. EURUSD-OTC)
+        candles = iq_instance.get_candles(pair, 60, 30, time.time())
+        
+        # Si falla, probar con la versión sin guion
         if not candles:
-            candles = iq_instance.get_candles(pair, 60, 30, time.time())
-        if not candles and "-OTC" in pair:
-            base_pair = pair.replace("-OTC", "")
-            candles = iq_instance.get_candles(base_pair, 60, 30, time.time())
-            if not candles:
-                candles = iq_instance.get_candles(base_pair.replace("-", ""), 60, 30, time.time())
+            api_pair = api_pair_name(pair)
+            if api_pair != pair:
+                candles = iq_instance.get_candles(api_pair, 60, 30, time.time())
 
         direction, probability, rsi = analyze_market(candles, min_rsi, max_rsi)
         is_manipulated, manipulation_reason = detect_manipulation(candles, vol_multiplier, max_body_percent)
