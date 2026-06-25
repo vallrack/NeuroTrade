@@ -468,7 +468,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
               } catch (e) {
                 // Ignore network errors during polling
               }
-              checks++;
+              pollRetries++;
             }
             if (pending) {
               addLog('SISTEMA', `Timeout esperando resultado de orden ${tradeResult.orderId}.`, 'error');
