@@ -340,11 +340,13 @@ def trade():
         def wait_for_trade(iq_obj, oid, t_mode):
             try:
                 if t_mode == "binary":
-                    profit = iq_obj.check_win_v3(oid)
+                    # check_win_v2 retorna el profit neto directo como float (payout - deposit)
+                    profit = iq_obj.check_win_v2(oid, 5)
                 else:
-                    raw_profit = iq_obj.check_win_digital_v2(oid)
-                    profit = float(raw_profit) if raw_profit is not None else 0.0
-            except Exception:
+                    # check_win_digital retorna el profit neto directo como float
+                    profit = iq_obj.check_win_digital(oid, 5)
+            except Exception as e:
+                print(f"[WORKER] Error al consultar resultado de {t_mode} {oid}: {e}")
                 profit = 0.0
             status = "win" if profit > 0 else ("loss" if profit < 0 else "tie")
             trade_results[str(oid)] = {
