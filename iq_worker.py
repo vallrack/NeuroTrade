@@ -183,7 +183,7 @@ def analyze():
         data = request.json or {}
         email = data.get("email")
         password = data.get("password")
-        pair = api_pair_name(data.get("pair", "EURUSD-OTC"))
+        pair = normalize_pair(data.get("pair", "EURUSD-OTC"))
         min_rsi = float(data.get("minRsi", DEFAULT_MIN_RSI))
         max_rsi = float(data.get("maxRsi", DEFAULT_MAX_RSI))
         vol_multiplier = float(data.get("manipulationVolMultiplier", 1.5))

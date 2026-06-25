@@ -84,7 +84,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [analyses, setAnalyses] = useState<Record<string, AnalysisState>>({});
-  const [isRunning, setIsRunning] = useState(true);
+  const [isRunning, setIsRunning] = useState(false);
   const [bridgeOnline, setBridgeOnline] = useState<boolean | null>(null);
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
 
@@ -98,7 +98,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   // Refs
   const loopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isExecutingRef = useRef(false);
-  const isRunningRef = useRef(true);
+  const isRunningRef = useRef(false);
   const bridgeOnlineRef = useRef<boolean | null>(null);
   const brokerConfigRef = useRef<any>(null);
   const botParamsRef2 = useRef<any>(null);
