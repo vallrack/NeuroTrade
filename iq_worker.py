@@ -8,6 +8,10 @@ from flask import Flask, request, jsonify
 from iqoptionapi.stable_api import IQ_Option
 import json
 import iqoptionapi.stable_api
+import iqoptionapi.global_value as global_value
+import websocket
+import ssl
+
 _original_loads = json.loads
 def _robust_loads(s, *args, **kwargs):
     try:
@@ -15,6 +19,15 @@ def _robust_loads(s, *args, **kwargs):
     except Exception:
         return {"code": "parse_error", "message": str(s)}
 iqoptionapi.stable_api.json.loads = _robust_loads
+
+# ─── PARCHE WEBSOCKET PARA PYINSTALLER (Evita fallo de certificados SSL) ───
+_original_run_forever = websocket.WebSocketApp.run_forever
+def _patched_run_forever(self, *args, **kwargs):
+    if 'sslopt' not in kwargs:
+        kwargs['sslopt'] = {"cert_reqs": ssl.CERT_NONE}
+    return _original_run_forever(self, *args, **kwargs)
+websocket.WebSocketApp.run_forever = _patched_run_forever
+# ──────────────────────────────────────────────────────────────────────────
 
 # Deshabilitar logs molestos de werkzeug
 log = logging.getLogger('werkzeug')
@@ -214,10 +227,23 @@ def connect():
 
         print(f"[WORKER {WORKER_PORT}] Conectando {email}...")
         iq_instance = IQ_Option(email, password)
+        
+        # ── WATCHDOG: Si el connect() se queda colgado esperando el websocket ──
+        def _watchdog_connect():
+            time.sleep(15)
+            if not iq_instance.check_connect() or global_value.balance_id is None:
+                print(f"[WORKER {WORKER_PORT}] Timeout de conexión interno. Forzando destrabe...")
+                global_value.balance_id = "TIMEOUT" # destraba el while loop en stable_api.py
+                
+        threading.Thread(target=_watchdog_connect, daemon=True).start()
+        # ───────────────────────────────────────────────────────────────────────
+        
         check, reason = iq_instance.connect()
-        if not check:
+        
+        if not check or global_value.balance_id == "TIMEOUT":
             iq_instance = None
-            return jsonify({"success": False, "error": f"Error de conexión: {reason}"}), 401
+            err_msg = reason if check is False else "IQ Option no respondió (WebSocket Timeout)"
+            return jsonify({"success": False, "error": f"Error de conexión: {err_msg}"}), 401
 
         try:
             iq_instance.update_ACTIVES_OPCODE()
@@ -255,9 +281,18 @@ def analyze():
             if email and password:
                 print(f"[WORKER {WORKER_PORT}] Sesión caída en analyze. Auto-reconectando...")
                 iq_instance = IQ_Option(email, password)
+                
+                # WATCHDOG
+                def _watchdog_connect_analyze():
+                    time.sleep(15)
+                    if not iq_instance.check_connect() or global_value.balance_id is None:
+                        global_value.balance_id = "TIMEOUT"
+                threading.Thread(target=_watchdog_connect_analyze, daemon=True).start()
+                
                 check, reason = iq_instance.connect()
-                if not check:
-                    return jsonify({"success": False, "error": f"Auto-reconexión fallida: {reason}"}), 401
+                if not check or global_value.balance_id == "TIMEOUT":
+                    err_msg = reason if check is False else "WebSocket Timeout"
+                    return jsonify({"success": False, "error": f"Auto-reconexión fallida: {err_msg}"}), 401
                 try:
                     iq_instance.update_ACTIVES_OPCODE()
                 except Exception as e:
@@ -323,9 +358,18 @@ def trade():
             if email and password:
                 print(f"[WORKER {WORKER_PORT}] Sesión caída en trade. Auto-reconectando...")
                 iq_instance = IQ_Option(email, password)
+                
+                # WATCHDOG
+                def _watchdog_connect_trade():
+                    time.sleep(15)
+                    if not iq_instance.check_connect() or global_value.balance_id is None:
+                        global_value.balance_id = "TIMEOUT"
+                threading.Thread(target=_watchdog_connect_trade, daemon=True).start()
+                
                 check_conn, reason = iq_instance.connect()
-                if not check_conn:
-                    return jsonify({"success": False, "error": f"Fallo de auto-reconexión: {reason}"}), 401
+                if not check_conn or global_value.balance_id == "TIMEOUT":
+                    err_msg = reason if check_conn is False else "WebSocket Timeout"
+                    return jsonify({"success": False, "error": f"Fallo de auto-reconexión: {err_msg}"}), 401
                 try:
                     iq_instance.update_ACTIVES_OPCODE()
                 except Exception as e:
