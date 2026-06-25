@@ -296,6 +296,8 @@ export async function bridgeTrade(payload: {
 
 export async function bridgeTradeResult(payload: {
   orderId: string;
+  email: string;
+  accountType: string;
 }): Promise<{ success: boolean; result?: { status: string; profit: number; win: boolean }; error?: string }> {
   return bridgePost('/trade_result', payload);
 }

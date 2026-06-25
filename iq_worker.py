@@ -161,39 +161,10 @@ _open_lock = threading.Lock()
 OPEN_CACHE_TTL = 30  # segundos
 
 def get_open_map(force=False):
-    """Devuelve el mapa get_all_open_time() de IQ, cacheado 30s. None si falla."""
-    global _open_cache
-    now = time.time()
-    with _open_lock:
-        cached = _open_cache
-    if not force and cached["ts"] > 0 and now - cached["ts"] < OPEN_CACHE_TTL:
-        return cached["data"]
-    try:
-        data = run_with_timeout(iq_instance.get_all_open_time, 12)
-    except Exception as e:
-        print(f"[WORKER {WORKER_PORT}] No se pudo obtener get_all_open_time: {e}")
-        # Cachear el fallo también para no esperar 12s en cada intento
-        with _open_lock:
-            _open_cache = {"data": None, "ts": now}
-        return None
-    with _open_lock:
-        _open_cache = {"data": data, "ts": now}
-    return data
+    return None
 
 def asset_status(pair):
-    """Qué instrumentos (binary/turbo/digital) están abiertos para el par exacto.
-
-    Devuelve (status_dict, conocido). 'conocido' es False si IQ no respondió."""
-    data = get_open_map()
-    status = {"binary": False, "turbo": False, "digital": False}
-    if data is None:
-        return status, False
-    for inst in status:
-        try:
-            status[inst] = bool(data.get(inst, {}).get(pair, {}).get("open", False))
-        except Exception:
-            status[inst] = False
-    return status, True
+    return {"binary": False, "turbo": False, "digital": False}, False
 
 @app.route("/ping", methods=["GET"])
 def ping():
@@ -413,60 +384,54 @@ def trade():
             print(f"[WORKER {WORKER_PORT}] Advertencia al intentar sincronizar lista de activos: {e}")
             pass
 
-        if not use_binary and not use_digital:
-            if open_known:
-                # IQ confirmó que el activo está cerrado: respuesta inmediata y clara.
-                return jsonify({
-                    "success": False,
-                    "error": f"Mercado cerrado para {pair}. Ningún instrumento (binaria/digital) está abierto ahora."
-                }), 400
-            # Estado desconocido (IQ no respondió): intentamos binaria y si falla digital
-            print(f"[WORKER {WORKER_PORT}] Estado de apertura desconocido para {pair}. Intento binaria y luego digital.")
-            use_binary = True
-            use_digital = True
 
-        # ── 1) Binaria / Turbo (la llamada buy() tiene timeout interno de 5s) ──
-        if use_binary:
-            try:
-                print(f"[WORKER {WORKER_PORT}] Intentando compra binaria/turbo en {trade_pair}...")
-                # Verificación explícita para evitar KeyError antes de llamar a buy()
-                actives_ahora = iq_instance.get_all_ACTIVES_OPCODE()
-                if trade_pair not in actives_ahora:
-                    raise KeyError(trade_pair)
+        # Smart Fallback para elegir binaria vs digital
+        print(f"[WORKER {WORKER_PORT}] Smart Fallback para {pair}. Evaluando binaria o digital...")
+        if "-OTC" in pair:
+            try_first, try_second = "digital", "binary"
+        else:
+            try_first, try_second = "binary", "digital"
 
-                check, order_id = run_with_timeout(
-                    lambda: iq_instance.buy(amount, trade_pair, dir_lower, expiration), 10
-                )
-            except concurrent.futures.TimeoutError:
-                print(f"[WORKER {WORKER_PORT}] Timeout en binaria para {trade_pair}.")
-                check = False
-            except KeyError as ke:
-                print(f"[WORKER {WORKER_PORT}] El activo {ke} no existe en OP_code.ACTIVES (Binaria). Probando digital...")
-                check = False
-            except Exception as e:
-                print(f"[WORKER {WORKER_PORT}] Excepción en binaria {trade_pair}: {e}")
-                import traceback
-                traceback.print_exc()
-                check = False
+        def attempt_trade(mode):
+            nonlocal check, order_id, trade_mode
+            if mode == "binary":
+                try:
+                    print(f"[WORKER {WORKER_PORT}] Intentando compra binaria/turbo en {trade_pair}...")
+                    actives_ahora = iq_instance.get_all_ACTIVES_OPCODE()
+                    if trade_pair not in actives_ahora:
+                        raise KeyError(trade_pair)
 
-        if not check and use_digital:
-            print(f"[WORKER {WORKER_PORT}] Ejecutando {dir_lower} {amount} en {trade_pair} (Digital)")
-            try:
-                check, order_id = run_with_timeout(
-                    lambda: iq_instance.buy_digital_spot(trade_pair, amount, dir_lower, expiration), 12
-                )
-                if check:
-                    trade_mode = "digital"
-            except concurrent.futures.TimeoutError:
-                return jsonify({"success": False, "error": "IQ Option no respondió a la compra digital (timeout)."}), 400
-            except KeyError as ke:
-                print(f"[WORKER {WORKER_PORT}] El activo {ke} no existe en Digital. Operación abortada.")
-                check = False
-                order_id = f"Activo no disponible en Digital: {ke}"
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                return jsonify({"success": False, "error": f"Excepción en compra digital: {str(e)}"}), 500
+                    ok, oid = run_with_timeout(
+                        lambda: iq_instance.buy(amount, trade_pair, dir_lower, expiration), 10
+                    )
+                    if ok:
+                        check, order_id, trade_mode = True, oid, "binary"
+                except concurrent.futures.TimeoutError:
+                    print(f"[WORKER {WORKER_PORT}] Timeout en binaria para {trade_pair}.")
+                except KeyError as ke:
+                    print(f"[WORKER {WORKER_PORT}] El activo {ke} no existe en OP_code.ACTIVES (Binaria).")
+                except Exception as e:
+                    print(f"[WORKER {WORKER_PORT}] Excepción en binaria {trade_pair}: {e}")
+
+            elif mode == "digital":
+                print(f"[WORKER {WORKER_PORT}] Ejecutando {dir_lower} {amount} en {trade_pair} (Digital)")
+                try:
+                    ok, oid = run_with_timeout(
+                        lambda: iq_instance.buy_digital_spot(trade_pair, amount, dir_lower, expiration), 12
+                    )
+                    if ok:
+                        check, order_id, trade_mode = True, oid, "digital"
+                except concurrent.futures.TimeoutError:
+                    print(f"[WORKER {WORKER_PORT}] Timeout en digital para {trade_pair}.")
+                except KeyError as ke:
+                    print(f"[WORKER {WORKER_PORT}] El activo {ke} no existe en Digital. Operación abortada.")
+                except Exception as e:
+                    print(f"[WORKER {WORKER_PORT}] Excepción en digital {trade_pair}: {e}")
+
+        attempt_trade(try_first)
+        if not check and try_second:
+            print(f"[WORKER {WORKER_PORT}] Falló {try_first}, intentando {try_second}...")
+            attempt_trade(try_second)
 
         if not check:
             reason = order_id if isinstance(order_id, str) else f"Orden rechazada por IQ Option en {pair}"
@@ -480,21 +445,27 @@ def trade():
             while time.time() < deadline and profit is None:
                 try:
                     if t_mode == "digital":
-                        closed, win = iq_obj.check_win_digital_v2(oid)
-                        if closed:
-                            profit = float(win)
+                        # Leer directamente del diccionario asíncrono para evitar el while True bloqueante
+                        order = iq_obj.get_async_order(oid)
+                        if order and order.get("position-changed", {}) != {}:
+                            msg = order["position-changed"].get("msg")
+                            if msg and msg.get("status") == "closed":
+                                if msg.get("close_reason") == "expired":
+                                    profit = float(msg.get("close_profit", 0)) - float(msg.get("invest", 0))
+                                elif msg.get("close_reason") == "default":
+                                    profit = float(msg.get("pnl_realized", 0))
                     else:
-                        check, data = iq_obj.get_betinfo(oid)
-                        if check and data:
-                            try:
-                                d = data["result"]["data"][str(oid)]
-                                win = d.get("win", "")
-                                if win != "":
-                                    profit_val = d.get("profit", 0)
-                                    deposit_val = d.get("deposit", 0)
-                                    profit = float(profit_val) - float(deposit_val)
-                            except (KeyError, TypeError, ValueError) as e:
-                                print(f"[WORKER {WORKER_PORT}] Error parseando betinfo {oid}: {e}")
+                        # Para binaria, revisar el diccionario asíncrono v4
+                        x = iq_obj.api.socket_option_closed.get(oid)
+                        if x is not None:
+                            msg = x.get('msg', {})
+                            win = msg.get('win')
+                            if win == 'equal':
+                                profit = 0.0
+                            elif win == 'loose':
+                                profit = float(msg.get('sum', 0)) * -1.0
+                            elif win == 'win':
+                                profit = float(msg.get('win_amount', 0)) - float(msg.get('sum', 0))
                 except Exception as e:
                     print(f"[WORKER] Reintentando resultado de {t_mode} {oid}: {e}")
                 if profit is None:

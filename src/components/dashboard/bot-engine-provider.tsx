@@ -452,11 +452,15 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           if (tradeResult.success && tradeResult.status === 'PENDING' && tradeResult.orderId) {
             addLog('SISTEMA', `Orden ${tradeResult.orderId} enviada. Esperando cierre (no bloqueante)...`, 'info');
             let pending = true;
-            let checks = 0;
-            while (pending && checks < 60) { // Max 5 min
-              await new Promise(r => setTimeout(r, 5000));
+            let pollRetries = 0;
+            while (pending && pollRetries < 25) { // Esperar máx 2.5 min
+              await new Promise(r => setTimeout(r, 6000));
               try {
-                const pollRes = await bridgeTradeResult({ orderId: tradeResult.orderId });
+                const pollRes = await bridgeTradeResult({ 
+                  orderId: tradeResult.orderId,
+                  email: config.email,
+                  accountType: accountType
+                });
                 if (pollRes.success && pollRes.result && pollRes.result.status === 'COMPLETED') {
                   tradeResult = { ...tradeResult, ...pollRes.result };
                   pending = false;
