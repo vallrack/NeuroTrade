@@ -1,5 +1,7 @@
 import os
+import sys
 import time
+import threading
 import subprocess
 import requests
 from flask import Flask, request, jsonify
@@ -19,9 +21,12 @@ CORS(
 BRIDGE_TOKEN = os.environ.get("BRIDGE_TOKEN", "neurotrade-secret-2024")
 
 # Diccionario de workers. session_key -> {"port": int, "process": Popen}
+# Bajo gunicorn con varios hilos, este estado es compartido: lo protegemos
+# con un lock para evitar condiciones de carrera al crear workers / asignar puertos.
 workers = {}
 BASE_PORT = 50000
 next_port = BASE_PORT
+_worker_lock = threading.Lock()
 
 def verify_token():
     if request.method == "OPTIONS":
@@ -57,19 +62,19 @@ def health():
     if request.method == "OPTIONS":
         return jsonify({"ok": True}), 200
     
-    # Limpiar workers muertos
-    dead_keys = []
-    for k, v in list(workers.items()):
-        if v["process"].poll() is not None:
-            dead_keys.append(k)
-    for k in dead_keys:
-        del workers[k]
+    # Limpiar workers muertos (bajo lock para no chocar con creaciones concurrentes)
+    with _worker_lock:
+        dead_keys = [k for k, v in workers.items() if v["process"].poll() is not None]
+        for k in dead_keys:
+            del workers[k]
+        active = len(workers)
+        accounts = list(workers.keys())
 
     return jsonify({
         "status": "ONLINE",
         "version": "V7 (Multi-User)",
-        "workers_active": len(workers),
-        "accounts": list(workers.keys()),
+        "workers_active": active,
+        "accounts": accounts,
         "server_time": time.time(),
         "token_configured": bool(BRIDGE_TOKEN),
     })
@@ -77,40 +82,49 @@ def health():
 def get_or_create_worker(email, acc_type):
     global next_port
     session_key = f"{email}_{acc_type.lower()}"
-    
-    if session_key in workers:
-        worker = workers[session_key]
-        if worker["process"].poll() is None:
+
+    # ── Sección crítica: comprobar/crear el worker y asignar puerto ──
+    # Solo se mantiene el lock para mutar el estado compartido. El Popen es
+    # instantáneo (no espera el arranque), así que el lock se libera rápido y
+    # no bloquea la creación de workers de OTROS usuarios.
+    with _worker_lock:
+        worker = workers.get(session_key)
+        if worker and worker["process"].poll() is None:
             return worker["port"], None
-        else:
+        if worker:  # proceso muerto: limpiar antes de recrear
             del workers[session_key]
-            
-    port = next_port
-    next_port += 1
-    
-    # Spawn worker
-    print(f"[MANAGER] Creando Worker para {session_key} en el puerto {port}...")
-    try:
-        proc = subprocess.Popen(["python", "iq_worker.py", str(port)])
+
+        port = next_port
+        next_port += 1
+
+        print(f"[MANAGER] Creando Worker para {session_key} en el puerto {port}...")
+        try:
+            proc = subprocess.Popen([sys.executable, "iq_worker.py", str(port)])
+        except Exception as e:
+            return None, f"Fallo al crear subproceso: {str(e)}"
         workers[session_key] = {"port": port, "process": proc}
-        
-        # Wait for worker to boot up (max 10 seconds)
-        for _ in range(20):
-            time.sleep(0.5)
+
+    # ── Esperar el arranque FUERA del lock (otros usuarios siguen siendo atendidos) ──
+    for _ in range(20):  # máx ~10s
+        time.sleep(0.5)
+        try:
+            res = requests.get(f"http://127.0.0.1:{port}/ping", timeout=1)
+            if res.status_code == 200:
+                print(f"[MANAGER] Worker en puerto {port} está READY.")
+                return port, None
+        except requests.exceptions.RequestException:
+            pass
+
+    # No arrancó: limpiar bajo lock (solo si sigue siendo el mismo proceso)
+    with _worker_lock:
+        current = workers.get(session_key)
+        if current and current["port"] == port:
             try:
-                res = requests.get(f"http://127.0.0.1:{port}/ping", timeout=1)
-                if res.status_code == 200:
-                    print(f"[MANAGER] Worker en puerto {port} está READY.")
-                    return port, None
-            except requests.exceptions.RequestException:
+                current["process"].kill()
+            except Exception:
                 pass
-                
-        # If it didn't boot
-        proc.kill()
-        del workers[session_key]
-        return None, "El Worker de IQ Option tardó demasiado en iniciar."
-    except Exception as e:
-        return None, f"Fallo al crear subproceso: {str(e)}"
+            del workers[session_key]
+    return None, "El Worker de IQ Option tardó demasiado en iniciar."
 
 def proxy_to_worker(path):
     data = request.json or {}
@@ -125,9 +139,15 @@ def proxy_to_worker(path):
         return jsonify({"success": False, "error": err}), 500
         
     try:
-        # /trade y /analyze pueden tardar (verificación de apertura + compra);
-        # damos margen amplio para no cortar antes de que el worker responda.
-        timeout = 90 if path in ("/trade", "/analyze") else 30
+        # /trade puede tardar (verificación de apertura + compra). /analyze debe
+        # cerrarse antes de los 40s que espera el frontend, para liberar el hilo
+        # del manager en vez de retenerlo en vano.
+        if path == "/trade":
+            timeout = 90
+        elif path == "/analyze":
+            timeout = 35
+        else:
+            timeout = 30
         res = requests.post(f"http://127.0.0.1:{port}{path}", json=data, timeout=timeout)
         return jsonify(res.json()), res.status_code
     except requests.exceptions.RequestException as e:
@@ -158,16 +178,16 @@ def disconnect():
         return jsonify({"success": False, "error": "Email requerido"}), 400
         
     session_key = f"{email}_{acc_type.lower()}"
-    if session_key in workers:
+    with _worker_lock:
+        worker = workers.pop(session_key, None)
+    if worker:
         print(f"[MANAGER] Destruyendo Worker para {session_key}...")
-        worker = workers[session_key]
         try:
             worker["process"].terminate()
         except Exception:
             pass
-        del workers[session_key]
         return jsonify({"success": True, "message": "Sesión cerrada y Worker destruido."})
-        
+
     return jsonify({"success": True, "message": "No había sesión activa"})
 
 if __name__ == "__main__":

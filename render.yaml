@@ -4,7 +4,12 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn bridge_server:app --timeout 120
+    # 1 worker (el estado de workers/puertos vive en memoria compartida) + varios
+    # hilos para atender a múltiples usuarios en paralelo. Sin --threads, gunicorn
+    # usa 1 solo hilo y serializa TODAS las peticiones (causa del "puente offline"
+    # cuando hay 2+ usuarios). --timeout amplio porque /trade y /analyze hacen
+    # proxy a subprocesos que pueden tardar.
+    startCommand: gunicorn bridge_server:app --workers 1 --threads 16 --timeout 120
     healthCheckPath: /health
     envVars:
       - key: BRIDGE_TOKEN

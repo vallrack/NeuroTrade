@@ -27,7 +27,7 @@ WORKER_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 5001
 iq_instance = None
 trade_results = {}
 last_activity = time.time()
-INACTIVITY_TIMEOUT = 3600  # 1 hora sin actividad = auto apagado del worker
+INACTIVITY_TIMEOUT = 1200  # 20 min sin actividad = auto apagado (libera RAM para otros usuarios)
 
 # Umbrales
 DEFAULT_MIN_RSI = 38
