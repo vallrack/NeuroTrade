@@ -166,12 +166,15 @@ def get_open_map(force=False):
     now = time.time()
     with _open_lock:
         cached = _open_cache
-    if not force and cached["data"] is not None and now - cached["ts"] < OPEN_CACHE_TTL:
+    if not force and cached["ts"] > 0 and now - cached["ts"] < OPEN_CACHE_TTL:
         return cached["data"]
     try:
         data = run_with_timeout(iq_instance.get_all_open_time, 12)
     except Exception as e:
         print(f"[WORKER {WORKER_PORT}] No se pudo obtener get_all_open_time: {e}")
+        # Cachear el fallo también para no esperar 12s en cada intento
+        with _open_lock:
+            _open_cache = {"data": None, "ts": now}
         return None
     with _open_lock:
         _open_cache = {"data": data, "ts": now}
@@ -417,10 +420,10 @@ def trade():
                     "success": False,
                     "error": f"Mercado cerrado para {pair}. Ningún instrumento (binaria/digital) está abierto ahora."
                 }), 400
-            # Estado desconocido (IQ no respondió): intentamos SOLO binaria,
-            # que tiene un timeout interno de 5s y nunca gira para siempre.
-            print(f"[WORKER {WORKER_PORT}] Estado de apertura desconocido para {pair}. Intento binaria acotada.")
+            # Estado desconocido (IQ no respondió): intentamos binaria y si falla digital
+            print(f"[WORKER {WORKER_PORT}] Estado de apertura desconocido para {pair}. Intento binaria y luego digital.")
             use_binary = True
+            use_digital = True
 
         # ── 1) Binaria / Turbo (la llamada buy() tiene timeout interno de 5s) ──
         if use_binary:
