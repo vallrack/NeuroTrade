@@ -111,10 +111,12 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   const sessionProfitRef = useRef<number>(0);
   const sessionWinsRef = useRef<number>(0);
   const sessionLossesRef = useRef<number>(0);
+  const liveBalanceRef = useRef<number | null>(null);
 
   // Sincronizar refs
   useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
   useEffect(() => { bridgeOnlineRef.current = bridgeOnline; }, [bridgeOnline]);
+  useEffect(() => { liveBalanceRef.current = liveBalance; }, [liveBalance]);
   useEffect(() => { userRef.current = user; }, [user]);
   useEffect(() => { firestoreRef.current = firestore; }, [firestore]);
   useEffect(() => { rtdbRef2.current = rtdb; }, [rtdb]);
@@ -239,7 +241,15 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     };
     checkBridge();
     interval = setInterval(checkBridge, 10000);
-    return () => clearInterval(interval);
+
+    // Re-chequeo inmediato bajo demanda (guardado de Riesgo, botón "Bypass DB")
+    const onForceSync = () => { checkBridge(); };
+    window.addEventListener('nt_force_sync', onForceSync);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('nt_force_sync', onForceSync);
+    };
   }, []);
 
   const calculateAmount = useCallback((balance: number): number => {
@@ -407,7 +417,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
             continue;
           }
 
-          const currentBalance = liveBalance ?? (balance || 0);
+          const currentBalance = liveBalanceRef.current ?? (balance || 0);
           const amount = calculateAmount(currentBalance);
 
           if (!runGuardianCheck(currentBalance, amount, params)) continue;
@@ -544,7 +554,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     }
 
     loopTimeoutRef.current = setTimeout(engineLoop, 2000);
-  }, [addLog, calculateAmount, runGuardianCheck, syncBalance, liveBalance]);
+  }, [addLog, calculateAmount, runGuardianCheck, syncBalance]);
 
   // Arrancar el loop UNA SOLA VEZ
   useEffect(() => {

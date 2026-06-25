@@ -8,11 +8,13 @@ import { Crown, ShieldCheck, Database, Users, Settings2, RefreshCw, Trash2, Zap,
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import { useBotEngine } from '@/components/dashboard/bot-engine-provider';
 
 export function SuperAdminTools() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const { clearLogs } = useBotEngine();
   const [loading, setLoading] = useState(false);
   const [seeding, setSeeding] = useState(false);
 
@@ -66,8 +68,7 @@ export function SuperAdminTools() {
   };
 
   const handleClearLogs = async () => {
-    // Emitir evento para que la consola se limpie
-    window.dispatchEvent(new CustomEvent('nt_clear_logs'));
+    clearLogs();
     toast({
       title: "SISTEMA DEPURADO",
       description: "La memoria residual de logs ha sido purgada exitosamente.",

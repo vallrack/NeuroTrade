@@ -7,18 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { useBotEngine } from '@/components/dashboard/bot-engine-provider';
 import { cn } from '@/lib/utils';
 
-const LS_LAST_SEEN_COUNT = 'nt_notif_last_count';
-
-function getLastSeenCount(): number {
-  if (typeof window === 'undefined') return 0;
-  return Number(localStorage.getItem(LS_LAST_SEEN_COUNT) || '0');
-}
-
-function saveSeenCount(n: number) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(LS_LAST_SEEN_COUNT, String(n));
-}
-
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);

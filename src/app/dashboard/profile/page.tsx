@@ -10,14 +10,37 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 import { UserCircle, Crown, ShieldCheck, Mail, Calendar, Activity, Zap, Award } from 'lucide-react';
 
 export default function ProfilePage() {
   const { user } = useUser();
   const firestore = useFirestore();
+  const { toast } = useToast();
 
   const profileRef = useMemo(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: profile } = useDoc(profileRef);
+
+  const isLifetime = profile?.subscriptionPlan === 'lifetime';
+  const isSuperAdmin = profile?.role === 'super-admin';
+  const planLabel = isSuperAdmin
+    ? 'ACCESO MAESTRO'
+    : isLifetime
+      ? 'ACCESO VITALICIO'
+      : (profile?.subscriptionPlan ? String(profile.subscriptionPlan).toUpperCase() : 'FULL QUANTUM ACCESS');
+  const renewalLabel = isSuperAdmin || isLifetime
+    ? 'Sin vencimiento'
+    : profile?.subscriptionEnd
+      ? `Vence: ${new Date(profile.subscriptionEnd).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}`
+      : 'Sin suscripción activa';
+  const accountVerified = !profile?.disabled;
+
+  const handleManageBilling = () => {
+    toast({
+      title: 'GESTIÓN DE SUSCRIPCIÓN',
+      description: 'Tu plan lo administra el equipo NeuroTrade. Escribe a soporte para renovar o cambiar de plan.',
+    });
+  };
 
   return (
     <>
@@ -72,7 +95,7 @@ export default function ProfilePage() {
               <div className="flex flex-col items-center p-4 bg-background/50 rounded-xl border border-white/5">
                 <ShieldCheck className="h-6 w-6 text-green-500 mb-2" />
                 <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Estado Cuenta</span>
-                <span className="text-lg font-headline font-bold">VERIFICADA</span>
+                <span className="text-lg font-headline font-bold">{accountVerified ? 'VERIFICADA' : 'PENDIENTE'}</span>
               </div>
               <div className="flex flex-col items-center p-4 bg-background/50 rounded-xl border border-white/5">
                 <Activity className="h-6 w-6 text-secondary mb-2" />
@@ -114,10 +137,10 @@ export default function ProfilePage() {
               <CardContent className="space-y-4">
                 <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl text-center space-y-2">
                   <span className="text-[10px] uppercase font-bold text-primary tracking-widest">Plan Actual</span>
-                  <h4 className="text-2xl font-headline font-bold text-primary">FULL QUANTUM ACCESS</h4>
-                  <p className="text-[10px] text-muted-foreground italic">Renovación automática: 20 de Julio, 2026</p>
+                  <h4 className="text-2xl font-headline font-bold text-primary">{planLabel}</h4>
+                  <p className="text-[10px] text-muted-foreground italic">{renewalLabel}</p>
                 </div>
-                <Button variant="outline" className="w-full border-primary/20 hover:bg-primary/10 text-xs h-10">GESTIONAR FACTURACIÓN</Button>
+                <Button onClick={handleManageBilling} variant="outline" className="w-full border-primary/20 hover:bg-primary/10 text-xs h-10">GESTIONAR FACTURACIÓN</Button>
               </CardContent>
             </Card>
           </div>

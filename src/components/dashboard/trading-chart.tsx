@@ -102,6 +102,12 @@ export function TradingChart({ data, pair }: TradingChartProps) {
 
   const isDataLoadedRef = useRef(false);
 
+  // Al cambiar de par, forzar recarga completa (setData) en vez de update(),
+  // para no mezclar velas de pares distintos.
+  useEffect(() => {
+    isDataLoadedRef.current = false;
+  }, [pair]);
+
   useEffect(() => {
     if (seriesRef.current && volumeSeriesRef.current && data && data.length > 0) {
       // Velas
