@@ -6,6 +6,15 @@ import concurrent.futures
 import logging
 from flask import Flask, request, jsonify
 from iqoptionapi.stable_api import IQ_Option
+import json
+import iqoptionapi.stable_api
+_original_loads = json.loads
+def _robust_loads(s, *args, **kwargs):
+    try:
+        return _original_loads(s, *args, **kwargs)
+    except Exception:
+        return {"code": "parse_error", "message": str(s)}
+iqoptionapi.stable_api.json.loads = _robust_loads
 
 # Deshabilitar logs molestos de werkzeug
 log = logging.getLogger('werkzeug')
