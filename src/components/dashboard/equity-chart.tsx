@@ -58,6 +58,14 @@ export function EquityChart() {
           date: 'Inicio',
           equity: currentBalance
         });
+
+        // Recharts requiere al menos 2 puntos para dibujar la línea
+        if (records.length === 1) {
+          records.push({
+            date: 'Actual',
+            equity: currentBalance
+          });
+        }
         
         setData(records);
       },
