@@ -464,6 +464,9 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
                 if (pollRes.success && pollRes.result && pollRes.result.status === 'COMPLETED') {
                   tradeResult = { ...tradeResult, ...pollRes.result };
                   pending = false;
+                } else if (pollRes.success === false) {
+                  tradeResult = { success: false, error: pollRes.error || 'Unknown error from bridge' };
+                  pending = false;
                 }
               } catch (e) {
                 // Ignore network errors during polling
