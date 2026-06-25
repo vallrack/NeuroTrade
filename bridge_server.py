@@ -7,8 +7,11 @@ import requests
 
 # ─── INTERCEPCIÓN PARA PYINSTALLER (EJECUCIÓN DE WORKERS) ─────────────
 if getattr(sys, 'frozen', False) and len(sys.argv) >= 3 and sys.argv[1] == "--worker":
+    port_str = sys.argv[2]
+    # Modificar sys.argv para que iq_worker lo parsee correctamente (espera el puerto en argv[1])
+    sys.argv = [sys.executable, port_str]
     import iq_worker
-    port = int(sys.argv[2])
+    port = int(port_str)
     print(f"[WORKER {port}] Iniciando desde ejecutable empacado...")
     iq_worker.WORKER_PORT = port
     iq_worker.app.run(host="127.0.0.1", port=port, debug=False, threaded=True)
@@ -164,6 +167,8 @@ def proxy_to_worker(path):
             timeout = 90
         elif path == "/analyze":
             timeout = 38
+        elif path == "/connect":
+            timeout = 60
         else:
             timeout = 30
         res = requests.post(f"http://127.0.0.1:{port}{path}", json=data, timeout=timeout)
