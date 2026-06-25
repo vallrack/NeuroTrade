@@ -96,14 +96,13 @@ export function isForexMarketOpen(): boolean {
   const now = new Date();
   const utcDay = now.getUTCDay();    // 0=Dom, 1=Lun...6=Sáb
   const utcHour = now.getUTCHours();
-  const utcMinute = now.getUTCMinutes();
 
-  // Sábado: cerrado todo el día
-  if (utcDay === 6) return false;
-  // Domingo: cerrado todo el día (IQ Option abre lunes)
-  if (utcDay === 0) return false;
-  // Viernes: cierra a las 21:00 UTC
-  if (utcDay === 5 && (utcHour > 20 || (utcHour === 20 && utcMinute >= 59))) return false;
+  // Sábado y Domingo: cerrado todo el día
+  if (utcDay === 6 || utcDay === 0) return false;
+
+  // Lunes a Viernes: las opciones de pares regulares cierran por la noche (de 20:00 a 05:00 UTC del día siguiente)
+  // Durante ese horario solo operan los pares OTC
+  if (utcHour < 5 || utcHour >= 20) return false;
 
   return true;
 }
