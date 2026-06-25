@@ -92,10 +92,14 @@ def get_or_create_worker(email, acc_type):
         if worker and worker["process"].poll() is None:
             return worker["port"], None
         if worker:  # proceso muerto: limpiar antes de recrear
+            freed_port = worker["port"]
             del workers[session_key]
+        else:
+            freed_port = None
 
-        port = next_port
-        next_port += 1
+        port = freed_port if freed_port else next_port
+        if not freed_port:
+            next_port += 1
 
         print(f"[MANAGER] Creando Worker para {session_key} en el puerto {port}...")
         try:
@@ -145,7 +149,7 @@ def proxy_to_worker(path):
         if path == "/trade":
             timeout = 90
         elif path == "/analyze":
-            timeout = 35
+            timeout = 38
         else:
             timeout = 30
         res = requests.post(f"http://127.0.0.1:{port}{path}", json=data, timeout=timeout)

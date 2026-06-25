@@ -47,12 +47,9 @@ def check_inactivity():
 threading.Thread(target=check_inactivity, daemon=True).start()
 
 def normalize_pair(pair):
-    if not pair:
-        return "EURUSD-OTC"
-    return pair.upper().strip()
-
-def api_pair_name(pair):
-    return normalize_pair(pair).replace("-", "")
+    """Asegura que el par tenga guion si es OTC, que es el estándar de IQ Option para buscar en sus mapas (ej. EURUSD-OTC)"""
+    pair = pair.upper().replace("-OTC", "OTC").replace("OTC", "-OTC")
+    return pair
 
 def calculate_rsi(closes, period=14):
     if len(closes) < period + 1:
@@ -135,18 +132,16 @@ def build_logs(pair, direction, rsi, probability):
     ]
 
 # ─── Ejecución acotada (evita que un hilo de la librería gire para siempre) ───
+_global_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+
 def run_with_timeout(fn, timeout_s):
     """Ejecuta fn() con un límite de tiempo. Lanza TimeoutError si lo supera.
-
-    Nota: el hilo subyacente puede seguir vivo si la librería usa busy-wait,
-    por eso SOLO se debe usar para llamadas que sabemos que terminarán
-    (mercado abierto verificado previamente)."""
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(fn)
+    (Utiliza un executor global para evitar acumulación de hilos en Render)"""
+    future = _global_executor.submit(fn)
     try:
         return future.result(timeout=timeout_s)
-    finally:
-        executor.shutdown(wait=False, cancel_futures=True)
+    except concurrent.futures.TimeoutError:
+        raise
 
 # ─── Estado de apertura de mercado (cacheado para no spamear a IQ) ────────────
 _open_cache = {"data": None, "ts": 0.0}
@@ -206,7 +201,9 @@ def connect():
         target_mode = "PRACTICE" if acc_type.lower() == "demo" else "REAL"
 
         if iq_instance and iq_instance.check_connect():
-            iq_instance.change_balance(target_mode)
+            if getattr(iq_instance, '_current_target_mode', None) != target_mode:
+                iq_instance.change_balance(target_mode)
+                iq_instance._current_target_mode = target_mode
             return jsonify({
                 "success": True,
                 "balance": iq_instance.get_balance(),
@@ -221,6 +218,11 @@ def connect():
         if not check:
             iq_instance = None
             return jsonify({"success": False, "error": f"Error de conexión: {reason}"}), 401
+
+        try:
+            iq_instance.update_ACTIVES_OPCODE()
+        except Exception as e:
+            print(f"[WORKER {WORKER_PORT}] Error al actualizar ACTIVES_OPCODE: {e}")
 
         iq_instance.change_balance(target_mode)
         time.sleep(2)
@@ -256,6 +258,10 @@ def analyze():
                 check, reason = iq_instance.connect()
                 if not check:
                     return jsonify({"success": False, "error": f"Auto-reconexión fallida: {reason}"}), 401
+                try:
+                    iq_instance.update_ACTIVES_OPCODE()
+                except Exception as e:
+                    print(f"[WORKER {WORKER_PORT}] Error al actualizar ACTIVES_OPCODE: {e}")
             else:
                 return jsonify({"success": False, "error": "Sesión desconectada. Falta email/password para reconectar."}), 401
 
@@ -269,11 +275,12 @@ def analyze():
         # Pedir las velas una sola vez con el par exacto (ej. EURUSD-OTC)
         candles = iq_instance.get_candles(pair, 60, 30, time.time())
         
-        # Si falla, probar con la versión sin guion
+        # Si falla con timeframe corto, probar con uno un poco mayor (ej. 5 min)
         if not candles:
-            api_pair = api_pair_name(pair)
-            if api_pair != pair:
-                candles = iq_instance.get_candles(api_pair, 60, 30, time.time())
+            candles = iq_instance.get_candles(pair, 300, 10, time.time())
+            
+        if not candles:
+            return jsonify({"success": False, "error": f"No hay velas disponibles para {pair}"}), 400
 
         direction, probability, rsi = analyze_market(candles, min_rsi, max_rsi)
         is_manipulated, manipulation_reason = detect_manipulation(candles, vol_multiplier, max_body_percent)
@@ -319,6 +326,10 @@ def trade():
                 check_conn, reason = iq_instance.connect()
                 if not check_conn:
                     return jsonify({"success": False, "error": f"Fallo de auto-reconexión: {reason}"}), 401
+                try:
+                    iq_instance.update_ACTIVES_OPCODE()
+                except Exception as e:
+                    print(f"[WORKER {WORKER_PORT}] Error al actualizar ACTIVES_OPCODE: {e}")
             else:
                 return jsonify({"success": False, "error": "Sesión desconectada. Falta email/password para reconectar."}), 401
 
@@ -343,6 +354,19 @@ def trade():
         use_binary = status["turbo"] or status["binary"]
         use_digital = status["digital"]
 
+        trade_pair = pair
+        try:
+            actives_map = iq_instance.get_all_ACTIVES_OPCODE()
+            if pair not in actives_map:
+                print(f"[WORKER {WORKER_PORT}] Activo {pair} no encontrado en memoria. Forzando actualización de la lista de activos del broker...")
+                iq_instance.update_ACTIVES_OPCODE()
+                actives_map = iq_instance.get_all_ACTIVES_OPCODE()
+                if pair in actives_map:
+                    trade_pair = pair
+        except Exception as e:
+            print(f"[WORKER {WORKER_PORT}] Advertencia al intentar sincronizar lista de activos: {e}")
+            pass
+
         if not use_binary and not use_digital:
             if open_known:
                 # IQ confirmó que el activo está cerrado: respuesta inmediata y clara.
@@ -358,31 +382,44 @@ def trade():
         # ── 1) Binaria / Turbo (la llamada buy() tiene timeout interno de 5s) ──
         if use_binary:
             try:
+                print(f"[WORKER {WORKER_PORT}] Intentando compra binaria/turbo en {trade_pair}...")
+                # Verificación explícita para evitar KeyError antes de llamar a buy()
+                actives_ahora = iq_instance.get_all_ACTIVES_OPCODE()
+                if trade_pair not in actives_ahora:
+                    raise KeyError(trade_pair)
+
                 check, order_id = run_with_timeout(
-                    lambda: iq_instance.buy(amount, pair, dir_lower, expiration), 10
+                    lambda: iq_instance.buy(amount, trade_pair, dir_lower, expiration), 10
                 )
             except concurrent.futures.TimeoutError:
-                print(f"[WORKER {WORKER_PORT}] Timeout en binaria para {pair}.")
+                print(f"[WORKER {WORKER_PORT}] Timeout en binaria para {trade_pair}.")
                 check = False
-            except KeyError:
-                print(f"[WORKER {WORKER_PORT}] {pair} no existe como binaria. Probando digital.")
+            except KeyError as ke:
+                print(f"[WORKER {WORKER_PORT}] El activo {ke} no existe en OP_code.ACTIVES (Binaria). Probando digital...")
                 check = False
             except Exception as e:
-                print(f"[WORKER {WORKER_PORT}] Excepción en binaria {pair}: {e}")
+                print(f"[WORKER {WORKER_PORT}] Excepción en binaria {trade_pair}: {e}")
+                import traceback
+                traceback.print_exc()
                 check = False
 
-        # ── 2) Digital (SOLO si IQ confirmó que está abierta) ──
         if not check and use_digital:
-            print(f"[WORKER {WORKER_PORT}] Ejecutando {dir_lower} {amount} en {pair} (Digital)")
+            print(f"[WORKER {WORKER_PORT}] Ejecutando {dir_lower} {amount} en {trade_pair} (Digital)")
             try:
                 check, order_id = run_with_timeout(
-                    lambda: iq_instance.buy_digital_spot(pair, amount, dir_lower, expiration), 12
+                    lambda: iq_instance.buy_digital_spot(trade_pair, amount, dir_lower, expiration), 12
                 )
                 if check:
                     trade_mode = "digital"
             except concurrent.futures.TimeoutError:
                 return jsonify({"success": False, "error": "IQ Option no respondió a la compra digital (timeout)."}), 400
+            except KeyError as ke:
+                print(f"[WORKER {WORKER_PORT}] El activo {ke} no existe en Digital. Operación abortada.")
+                check = False
+                order_id = f"Activo no disponible en Digital: {ke}"
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 return jsonify({"success": False, "error": f"Excepción en compra digital: {str(e)}"}), 500
 
         if not check:
@@ -402,10 +439,16 @@ def trade():
                             profit = float(win)
                     else:
                         check, data = iq_obj.get_betinfo(oid)
-                        win = data["result"]["data"][str(oid)]["win"]
-                        if check and win != "":
-                            d = data["result"]["data"][str(oid)]
-                            profit = float(d["profit"]) - float(d["deposit"])
+                        if check and data:
+                            try:
+                                d = data["result"]["data"][str(oid)]
+                                win = d.get("win", "")
+                                if win != "":
+                                    profit_val = d.get("profit", 0)
+                                    deposit_val = d.get("deposit", 0)
+                                    profit = float(profit_val) - float(deposit_val)
+                            except (KeyError, TypeError, ValueError) as e:
+                                print(f"[WORKER {WORKER_PORT}] Error parseando betinfo {oid}: {e}")
                 except Exception as e:
                     print(f"[WORKER] Reintentando resultado de {t_mode} {oid}: {e}")
                 if profit is None:
@@ -437,6 +480,8 @@ def trade():
             "balance": iq_instance.get_balance()
         })
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/trade_result", methods=["POST"])
