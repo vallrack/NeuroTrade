@@ -4,6 +4,17 @@ import time
 import threading
 import subprocess
 import requests
+
+# ─── INTERCEPCIÓN PARA PYINSTALLER (EJECUCIÓN DE WORKERS) ─────────────
+if getattr(sys, 'frozen', False) and len(sys.argv) >= 3 and sys.argv[1] == "--worker":
+    import iq_worker
+    port = int(sys.argv[2])
+    print(f"[WORKER {port}] Iniciando desde ejecutable empacado...")
+    iq_worker.WORKER_PORT = port
+    iq_worker.app.run(host="127.0.0.1", port=port, debug=False, threaded=True)
+    sys.exit(0)
+# ──────────────────────────────────────────────────────────────────────
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
@@ -103,7 +114,10 @@ def get_or_create_worker(email, acc_type):
 
         print(f"[MANAGER] Creando Worker para {session_key} en el puerto {port}...")
         try:
-            proc = subprocess.Popen([sys.executable, "iq_worker.py", str(port)])
+            if getattr(sys, 'frozen', False):
+                proc = subprocess.Popen([sys.executable, "--worker", str(port)])
+            else:
+                proc = subprocess.Popen([sys.executable, "iq_worker.py", str(port)])
         except Exception as e:
             return None, f"Fallo al crear subproceso: {str(e)}"
         workers[session_key] = {"port": port, "process": proc}
