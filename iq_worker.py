@@ -134,6 +134,57 @@ def build_logs(pair, direction, rsi, probability):
         {"timestamp": ts, "message": f"[IA MAIN] Consenso maestro V7: {direction}"},
     ]
 
+# ─── Ejecución acotada (evita que un hilo de la librería gire para siempre) ───
+def run_with_timeout(fn, timeout_s):
+    """Ejecuta fn() con un límite de tiempo. Lanza TimeoutError si lo supera.
+
+    Nota: el hilo subyacente puede seguir vivo si la librería usa busy-wait,
+    por eso SOLO se debe usar para llamadas que sabemos que terminarán
+    (mercado abierto verificado previamente)."""
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(fn)
+    try:
+        return future.result(timeout=timeout_s)
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+# ─── Estado de apertura de mercado (cacheado para no spamear a IQ) ────────────
+_open_cache = {"data": None, "ts": 0.0}
+_open_lock = threading.Lock()
+OPEN_CACHE_TTL = 30  # segundos
+
+def get_open_map(force=False):
+    """Devuelve el mapa get_all_open_time() de IQ, cacheado 30s. None si falla."""
+    global _open_cache
+    now = time.time()
+    with _open_lock:
+        cached = _open_cache
+    if not force and cached["data"] is not None and now - cached["ts"] < OPEN_CACHE_TTL:
+        return cached["data"]
+    try:
+        data = run_with_timeout(iq_instance.get_all_open_time, 12)
+    except Exception as e:
+        print(f"[WORKER {WORKER_PORT}] No se pudo obtener get_all_open_time: {e}")
+        return None
+    with _open_lock:
+        _open_cache = {"data": data, "ts": now}
+    return data
+
+def asset_status(pair):
+    """Qué instrumentos (binary/turbo/digital) están abiertos para el par exacto.
+
+    Devuelve (status_dict, conocido). 'conocido' es False si IQ no respondió."""
+    data = get_open_map()
+    status = {"binary": False, "turbo": False, "digital": False}
+    if data is None:
+        return status, False
+    for inst in status:
+        try:
+            status[inst] = bool(data.get(inst, {}).get(pair, {}).get("open", False))
+        except Exception:
+            status[inst] = False
+    return status, True
+
 @app.route("/ping", methods=["GET"])
 def ping():
     update_activity()
@@ -278,85 +329,106 @@ def trade():
             iq_instance.change_balance(target_mode)
             iq_instance._current_target_mode = target_mode
 
-        api_pair = api_pair_name(pair)
+        # 'pair' viene normalizado con guion (ej. EURUSD-OTC), que es el formato
+        # que usan tanto OP_code.ACTIVES como get_all_open_time().
         dir_lower = direction.lower()
         trade_mode = "binary"
         check = False
         order_id = None
 
-        try:
-            def do_binary_buy():
-                return iq_instance.buy(amount, api_pair, dir_lower, expiration)
-            executor_bin = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-            future_bin = executor_bin.submit(do_binary_buy)
+        # ── Verificar QUÉ instrumento está abierto ANTES de comprar ──
+        # Esto evita el bucle de espera activa infinito de buy_digital_spot()
+        # cuando el mercado está cerrado (causa principal del "congelamiento").
+        status, open_known = asset_status(pair)
+        use_binary = status["turbo"] or status["binary"]
+        use_digital = status["digital"]
+
+        if not use_binary and not use_digital:
+            if open_known:
+                # IQ confirmó que el activo está cerrado: respuesta inmediata y clara.
+                return jsonify({
+                    "success": False,
+                    "error": f"Mercado cerrado para {pair}. Ningún instrumento (binaria/digital) está abierto ahora."
+                }), 400
+            # Estado desconocido (IQ no respondió): intentamos SOLO binaria,
+            # que tiene un timeout interno de 5s y nunca gira para siempre.
+            print(f"[WORKER {WORKER_PORT}] Estado de apertura desconocido para {pair}. Intento binaria acotada.")
+            use_binary = True
+
+        # ── 1) Binaria / Turbo (la llamada buy() tiene timeout interno de 5s) ──
+        if use_binary:
             try:
-                check, order_id = future_bin.result(timeout=15)
-            finally:
-                executor_bin.shutdown(wait=False, cancel_futures=True)
-        except concurrent.futures.TimeoutError:
-            print(f"[WORKER {WORKER_PORT}] Timeout en Binarias para {api_pair}. Mercado cerrado o sin respuesta.")
-            check = False
-        except KeyError:
-            if "OTC" in api_pair and "-" not in api_pair:
-                fallback_pair = api_pair.replace("OTC", "-OTC")
-                try:
-                    def do_fallback_buy():
-                        return iq_instance.buy(amount, fallback_pair, dir_lower, expiration)
-                    executor_fall = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-                    future_fall = executor_fall.submit(do_fallback_buy)
-                    try:
-                        check, order_id = future_fall.result(timeout=15)
-                    finally:
-                        executor_fall.shutdown(wait=False, cancel_futures=True)
-                except Exception:
-                    check = False
-            else:
+                check, order_id = run_with_timeout(
+                    lambda: iq_instance.buy(amount, pair, dir_lower, expiration), 10
+                )
+            except concurrent.futures.TimeoutError:
+                print(f"[WORKER {WORKER_PORT}] Timeout en binaria para {pair}.")
+                check = False
+            except KeyError:
+                print(f"[WORKER {WORKER_PORT}] {pair} no existe como binaria. Probando digital.")
+                check = False
+            except Exception as e:
+                print(f"[WORKER {WORKER_PORT}] Excepción en binaria {pair}: {e}")
                 check = False
 
-        # FALLBACK A OPCIONES DIGITALES
-        if not check:
-            digital_pair = pair if "OTC" in pair else api_pair
-            print(f"[WORKER {WORKER_PORT}] Ejecutando {dir_lower} {amount} en {digital_pair} (Digital)")
-            def do_buy():
-                return iq_instance.buy_digital_spot(digital_pair, amount, dir_lower, expiration)
+        # ── 2) Digital (SOLO si IQ confirmó que está abierta) ──
+        if not check and use_digital:
+            print(f"[WORKER {WORKER_PORT}] Ejecutando {dir_lower} {amount} en {pair} (Digital)")
             try:
-                executor_dig = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-                future_dig = executor_dig.submit(do_buy)
-                try:
-                    check, order_id = future_dig.result(timeout=15)
-                finally:
-                    executor_dig.shutdown(wait=False, cancel_futures=True)
+                check, order_id = run_with_timeout(
+                    lambda: iq_instance.buy_digital_spot(pair, amount, dir_lower, expiration), 12
+                )
+                if check:
+                    trade_mode = "digital"
             except concurrent.futures.TimeoutError:
-                return jsonify({"success": False, "error": "IQ Option no respondió a la compra (Timeout). Mercado cerrado."}), 400
+                return jsonify({"success": False, "error": "IQ Option no respondió a la compra digital (timeout)."}), 400
             except Exception as e:
-                return jsonify({"success": False, "error": f"Excepción en compra: {str(e)}"}), 500
-            if check:
-                trade_mode = "digital"
+                return jsonify({"success": False, "error": f"Excepción en compra digital: {str(e)}"}), 500
 
         if not check:
-            reason = order_id if isinstance(order_id, str) else "Orden rechazada por IQ Option"
+            reason = order_id if isinstance(order_id, str) else f"Orden rechazada por IQ Option en {pair}"
             return jsonify({"success": False, "error": reason}), 400
 
-        def wait_for_trade(iq_obj, oid, t_mode):
-            try:
-                if t_mode == "binary":
-                    # check_win_v2 retorna el profit neto directo como float (payout - deposit)
-                    profit = iq_obj.check_win_v2(oid, 5)
-                else:
-                    # check_win_digital retorna el profit neto directo como float
-                    profit = iq_obj.check_win_digital(oid, 5)
-            except Exception as e:
-                print(f"[WORKER] Error al consultar resultado de {t_mode} {oid}: {e}")
+        def wait_for_trade(iq_obj, oid, t_mode, exp_minutes):
+            # La operación no puede cerrar antes de su expiración; damos un margen
+            # extra y un tope absoluto para no dejar el hilo colgado para siempre.
+            deadline = time.time() + (max(1, exp_minutes) * 60) + 120
+            profit = None
+            while time.time() < deadline and profit is None:
+                try:
+                    if t_mode == "digital":
+                        closed, win = iq_obj.check_win_digital_v2(oid)
+                        if closed:
+                            profit = float(win)
+                    else:
+                        check, data = iq_obj.get_betinfo(oid)
+                        win = data["result"]["data"][str(oid)]["win"]
+                        if check and win != "":
+                            d = data["result"]["data"][str(oid)]
+                            profit = float(d["profit"]) - float(d["deposit"])
+                except Exception as e:
+                    print(f"[WORKER] Reintentando resultado de {t_mode} {oid}: {e}")
+                if profit is None:
+                    time.sleep(3)
+
+            if profit is None:
+                # No se pudo determinar a tiempo: lo marcamos como cerrado neutro.
+                print(f"[WORKER] Sin resultado para {t_mode} {oid} dentro del límite.")
                 profit = 0.0
+
             status = "win" if profit > 0 else ("loss" if profit < 0 else "tie")
             trade_results[str(oid)] = {
                 "status": "COMPLETED",
-                "profit": profit,
+                "profit": round(profit, 2),
                 "win": status == "win"
             }
 
         trade_results[str(order_id)] = {"status": "PENDING"}
-        threading.Thread(target=wait_for_trade, args=(iq_instance, order_id, trade_mode)).start()
+        threading.Thread(
+            target=wait_for_trade,
+            args=(iq_instance, order_id, trade_mode, expiration),
+            daemon=True
+        ).start()
 
         return jsonify({
             "success": True,
@@ -381,4 +453,4 @@ def trade_result():
 
 if __name__ == "__main__":
     print(f"[WORKER {WORKER_PORT}] Iniciando en puerto {WORKER_PORT}")
-    app.run(host="127.0.0.1", port=WORKER_PORT, debug=False)
+    app.run(host="127.0.0.1", port=WORKER_PORT, debug=False, threaded=True)

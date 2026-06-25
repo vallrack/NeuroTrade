@@ -125,7 +125,10 @@ def proxy_to_worker(path):
         return jsonify({"success": False, "error": err}), 500
         
     try:
-        res = requests.post(f"http://127.0.0.1:{port}{path}", json=data, timeout=30)
+        # /trade y /analyze pueden tardar (verificación de apertura + compra);
+        # damos margen amplio para no cortar antes de que el worker responda.
+        timeout = 90 if path in ("/trade", "/analyze") else 30
+        res = requests.post(f"http://127.0.0.1:{port}{path}", json=data, timeout=timeout)
         return jsonify(res.json()), res.status_code
     except requests.exceptions.RequestException as e:
         return jsonify({"success": False, "error": f"Fallo de comunicación con Worker: {str(e)}"}), 502
