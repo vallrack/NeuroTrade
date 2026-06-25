@@ -23,8 +23,7 @@ iqoptionapi.stable_api.json.loads = _robust_loads
 # ─── PARCHE WEBSOCKET PARA PYINSTALLER (Evita fallo de certificados SSL) ───
 _original_run_forever = websocket.WebSocketApp.run_forever
 def _patched_run_forever(self, *args, **kwargs):
-    if 'sslopt' not in kwargs:
-        kwargs['sslopt'] = {"cert_reqs": ssl.CERT_NONE}
+    kwargs['sslopt'] = {"check_hostname": False, "cert_reqs": ssl.CERT_NONE}
     return _original_run_forever(self, *args, **kwargs)
 websocket.WebSocketApp.run_forever = _patched_run_forever
 # ──────────────────────────────────────────────────────────────────────────
