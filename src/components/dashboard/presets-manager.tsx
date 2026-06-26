@@ -62,6 +62,9 @@ export function PresetsManager() {
         maxLosses: 2,
         min_confidence_score: 70,
         strategy_mode: 'aggressive',
+        planPhase: 1,
+        planDay: 1,
+        dailyGoalPercent: 60,
         autopilot: {
           enabled: true,
           autoConnectBridge: true,
@@ -79,6 +82,9 @@ export function PresetsManager() {
         investmentPerTrade: accountType === 'real' ? 10000 : 50,
         min_confidence_score: 75,
         strategy_mode: 'balanced',
+        planPhase: 2,
+        planDay: 6,
+        dailyGoalPercent: 60,
         autopilot: {
           enabled: true,
           autoConnectBridge: true,
@@ -95,6 +101,9 @@ export function PresetsManager() {
         investmentPerTrade: accountType === 'real' ? 20000 : 200,
         min_confidence_score: 78,
         strategy_mode: 'conservative',
+        planPhase: 3,
+        planDay: 11,
+        dailyGoalPercent: 60,
         autopilot: {
           enabled: true,
           autoConnectBridge: true,

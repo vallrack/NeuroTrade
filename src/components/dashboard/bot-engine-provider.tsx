@@ -8,6 +8,7 @@ import { ref as rtdbRef, set as rtdbSet } from 'firebase/database';
 import { bridgeAnalyze, bridgeTrade, bridgeTradeResult, getBridgeUrl, fetchWithTimeout } from '@/lib/bridge';
 import { playInvestSound, playWinSound, playLossSound } from '@/lib/sounds';
 import { getActivePairs, getMarketStatus, type MarketStatus } from '@/lib/market-schedule';
+import { getPresetForDay } from '@/lib/plan-15-days';
 
 export type LogEntry = {
   id: string;
@@ -287,6 +288,28 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
 
+    // Verificar meta diaria (Plan 15 Días)
+    if (sessionStartBalanceRef.current !== null && sessionStartBalanceRef.current > 0 && params?.dailyGoalPercent) {
+      const profitPercent = ((balance - sessionStartBalanceRef.current) / sessionStartBalanceRef.current) * 100;
+      if (profitPercent >= params.dailyGoalPercent) {
+        addLog('SISTEMA', `✅ META DIARIA ALCANZADA — ganancia del ${profitPercent.toFixed(1)}% (meta: ${params.dailyGoalPercent}%)`, 'success');
+        
+        // Disparar evento para que se genere el reporte y se avance de día
+        window.dispatchEvent(new CustomEvent('nt_daily_goal_reached', {
+          detail: { 
+            balance, 
+            profit: balance - sessionStartBalanceRef.current,
+            profitPercent,
+            planPhase: params.planPhase,
+            planDay: params.planDay
+          }
+        }));
+        
+        setIsRunning(false); // Detener el bot automáticamente
+        return false;
+      }
+    }
+
     // Verificar stop-loss de sesión
     if (sessionStartBalanceRef.current !== null && sessionStartBalanceRef.current > 0) {
       const lossPercent = ((sessionStartBalanceRef.current - balance) / sessionStartBalanceRef.current) * 100;
@@ -562,6 +585,53 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
     loopTimeoutRef.current = setTimeout(engineLoop, 2000);
   }, [addLog, calculateAmount, runGuardianCheck, syncBalance]);
+
+  // Manejar meta diaria alcanzada (Plan 15 Días)
+  useEffect(() => {
+    const handleDailyGoal = async (e: any) => {
+      const { balance, profit, profitPercent, planPhase, planDay } = e.detail;
+      const currentUser = userRef.current;
+      const currentFirestore = firestoreRef.current;
+      const currentBroker = brokerConfigRef.current;
+      
+      if (!currentUser || !currentFirestore || !planDay) return;
+      
+      try {
+        // 1. Guardar informe de eficiencia
+        const reportRef = collection(currentFirestore, 'users', currentUser.uid, 'reports');
+        await addDoc(reportRef, {
+          date: new Date().toISOString(),
+          type: 'daily_goal',
+          planDay,
+          planPhase,
+          accountType: currentBroker?.accountType || 'demo',
+          profit,
+          profitPercent,
+          finalBalance: balance,
+          trades: recentTradesRef.current.length,
+          wins: sessionWinsRef.current,
+          losses: sessionLossesRef.current
+        });
+        
+        // 2. Avanzar al siguiente día
+        if (planDay < 15) {
+          const nextDay = planDay + 1;
+          const nextPreset = getPresetForDay(nextDay, (currentBroker?.accountType as any) || 'demo');
+          const botParamsRef = doc(currentFirestore, 'users', currentUser.uid, 'config', 'bot_params');
+          await setDoc(botParamsRef, { ...nextPreset, updatedAt: new Date().toISOString() }, { merge: true });
+          
+          addLog('SISTEMA', `🚀 Plan avanzado al Día ${nextDay} (Fase ${nextPreset.planPhase}) para la próxima sesión.`, 'success');
+        } else {
+          addLog('SISTEMA', `🏆 ¡PLAN DE 15 DÍAS COMPLETADO CON ÉXITO!`, 'success');
+        }
+      } catch (err) {
+        console.error("Error procesando meta diaria:", err);
+      }
+    };
+    
+    window.addEventListener('nt_daily_goal_reached', handleDailyGoal);
+    return () => window.removeEventListener('nt_daily_goal_reached', handleDailyGoal);
+  }, [addLog]);
 
   // Arrancar el loop UNA SOLA VEZ
   useEffect(() => {

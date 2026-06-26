@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { NotificationBell } from '@/components/dashboard/notification-bell';
+import { PlanTracker } from '@/components/dashboard/plan-tracker';
 
 export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
@@ -136,6 +137,7 @@ export default function DashboardPage() {
            </div>
         </div>
 
+        <PlanTracker />
         <StatsGrid />
         
         <div className="space-y-6 pb-20">
