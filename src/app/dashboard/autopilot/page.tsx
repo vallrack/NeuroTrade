@@ -218,6 +218,30 @@ export default function AutopilotPage() {
       .map(([hour, stats]) => ({ hour, profit: stats.profit }));
   }, [allReports]);
 
+  const bestPairs = useMemo(() => {
+    if (!allReports || allReports.length === 0) return [];
+    
+    const statsByPair: Record<string, { profit: number }> = {};
+    
+    allReports.forEach((r: any) => {
+      if (r.pairStats) {
+        Object.entries(r.pairStats).forEach(([pair, stats]: [string, any]) => {
+          if (!statsByPair[pair]) statsByPair[pair] = { profit: 0 };
+          statsByPair[pair].profit += stats.profit || 0;
+        });
+      }
+    });
+
+    return Object.entries(statsByPair)
+      .sort((a, b) => b[1].profit - a[1].profit) // Mayor a menor
+      .slice(0, 6) // Mostrar top 6
+      .map(([pair, stats]) => ({
+        pair,
+        profit: stats.profit,
+        status: stats.profit > 0 ? 'good' : stats.profit < 0 ? 'bad' : 'neutral'
+      }));
+  }, [allReports]);
+
   // Estado local
   const [autopilotEnabled, setAutopilotEnabled] = useState(false);
   const [autoConnectBridge, setAutoConnectBridge] = useState(true);
@@ -483,20 +507,48 @@ export default function AutopilotPage() {
                     {scheduleMode === 'custom' && (
                       <div className="space-y-4">
                         {/* Sugerencias Cuánticas */}
-                        {bestHours.length > 0 && (
-                          <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-3">
-                            <h4 className="text-xs font-bold text-primary flex items-center gap-2 uppercase tracking-widest">
-                              <Zap className="h-3 w-3" />
-                              Sugerencias de IA
-                            </h4>
-                            <p className="text-[10px] text-muted-foreground">Basado en tu historial, estas son las horas donde has sido más rentable. Te sugerimos programar tu Piloto Automático cerca de estos bloques:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {bestHours.map((bh, i) => (
-                                <Badge key={i} className="bg-primary/20 text-primary border-primary/30">
-                                  {bh.hour} (+${bh.profit.toFixed(2)})
-                                </Badge>
-                              ))}
-                            </div>
+                        {(bestHours.length > 0 || bestPairs.length > 0) && (
+                          <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-4">
+                            
+                            {bestHours.length > 0 && (
+                              <div className="space-y-3">
+                                <h4 className="text-xs font-bold text-primary flex items-center gap-2 uppercase tracking-widest">
+                                  <Zap className="h-3 w-3" /> Horas más rentables
+                                </h4>
+                                <div className="flex flex-wrap gap-2">
+                                  {bestHours.map((bh, i) => (
+                                    <Badge key={i} className="bg-primary/20 text-primary border-primary/30">
+                                      {bh.hour} (+${bh.profit.toFixed(2)})
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {bestPairs.length > 0 && (
+                              <div className="space-y-3 pt-2 border-t border-primary/10">
+                                <h4 className="text-xs font-bold text-primary flex items-center gap-2 uppercase tracking-widest">
+                                  <Globe className="h-3 w-3" /> Semáforo de Divisas
+                                </h4>
+                                <div className="flex flex-wrap gap-2">
+                                  {bestPairs.map((bp, i) => (
+                                    <Badge key={i} className={`flex items-center gap-1.5 ${
+                                      bp.status === 'good' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
+                                      bp.status === 'bad' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                                      'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                                    }`}>
+                                      <div className={`h-1.5 w-1.5 rounded-full ${
+                                        bp.status === 'good' ? 'bg-green-400' :
+                                        bp.status === 'bad' ? 'bg-red-400' :
+                                        'bg-amber-400'
+                                      }`} />
+                                      {bp.pair}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
                           </div>
                         )}
                         <div className="space-y-3">

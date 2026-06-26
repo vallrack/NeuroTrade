@@ -118,6 +118,42 @@ export function AuditReports() {
                   </div>
                 )}
               </CardContent>
+              
+              {/* Sección Semáforo de Divisas */}
+              {selectedReport.pairStats && Object.keys(selectedReport.pairStats).length > 0 && (
+                <div className="p-6 border-t border-white/5 bg-black/10">
+                  <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">Semáforo de Divisas</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {Object.entries(selectedReport.pairStats).sort((a: any, b: any) => b[1].profit - a[1].profit).map(([pair, stats]: [string, any]) => {
+                      const isGood = stats.profit > 0;
+                      const isBad = stats.profit < 0;
+                      
+                      return (
+                        <div key={pair} className={`p-3 rounded-lg border ${
+                          isGood ? 'bg-green-500/10 border-green-500/20' : 
+                          isBad ? 'bg-red-500/10 border-red-500/20' : 
+                          'bg-amber-500/10 border-amber-500/20'
+                        }`}>
+                          <div className="flex justify-between items-start mb-1">
+                            <span className="text-xs font-bold">{pair}</span>
+                            <div className={`h-2.5 w-2.5 rounded-full shadow-lg ${
+                              isGood ? 'bg-green-500 shadow-green-500/50' : 
+                              isBad ? 'bg-red-500 shadow-red-500/50' : 
+                              'bg-amber-500 shadow-amber-500/50'
+                            }`} />
+                          </div>
+                          <div className="flex justify-between items-center text-[10px]">
+                            <span className="text-muted-foreground">{stats.wins}W / {stats.losses}L</span>
+                            <span className={`font-bold ${isGood ? 'text-green-500' : isBad ? 'text-red-500' : 'text-amber-500'}`}>
+                              {isGood ? '+' : ''}{stats.profit.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </Card>
           ) : (
             <Card className="h-full min-h-[300px] border-white/5 flex items-center justify-center bg-black/20">

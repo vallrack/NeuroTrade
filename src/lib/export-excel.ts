@@ -36,6 +36,31 @@ export function exportReportToExcel(report: any) {
     hourlyData.push({ "Hora": "Sin datos", "Ganadas": 0, "Perdidas": 0, "Total Operaciones": 0, "Ganancia ($)": 0 });
   }
 
+  // Hoja 3: Desglose por Divisa
+  const pairData = [];
+  if (report.pairStats) {
+    for (const [pair, stats] of Object.entries(report.pairStats)) {
+      const pStats = stats as any;
+      const profit = pStats.profit || 0;
+      let semaforo = "🟠 NEUTRAL";
+      if (profit > 0) semaforo = "🟢 BUENA";
+      else if (profit < 0) semaforo = "🔴 MALA";
+
+      pairData.push({
+        "Divisa (Par)": pair,
+        "Ganadas": pStats.wins,
+        "Perdidas": pStats.losses,
+        "Total Operaciones": pStats.wins + pStats.losses,
+        "Ganancia ($)": profit.toFixed(2),
+        "Semáforo": semaforo
+      });
+    }
+  }
+
+  if (pairData.length === 0) {
+    pairData.push({ "Divisa (Par)": "Sin datos", "Ganadas": 0, "Perdidas": 0, "Total Operaciones": 0, "Ganancia ($)": 0, "Semáforo": "-" });
+  }
+
   // Crear el libro de trabajo
   const wb = xlsx.utils.book_new();
   
@@ -45,6 +70,9 @@ export function exportReportToExcel(report: any) {
   
   const wsHourly = xlsx.utils.json_to_sheet(hourlyData);
   xlsx.utils.book_append_sheet(wb, wsHourly, "Desglose Horario");
+
+  const wsPairs = xlsx.utils.json_to_sheet(pairData);
+  xlsx.utils.book_append_sheet(wb, wsPairs, "Desglose Divisas");
 
   // Descargar el archivo
   const fileName = `NeuroTrade_Reporte_Fase${report.planPhase}_Dia${report.planDay}.xlsx`;

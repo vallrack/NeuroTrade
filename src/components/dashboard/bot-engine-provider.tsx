@@ -141,6 +141,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { botParamsRef2.current = botParams; }, [botParams]);
   useEffect(() => { recentTradesRef.current = recentTrades; }, [recentTrades]);
   const hourlyStatsRef = useRef<Record<string, { wins: number, losses: number, profit: number }>>({});
+  const pairStatsRef = useRef<Record<string, { wins: number, losses: number, profit: number }>>({});
 
   // ─── RESET COMPLETO cuando cambia la cuenta conectada ────────────────────────
   const prevAccountKeyRef = useRef<string>('');
@@ -161,6 +162,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     sessionWinsRef.current = 0;
     sessionLossesRef.current = 0;
     hourlyStatsRef.current = {};
+    pairStatsRef.current = {};
     setAnalyses({});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brokerConfig?.email, brokerConfig?.accountType, brokerConfig?.status]);
@@ -304,7 +306,8 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
             profitPercent,
             planPhase: params.planPhase,
             planDay: params.planDay,
-            hourlyStats: hourlyStatsRef.current
+            hourlyStats: hourlyStatsRef.current,
+            pairStats: pairStatsRef.current
           }
         }));
         
@@ -576,6 +579,14 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
                   losses: cStats.losses + (isLoss ? 1 : 0),
                   profit: cStats.profit + (profit ?? 0)
                 };
+                
+                // Actualizar stats por divisa (par)
+                const pStats = pairStatsRef.current[pair] || { wins: 0, losses: 0, profit: 0 };
+                pairStatsRef.current[pair] = {
+                  wins: pStats.wins + (isWin ? 1 : 0),
+                  losses: pStats.losses + (isLoss ? 1 : 0),
+                  profit: pStats.profit + (profit ?? 0)
+                };
               });
             }
           } else {
@@ -623,7 +634,8 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           trades: recentTradesRef.current.length,
           wins: sessionWinsRef.current,
           losses: sessionLossesRef.current,
-          hourlyStats: e.detail.hourlyStats || {}
+          hourlyStats: e.detail.hourlyStats || {},
+          pairStats: e.detail.pairStats || {}
         });
         
         // 2. Avanzar al siguiente día
