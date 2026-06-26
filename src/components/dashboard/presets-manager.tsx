@@ -7,6 +7,8 @@ import { Zap, Crosshair, TrendingUp, AlertTriangle } from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
 import { useFirestore, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
+import { useBotEngine } from '@/components/dashboard/bot-engine-provider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +17,8 @@ export function PresetsManager() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const router = useRouter();
+  const { isRunning, toggleEngine } = useBotEngine();
   
   const [loadingPhase, setLoadingPhase] = useState<number | null>(null);
   const [accountType, setAccountType] = useState<'real' | 'demo'>('real');
@@ -96,9 +100,18 @@ export function PresetsManager() {
       await setDoc(botParamsRef, { ...previewData, updatedAt: new Date().toISOString() }, { merge: true });
       toast({
         title: `✅ FASE ${previewPhase} CARGADA`,
-        description: 'El bot ha sido reconfigurado en tiempo real con la nueva estrategia.',
+        description: 'El bot ha sido reconfigurado y está listo para operar.',
       });
       setPreviewPhase(null);
+      
+      // Si el bot no está corriendo, encenderlo
+      if (!isRunning) {
+        toggleEngine();
+      }
+      
+      // Redirigir al dashboard para ver los cambios
+      router.push('/dashboard');
+      
     } catch (error: any) {
       console.error('Error aplicando preset:', error);
       toast({
@@ -218,6 +231,14 @@ export function PresetsManager() {
           
           {previewData && (
             <div className="grid gap-4 py-4">
+              
+              <div className="bg-slate-900/50 p-3 rounded-md border border-white/5 text-xs text-muted-foreground space-y-2">
+                <p><strong>1. Tipo de Interés:</strong> {previewData.moneyManagementMode === 'martingale' ? 'Interés Compuesto' : 'Interés Fijo'}</p>
+                <p><strong>2. Uso de Martingala:</strong> {previewData.moneyManagementMode === 'martingale' ? 'Activado (Max 2 niveles)' : 'Apagado (Cero martingala)'}</p>
+                <p><strong>3. Modo de Estrategia:</strong> {previewData.reverseMode === 'always' ? '"Siempre Inverso" (Filtros Anti-OTC)' : previewData.reverseMode === 'none' ? 'Normal (Balanceado)' : 'Inteligente (Precisión Quirúrgica)'}</p>
+                <p><strong>4. Progresión de Meta:</strong> {previewPhase === 1 ? 'Día 1 (60%) al Día 5 (100%)' : previewPhase === 2 ? 'Día 6 (60%) al Día 10 (100%)' : 'Día 11 (60%) al Día 15 (100%)'}</p>
+              </div>
+
               <div className="flex flex-col gap-2">
                 <Label htmlFor="investment">Inversión por Trade</Label>
                 <Input 
