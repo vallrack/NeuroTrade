@@ -72,48 +72,56 @@ export default function HistoryPage() {
   };
 
   const handleExportExcel = async () => {
-    if (!trades || trades.length === 0) return;
-    
-    let wins = 0;
-    let losses = 0;
-    let totalProfit = 0;
-    const hourlyStats: Record<string, { wins: number, losses: number, profit: number }> = {};
-    const pairStats: Record<string, { wins: number, losses: number, profit: number }> = {};
-
-    trades.forEach((t: any) => {
-      const isWin = t.status === 'win' || (t.profit && t.profit > 0);
-      if (isWin) wins++; else losses++;
-      const p = t.profit || 0;
-      totalProfit += p;
-
-      const d = new Date(t.timestamp);
-      const hour = `${d.getHours().toString().padStart(2, '0')}:00`;
+    try {
+      if (!trades || trades.length === 0) {
+        alert("No hay operaciones para exportar");
+        return;
+      }
       
-      if (!hourlyStats[hour]) hourlyStats[hour] = { wins: 0, losses: 0, profit: 0 };
-      if (isWin) hourlyStats[hour].wins++; else hourlyStats[hour].losses++;
-      hourlyStats[hour].profit += p;
+      let wins = 0;
+      let losses = 0;
+      let totalProfit = 0;
+      const hourlyStats: Record<string, { wins: number, losses: number, profit: number }> = {};
+      const pairStats: Record<string, { wins: number, losses: number, profit: number }> = {};
 
-      if (!pairStats[t.pair]) pairStats[t.pair] = { wins: 0, losses: 0, profit: 0 };
-      if (isWin) pairStats[t.pair].wins++; else pairStats[t.pair].losses++;
-      pairStats[t.pair].profit += p;
-    });
+      trades.forEach((t: any) => {
+        const isWin = t.status === 'win' || (t.profit && t.profit > 0);
+        if (isWin) wins++; else losses++;
+        const p = t.profit || 0;
+        totalProfit += p;
 
-    const mockReport = {
-      date: new Date().toISOString(),
-      planPhase: 'Auditoría',
-      planDay: '50 Operaciones',
-      accountType: currentAccountType,
-      trades: trades.length,
-      wins,
-      losses,
-      profit: totalProfit,
-      profitPercent: 0,
-      hourlyStats,
-      pairStats
-    };
+        const d = new Date(t.timestamp);
+        const hour = `${d.getHours().toString().padStart(2, '0')}:00`;
+        
+        if (!hourlyStats[hour]) hourlyStats[hour] = { wins: 0, losses: 0, profit: 0 };
+        if (isWin) hourlyStats[hour].wins++; else hourlyStats[hour].losses++;
+        hourlyStats[hour].profit += p;
 
-    const { exportReportToExcel } = await import('@/lib/export-excel');
-    await exportReportToExcel(mockReport);
+        if (!pairStats[t.pair]) pairStats[t.pair] = { wins: 0, losses: 0, profit: 0 };
+        if (isWin) pairStats[t.pair].wins++; else pairStats[t.pair].losses++;
+        pairStats[t.pair].profit += p;
+      });
+
+      const mockReport = {
+        date: new Date().toISOString(),
+        planPhase: 'Auditoría',
+        planDay: '50 Operaciones',
+        accountType: currentAccountType,
+        trades: trades.length,
+        wins,
+        losses,
+        profit: totalProfit,
+        profitPercent: 0,
+        hourlyStats,
+        pairStats
+      };
+
+      const { exportReportToExcel } = await import('@/lib/export-excel');
+      await exportReportToExcel(mockReport);
+    } catch (error: any) {
+      console.error("Error al exportar Excel:", error);
+      alert("Error al exportar Excel: " + (error?.message || error));
+    }
   };
 
   if (!mounted) {

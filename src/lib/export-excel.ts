@@ -1,5 +1,8 @@
-import ExcelJS from 'exceljs';
+import * as ExcelJSModule from 'exceljs';
 import { saveAs } from 'file-saver';
+
+// Polyfill para lidiar con el import default de Next.js
+const ExcelJS = (ExcelJSModule as any).default || ExcelJSModule;
 
 export async function exportReportToExcel(report: any) {
   const wb = new ExcelJS.Workbook();
