@@ -7,23 +7,23 @@ import { Zap, Crosshair, TrendingUp, AlertTriangle } from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
 import { useFirestore, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export function PresetsManager() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  
   const [loadingPhase, setLoadingPhase] = useState<number | null>(null);
   const [accountType, setAccountType] = useState<'real' | 'demo'>('real');
+  
+  // Estados para el Modal de Vista Previa
+  const [previewPhase, setPreviewPhase] = useState<number | null>(null);
+  const [previewData, setPreviewData] = useState<any>(null);
 
-  const applyPreset = async (phaseNumber: number) => {
-    if (!user || !firestore) {
-      toast({ title: 'Error', description: 'No conectado a la base de datos.', variant: 'destructive' });
-      return;
-    }
-
-    setLoadingPhase(phaseNumber);
-    const botParamsRef = doc(firestore, 'users', user.uid, 'config', 'bot_params');
-
+  const openPreview = (phaseNumber: number) => {
     let presetData: any = {};
 
     if (phaseNumber === 1) {
@@ -78,13 +78,27 @@ export function PresetsManager() {
         }
       };
     }
+    
+    setPreviewData(presetData);
+    setPreviewPhase(phaseNumber);
+  };
+
+  const confirmAndApplyPreset = async () => {
+    if (!user || !firestore || !previewData || previewPhase === null) {
+      toast({ title: 'Error', description: 'No conectado a la base de datos o datos no válidos.', variant: 'destructive' });
+      return;
+    }
+
+    setLoadingPhase(previewPhase);
+    const botParamsRef = doc(firestore, 'users', user.uid, 'config', 'bot_params');
 
     try {
-      await setDoc(botParamsRef, { ...presetData, updatedAt: new Date().toISOString() }, { merge: true });
+      await setDoc(botParamsRef, { ...previewData, updatedAt: new Date().toISOString() }, { merge: true });
       toast({
-        title: `✅ FASE ${phaseNumber} CARGADA`,
+        title: `✅ FASE ${previewPhase} CARGADA`,
         description: 'El bot ha sido reconfigurado en tiempo real con la nueva estrategia.',
       });
+      setPreviewPhase(null);
     } catch (error: any) {
       console.error('Error aplicando preset:', error);
       toast({
@@ -98,93 +112,152 @@ export function PresetsManager() {
   };
 
   return (
-    <Card className="bg-card/50 border-white/5 backdrop-blur-xl mb-8 border-primary/20 shadow-[0_0_15px_rgba(38,166,154,0.1)]">
-      <CardHeader>
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <Zap className="h-5 w-5 text-primary" />
-              Carga Rápida de Estrategias (Plan 15 Días)
-            </CardTitle>
-            <CardDescription>
-              Sobreescribe la configuración actual instantáneamente. Los valores se ajustarán al tipo de cuenta seleccionado.
-            </CardDescription>
+    <>
+      <Card className="bg-card/50 border-white/5 backdrop-blur-xl mb-8 border-primary/20 shadow-[0_0_15px_rgba(38,166,154,0.1)]">
+        <CardHeader>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Zap className="h-5 w-5 text-primary" />
+                Carga Rápida de Estrategias (Plan 15 Días)
+              </CardTitle>
+              <CardDescription>
+                Sobreescribe la configuración actual instantáneamente. Los valores se ajustarán al tipo de cuenta seleccionado.
+              </CardDescription>
+            </div>
+            <div className="flex bg-slate-900/50 p-1 rounded-lg border border-white/10 shrink-0">
+              <button 
+                onClick={() => setAccountType('real')}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${accountType === 'real' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-white'}`}
+              >
+                Real (COP)
+              </button>
+              <button 
+                onClick={() => setAccountType('demo')}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${accountType === 'demo' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-white'}`}
+              >
+                Demo (USD)
+              </button>
+            </div>
           </div>
-          <div className="flex bg-slate-900/50 p-1 rounded-lg border border-white/10 shrink-0">
-            <button 
-              onClick={() => setAccountType('real')}
-              className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${accountType === 'real' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-white'}`}
-            >
-              Real (COP)
-            </button>
-            <button 
-              onClick={() => setAccountType('demo')}
-              className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${accountType === 'demo' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-white'}`}
-            >
-              Demo (USD)
-            </button>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            {/* FASE 1 */}
+            <div className="flex flex-col gap-3 p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 transition-all">
+              <div className="flex items-center gap-2 text-rose-500 font-bold">
+                <AlertTriangle className="h-5 w-5" />
+                Fase 1: Contrariana
+              </div>
+              <p className="text-xs text-muted-foreground mb-2">
+                Días 1 al 5. Modo siempre inverso, martingala activa, capital {accountType === 'real' ? '$5,000 COP' : '$50 USD'}, caza manipulación OTC.
+              </p>
+              <Button 
+                onClick={() => openPreview(1)}
+                disabled={loadingPhase !== null}
+                className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold"
+              >
+                {loadingPhase === 1 ? 'Cargando...' : 'Previsualizar Fase 1'}
+              </Button>
+            </div>
+
+            {/* FASE 2 */}
+            <div className="flex flex-col gap-3 p-4 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-all">
+              <div className="flex items-center gap-2 text-blue-500 font-bold">
+                <TrendingUp className="h-5 w-5" />
+                Fase 2: Tendencial
+              </div>
+              <p className="text-xs text-muted-foreground mb-2">
+                Días 6 al 10. Bot Normal, operando a favor de tendencia, interés fijo {accountType === 'real' ? '$10,000 COP' : '$100 USD'}, modo auto.
+              </p>
+              <Button 
+                onClick={() => openPreview(2)}
+                disabled={loadingPhase !== null}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold"
+              >
+                {loadingPhase === 2 ? 'Cargando...' : 'Previsualizar Fase 2'}
+              </Button>
+            </div>
+
+            {/* FASE 3 */}
+            <div className="flex flex-col gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 transition-all">
+              <div className="flex items-center gap-2 text-amber-500 font-bold">
+                <Crosshair className="h-5 w-5" />
+                Fase 3: Inteligente
+              </div>
+              <p className="text-xs text-muted-foreground mb-2">
+                Días 11 al 15. Precisión quirúrgica (IA al 78%), interés fijo agresivo {accountType === 'real' ? '($20,000 COP)' : '($200 USD)'}, cero martingala.
+              </p>
+              <Button 
+                onClick={() => openPreview(3)}
+                disabled={loadingPhase !== null}
+                className="w-full bg-amber-600 hover:bg-amber-700 text-amber-950 font-bold"
+              >
+                {loadingPhase === 3 ? 'Cargando...' : 'Previsualizar Fase 3'}
+              </Button>
+            </div>
+
           </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        </CardContent>
+      </Card>
+
+      {/* MODAL DE PREVISUALIZACIÓN */}
+      <Dialog open={previewPhase !== null} onOpenChange={(open) => { if (!open) setPreviewPhase(null); }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl">Confirmar Fase {previewPhase}</DialogTitle>
+            <DialogDescription>
+              Ajusta los valores antes de enviarlos al bot. {accountType === 'real' ? '(Cuenta COP)' : '(Cuenta USD)'}
+            </DialogDescription>
+          </DialogHeader>
           
-          {/* FASE 1 */}
-          <div className="flex flex-col gap-3 p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 transition-all">
-            <div className="flex items-center gap-2 text-rose-500 font-bold">
-              <AlertTriangle className="h-5 w-5" />
-              Fase 1: Contrariana
+          {previewData && (
+            <div className="grid gap-4 py-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="investment">Inversión por Trade</Label>
+                <Input 
+                  id="investment"
+                  type="number" 
+                  value={previewData.investmentPerTrade}
+                  onChange={(e) => setPreviewData({...previewData, investmentPerTrade: Number(e.target.value)})}
+                  className="bg-background"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="confidence">Confianza Mínima de la IA (%)</Label>
+                <Input 
+                  id="confidence"
+                  type="number" 
+                  value={previewData.min_confidence_score}
+                  onChange={(e) => setPreviewData({...previewData, min_confidence_score: Number(e.target.value)})}
+                  className="bg-background"
+                />
+              </div>
+              {previewData.moneyManagementMode === 'martingale' && (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="martingale">Multiplicador Martingala</Label>
+                  <Input 
+                    id="martingale"
+                    type="number" 
+                    step="0.1"
+                    value={previewData.martingaleMultiplier || 1}
+                    onChange={(e) => setPreviewData({...previewData, martingaleMultiplier: Number(e.target.value)})}
+                    className="bg-background"
+                  />
+                </div>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground mb-2">
-              Días 1 al 5. Modo siempre inverso, martingala activa, capital {accountType === 'real' ? '$5,000 COP' : '$50 USD'}, caza manipulación OTC.
-            </p>
-            <Button 
-              onClick={() => applyPreset(1)}
-              disabled={loadingPhase !== null}
-              className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold"
-            >
-              {loadingPhase === 1 ? 'Cargando...' : 'Cargar Fase 1'}
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewPhase(null)}>Cancelar</Button>
+            <Button onClick={confirmAndApplyPreset} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+              Aplicar al Bot
             </Button>
-          </div>
-
-          {/* FASE 2 */}
-          <div className="flex flex-col gap-3 p-4 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-all">
-            <div className="flex items-center gap-2 text-blue-500 font-bold">
-              <TrendingUp className="h-5 w-5" />
-              Fase 2: Tendencial
-            </div>
-            <p className="text-xs text-muted-foreground mb-2">
-              Días 6 al 10. Bot Normal, operando a favor de tendencia, interés fijo {accountType === 'real' ? '$10,000 COP' : '$100 USD'}, modo auto.
-            </p>
-            <Button 
-              onClick={() => applyPreset(2)}
-              disabled={loadingPhase !== null}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold"
-            >
-              {loadingPhase === 2 ? 'Cargando...' : 'Cargar Fase 2'}
-            </Button>
-          </div>
-
-          {/* FASE 3 */}
-          <div className="flex flex-col gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 transition-all">
-            <div className="flex items-center gap-2 text-amber-500 font-bold">
-              <Crosshair className="h-5 w-5" />
-              Fase 3: Inteligente
-            </div>
-            <p className="text-xs text-muted-foreground mb-2">
-              Días 11 al 15. Precisión quirúrgica (IA al 78%), interés fijo agresivo {accountType === 'real' ? '($20,000 COP)' : '($200 USD)'}, cero martingala.
-            </p>
-            <Button 
-              onClick={() => applyPreset(3)}
-              disabled={loadingPhase !== null}
-              className="w-full bg-amber-600 hover:bg-amber-700 text-amber-950 font-bold"
-            >
-              {loadingPhase === 3 ? 'Cargando...' : 'Cargar Fase 3'}
-            </Button>
-          </div>
-
-        </div>
-      </CardContent>
-    </Card>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
