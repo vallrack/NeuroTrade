@@ -26,6 +26,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useDoc, useUser } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import { PresetsManager } from '@/components/dashboard/presets-manager';
 
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
@@ -130,6 +131,8 @@ export default function SettingsPage() {
             <h2 className="text-3xl font-headline font-bold text-foreground">Núcleo Central V7</h2>
             <p className="text-muted-foreground italic">Ajuste la sensibilidad y los parámetros heurísticos de la IA.</p>
           </div>
+
+          <PresetsManager />
 
           <form onSubmit={handleSave} className="space-y-6 pb-20">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
