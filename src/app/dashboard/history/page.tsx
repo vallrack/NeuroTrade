@@ -148,8 +148,8 @@ export default function HistoryPage() {
                       </TableCell>
                       <TableCell className="font-code text-xs">${trade.amount}</TableCell>
                       <TableCell>
-                        <Badge variant={trade.status === 'win' ? 'default' : 'destructive'} className="uppercase text-[8px] font-bold tracking-tighter">
-                          {trade.status === 'win' ? 'Profit' : 'Loss'}
+                        <Badge variant={trade.profit > 0 ? 'default' : (trade.profit < 0 ? 'destructive' : 'secondary')} className="uppercase text-[8px] font-bold tracking-tighter">
+                          {trade.profit > 0 ? 'Profit' : (trade.profit < 0 ? 'Loss' : 'Tie')}
                         </Badge>
                       </TableCell>
                       <TableCell className={`text-right font-code font-bold text-xs ${trade.profit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
