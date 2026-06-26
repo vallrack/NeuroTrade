@@ -13,6 +13,7 @@ import { useUser, useCollection, useFirestore, useDoc } from '@/firebase';
 import { collection, query, orderBy, limit, where, doc } from 'firebase/firestore';
 import { History, ArrowUpRight, ArrowDownRight, Clock, Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { AuditReports } from '@/components/dashboard/audit-reports';
 
 export default function HistoryPage() {
   const [mounted, setMounted] = useState(false);
@@ -161,6 +162,8 @@ export default function HistoryPage() {
             )}
           </CardContent>
         </Card>
+
+        <AuditReports />
       </main>
     </>
   );
