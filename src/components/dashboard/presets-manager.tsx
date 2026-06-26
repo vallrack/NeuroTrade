@@ -109,8 +109,8 @@ export function PresetsManager() {
         toggleEngine();
       }
       
-      // Redirigir al dashboard para ver los cambios
-      router.push('/dashboard');
+      // Redirigir a la pestaña del Broker para conectar la cuenta
+      router.push('/dashboard/broker');
       
     } catch (error: any) {
       console.error('Error aplicando preset:', error);
