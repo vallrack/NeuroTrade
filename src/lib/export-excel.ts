@@ -24,13 +24,11 @@ export async function exportReportToExcel(report: any) {
     views: [{ showGridLines: false }]
   });
 
-  wsSummary.columns = [
-    { width: 3 },
-    { width: 25 },
-    { width: 20 },
-    { width: 20 },
-    { width: 25 }
-  ];
+  wsSummary.getColumn(1).width = 3;
+  wsSummary.getColumn(2).width = 25;
+  wsSummary.getColumn(3).width = 20;
+  wsSummary.getColumn(4).width = 20;
+  wsSummary.getColumn(5).width = 25;
 
   wsSummary.mergeCells('B2:E2');
   const titleCell = wsSummary.getCell('B2');
@@ -108,13 +106,12 @@ export async function exportReportToExcel(report: any) {
     console.warn("Fallo al generar gráficos", e);
   }
 
-  const styleTable = (ws: ExcelJS.Worksheet) => {
+  const styleTable = (ws: ExcelJS.Worksheet, colCount: number) => {
     ws.getRow(1).eachCell((cell) => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: theme.headerBg } };
       cell.font = { color: { argb: theme.headerFont }, bold: true };
       cell.alignment = { vertical: 'middle', horizontal: 'center' };
     });
-    const colCount = Math.max(1, ws.columnCount || 10);
     for (let i = 1; i <= colCount; i++) {
       ws.getColumn(i).width = 18;
     }
@@ -124,25 +121,19 @@ export async function exportReportToExcel(report: any) {
   // HOJA 2: DESGLOSE HORARIO
   // ==========================================
   const wsHourly = wb.addWorksheet('Desglose Horario');
-  wsHourly.columns = [
-    { header: 'HORA', key: 'hora' },
-    { header: 'OPERACIONES', key: 'total' },
-    { header: 'GANADAS', key: 'wins' },
-    { header: 'PERDIDAS', key: 'losses' },
-    { header: 'BENEFICIO NETO', key: 'profit' }
-  ];
+  wsHourly.addRow(['HORA', 'OPERACIONES', 'GANADAS', 'PERDIDAS', 'BENEFICIO NETO']);
 
   if (report.hourlyStats) {
     for (const [hour, stats] of Object.entries(report.hourlyStats)) {
       const s = stats as any;
       const profit = s.profit || 0;
-      const r = wsHourly.addRow({ hora: hour, total: s.wins + s.losses, wins: s.wins, losses: s.losses, profit: profit });
-      const profitCell = r.getCell('profit');
+      const r = wsHourly.addRow([hour, s.wins + s.losses, s.wins, s.losses, profit]);
+      const profitCell = r.getCell(5);
       profitCell.numFmt = '"$"#,##0.00';
       profitCell.font = { color: { argb: profit > 0 ? theme.successText : (profit < 0 ? theme.dangerText : 'FF000000') }, bold: true };
     }
   }
-  styleTable(wsHourly);
+  styleTable(wsHourly, 5);
   wsHourly.addConditionalFormatting({
     ref: `E2:E${Math.max(2, wsHourly.rowCount)}`,
     rules: [{ type: 'dataBar', gradient: false, color: { argb: 'FF22C55E' }, showValue: true, minLength: 0, maxLength: 100 } as any]
@@ -152,14 +143,7 @@ export async function exportReportToExcel(report: any) {
   // HOJA 3: DESGLOSE DIVISAS
   // ==========================================
   const wsPairs = wb.addWorksheet('Desglose Divisas');
-  wsPairs.columns = [
-    { header: 'DIVISA (PAR)', key: 'pair' },
-    { header: 'OPERACIONES', key: 'total' },
-    { header: 'GANADAS', key: 'wins' },
-    { header: 'PERDIDAS', key: 'losses' },
-    { header: 'BENEFICIO NETO', key: 'profit' },
-    { header: 'SEMAFORO', key: 'status' }
-  ];
+  wsPairs.addRow(['DIVISA (PAR)', 'OPERACIONES', 'GANADAS', 'PERDIDAS', 'BENEFICIO NETO', 'SEMAFORO']);
 
   if (report.pairStats) {
     for (const [pair, stats] of Object.entries(report.pairStats)) {
@@ -169,14 +153,14 @@ export async function exportReportToExcel(report: any) {
       if (profit > 0) semaforo = "🟢 BUENA";
       else if (profit < 0) semaforo = "🔴 MALA";
 
-      const r = wsPairs.addRow({ pair: pair, total: s.wins + s.losses, wins: s.wins, losses: s.losses, profit: profit, status: semaforo });
-      const profitCell = r.getCell('profit');
+      const r = wsPairs.addRow([pair, s.wins + s.losses, s.wins, s.losses, profit, semaforo]);
+      const profitCell = r.getCell(5);
       profitCell.numFmt = '"$"#,##0.00';
       profitCell.font = { color: { argb: profit > 0 ? theme.successText : (profit < 0 ? theme.dangerText : 'FF000000') }, bold: true };
-      r.getCell('status').alignment = { horizontal: 'center' };
+      r.getCell(6).alignment = { horizontal: 'center' };
     }
   }
-  styleTable(wsPairs);
+  styleTable(wsPairs, 6);
 
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
