@@ -49,6 +49,28 @@ export default function HistoryPage() {
     return filtered.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [allTrades, currentAccountType]);
 
+  const exportToCSV = () => {
+    if (!trades || trades.length === 0) return;
+    const headers = ['Fecha', 'Activo', 'Direccion', 'Inversion', 'Resultado', 'Beneficio'];
+    const rows = trades.map((t: any) => [
+      new Date(t.timestamp).toLocaleString(),
+      t.pair,
+      t.direction,
+      t.amount,
+      t.status.toUpperCase(),
+      t.profit
+    ].join(','));
+    
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', `NeuroTrade_Export_${currentAccountType}_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleExportExcel = async () => {
     if (!trades || trades.length === 0) return;
     
@@ -121,10 +143,16 @@ export default function HistoryPage() {
         <Card className="bg-card/30 border border-primary/20 shadow-[0_0_15px_rgba(38,166,154,0.1)] backdrop-blur-xl">
           <CardHeader className="flex flex-row items-center justify-between border-b border-white/5">
             <CardTitle className="text-lg">Últimas 50 Operaciones ({currentAccountType.toUpperCase()})</CardTitle>
-            <Button variant="outline" size="sm" onClick={handleExportExcel} className="border-green-500/50 text-green-500 hover:bg-green-500/10 gap-2 font-bold text-xs uppercase tracking-widest">
-              <Download className="h-3 w-3" />
-              Exportar a Excel (Reporte Premium)
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={exportToCSV} className="border-primary/50 text-primary hover:bg-primary/10 gap-2 font-bold text-xs uppercase tracking-widest hidden md:flex">
+                <Download className="h-3 w-3" />
+                Exportar CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExportExcel} className="border-green-500/50 text-green-500 hover:bg-green-500/10 gap-2 font-bold text-xs uppercase tracking-widest">
+                <Download className="h-3 w-3" />
+                Exportar a Excel (Reporte Premium)
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
