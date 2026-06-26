@@ -110,21 +110,18 @@ export function isForexMarketOpen(): boolean {
 // ─── Análisis de slots personalizados ───────────────────────────────────────
 
 /** Verifica si hay algún slot activo en este momento */
-export function isCurrentlyInSchedule(slots: ScheduleSlot[]): {
-  active: boolean;
-  slot: ScheduleSlot | null;
-} {
-  const enabledSlots = slots.filter(s => s.enabled);
+export function isCurrentlyInSchedule(slots: ScheduleSlot[]): { active: boolean, slot: ScheduleSlot | null } {
+  if (!slots || slots.length === 0) return { active: false, slot: null };
+  const activeSlot = slots.find(s => {
+    if (!s.enabled) return false;
+    const { hours, minutes, day } = getCurrentTimeInZone(s.timezone || 'America/Bogota');
+    if (!(s.days || []).includes(day)) return false;
+    
+    if (!s.from || !s.to) return false;
+    return isTimeInRange(hours, minutes, s.from, s.to);
+  });
 
-  for (const slot of enabledSlots) {
-    const { hours, minutes, day } = getCurrentTimeInZone(slot.timezone || 'America/Bogota');
-
-    if (slot.days.includes(day) && isTimeInRange(hours, minutes, slot.from, slot.to)) {
-      return { active: true, slot };
-    }
-  }
-
-  return { active: false, slot: null };
+  return activeSlot ? { active: true, slot: activeSlot } : { active: false, slot: null };
 }
 
 /** Calcula cuántos minutos faltan para el próximo inicio/fin de slot */

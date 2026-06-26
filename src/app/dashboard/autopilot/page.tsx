@@ -60,9 +60,10 @@ function SlotCard({
   onDelete: () => void;
 }) {
   const toggleDay = (day: number) => {
-    const days = slot.days.includes(day)
-      ? slot.days.filter(d => d !== day)
-      : [...slot.days, day];
+    const currentDays = slot.days || [];
+    const days = currentDays.includes(day)
+      ? currentDays.filter(d => d !== day)
+      : [...currentDays, day];
     onUpdate({ ...slot, days });
   };
 
@@ -103,7 +104,7 @@ function SlotCard({
             type="button"
             onClick={() => toggleDay(d.value)}
             className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${
-              slot.days.includes(d.value)
+              (slot.days || []).includes(d.value)
                 ? 'bg-primary text-white'
                 : 'bg-white/5 text-muted-foreground hover:bg-white/10'
             }`}
@@ -518,7 +519,7 @@ export default function AutopilotPage() {
                                 <div className="flex flex-wrap gap-2">
                                   {bestHours.map((bh, i) => (
                                     <Badge key={i} className="bg-primary/20 text-primary border-primary/30">
-                                      {bh.hour} (+${bh.profit.toFixed(2)})
+                                      {bh.hour} (+${(bh.profit || 0).toFixed(2)})
                                     </Badge>
                                   ))}
                                 </div>
@@ -557,7 +558,7 @@ export default function AutopilotPage() {
                             No hay horarios configurados. Agrega uno para comenzar.
                           </p>
                         )}
-                        {slots.map(slot => (
+                        {(slots || []).map(slot => (
                           <SlotCard
                             key={slot.id}
                             slot={slot}
