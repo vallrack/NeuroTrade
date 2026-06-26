@@ -31,7 +31,7 @@ export function PresetsManager() {
       presetData = {
         reverseMode: 'always',
         moneyManagementMode: 'martingale',
-        investmentPerTrade: accountType === 'real' ? 5000 : 50,
+        investmentPerTrade: accountType === 'real' ? 5000 : 10,
         martingaleMultiplier: 2.1,
         maxLosses: 2,
         min_confidence_score: 70,
@@ -50,7 +50,7 @@ export function PresetsManager() {
       presetData = {
         reverseMode: 'none',
         moneyManagementMode: 'fixed',
-        investmentPerTrade: accountType === 'real' ? 10000 : 100,
+        investmentPerTrade: accountType === 'real' ? 10000 : 50,
         min_confidence_score: 75,
         strategy_mode: 'balanced',
         autopilot: {
@@ -151,7 +151,7 @@ export function PresetsManager() {
                 Fase 1: Contrariana
               </div>
               <p className="text-xs text-muted-foreground mb-2">
-                Días 1 al 5. Modo siempre inverso, martingala activa, capital {accountType === 'real' ? '$5,000 COP' : '$50 USD'}, caza manipulación OTC.
+                Días 1 al 5. Modo siempre inverso, martingala activa, capital {accountType === 'real' ? '$5,000 COP' : '$10 USD'}, caza manipulación OTC.
               </p>
               <Button 
                 onClick={() => openPreview(1)}
@@ -169,7 +169,7 @@ export function PresetsManager() {
                 Fase 2: Tendencial
               </div>
               <p className="text-xs text-muted-foreground mb-2">
-                Días 6 al 10. Bot Normal, operando a favor de tendencia, interés fijo {accountType === 'real' ? '$10,000 COP' : '$100 USD'}, modo auto.
+                Días 6 al 10. Bot Normal, operando a favor de tendencia, interés fijo {accountType === 'real' ? '$10,000 COP' : '$50 USD'}, modo auto.
               </p>
               <Button 
                 onClick={() => openPreview(2)}
@@ -211,6 +211,10 @@ export function PresetsManager() {
               Ajusta los valores antes de enviarlos al bot. {accountType === 'real' ? '(Cuenta COP)' : '(Cuenta USD)'}
             </DialogDescription>
           </DialogHeader>
+          
+          <div className="bg-amber-500/10 border border-amber-500/30 text-amber-500 p-3 rounded-md text-sm mt-2 font-medium">
+            ⚠️ <strong>Advertencia de Riesgo:</strong> Estás a punto de sobreescribir la configuración del bot con los valores predeterminados del manual. Al hacer clic en "Aplicar al Bot", confirmas que aceptas los parámetros y los riesgos operativos de esta Fase.
+          </div>
           
           {previewData && (
             <div className="grid gap-4 py-4">
