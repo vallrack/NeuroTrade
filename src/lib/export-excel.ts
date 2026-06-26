@@ -1,80 +1,179 @@
-import * as xlsx from 'xlsx';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
-export function exportReportToExcel(report: any) {
-  // Hoja 1: Resumen Diario
-  const summaryData = [
-    {
-      "Fecha": new Date(report.date).toLocaleString(),
-      "Fase del Plan": report.planPhase,
-      "Día del Plan": report.planDay,
-      "Tipo de Cuenta": report.accountType,
-      "Balance Final": `$${report.finalBalance?.toFixed(2)}`,
-      "Ganancia Neta": `$${report.profit?.toFixed(2)}`,
-      "Meta Alcanzada": `${report.profitPercent?.toFixed(2)}%`,
-      "Total Operaciones": report.trades,
-      "Operaciones Ganadas": report.wins,
-      "Operaciones Perdidas": report.losses,
-      "Precisión": `${report.trades > 0 ? Math.round((report.wins / report.trades) * 100) : 0}%`
-    }
+export async function exportReportToExcel(report: any) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'NeuroTrade Bot';
+  wb.created = new Date();
+
+  // ----- COLORES CORPORATIVOS -----
+  const theme = {
+    headerBg: 'FF0D1117', // Oscuro
+    headerFont: 'FFFFFFFF', // Blanco
+    successText: 'FF22C55E', // Verde
+    dangerText: 'FFEF4444', // Rojo
+  };
+
+  // ==========================================
+  // HOJA 1: RESUMEN GENERAL
+  // ==========================================
+  const wsSummary = wb.addWorksheet('Resumen Diario', {
+    views: [{ showGridLines: false }]
+  });
+
+  wsSummary.columns = [
+    { width: 3 },
+    { width: 25 },
+    { width: 20 },
+    { width: 20 },
+    { width: 25 }
   ];
 
-  // Hoja 2: Desglose por Horas
-  const hourlyData = [];
-  if (report.hourlyStats) {
-    for (const [hour, stats] of Object.entries(report.hourlyStats)) {
-      hourlyData.push({
-        "Hora": hour,
-        "Ganadas": (stats as any).wins,
-        "Perdidas": (stats as any).losses,
-        "Total Operaciones": (stats as any).wins + (stats as any).losses,
-        "Ganancia ($)": (stats as any).profit?.toFixed(2)
-      });
+  wsSummary.mergeCells('B2:E2');
+  const titleCell = wsSummary.getCell('B2');
+  titleCell.value = `REPORTE DE OPERACIONES - FASE ${report.planPhase} (Día ${report.planDay})`;
+  titleCell.font = { size: 16, bold: true, color: { argb: theme.headerFont } };
+  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: theme.headerBg } };
+  titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+  const metrics = [
+    ['Fecha', new Date(report.date).toLocaleString()],
+    ['Tipo de Cuenta', (report.accountType || '').toUpperCase()],
+    ['Total Operaciones', report.trades],
+    ['Ganadas / Perdidas', `${report.wins} / ${report.losses}`],
+    ['Precisión', `${report.trades > 0 ? Math.round((report.wins / report.trades) * 100) : 0}%`],
+    ['Beneficio Neto', report.profit],
+    ['Meta Alcanzada', `${report.profitPercent?.toFixed(2)}%`]
+  ];
+
+  let row = 4;
+  for (const [key, val] of metrics) {
+    wsSummary.getCell(`B${row}`).value = key;
+    wsSummary.getCell(`B${row}`).font = { bold: true };
+    wsSummary.getCell(`C${row}`).value = val as string | number;
+    if (key === 'Beneficio Neto') {
+      wsSummary.getCell(`C${row}`).numFmt = '"$"#,##0.00';
+      const profitNum = Number(val);
+      wsSummary.getCell(`C${row}`).font = { bold: true, color: { argb: profitNum >= 0 ? theme.successText : theme.dangerText } };
     }
-  }
-  
-  if (hourlyData.length === 0) {
-    hourlyData.push({ "Hora": "Sin datos", "Ganadas": 0, "Perdidas": 0, "Total Operaciones": 0, "Ganancia ($)": 0 });
+    row++;
   }
 
-  // Hoja 3: Desglose por Divisa
-  const pairData = [];
+  try {
+    const donutConfig = {
+      type: 'doughnut',
+      data: {
+        labels: ['Ganadas', 'Perdidas'],
+        datasets: [{ data: [report.wins, report.losses], backgroundColor: ['#22c55e', '#ef4444'] }]
+      },
+      options: { plugins: { datalabels: { color: '#fff', font: { weight: 'bold', size: 14 } } } }
+    };
+    const donutUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(donutConfig))}&w=300&h=300&bkg=transparent`;
+    const donutRes = await fetch(donutUrl);
+    const donutBuffer = await donutRes.arrayBuffer();
+    
+    const donutImageId = wb.addImage({ buffer: donutBuffer, extension: 'png' });
+    wsSummary.addImage(donutImageId, {
+      tl: { col: 3, row: 3 },
+      ext: { width: 250, height: 250 }
+    });
+
+    if (report.hourlyStats) {
+      const hLabels = Object.keys(report.hourlyStats);
+      const hData = Object.values(report.hourlyStats).map((s: any) => s.profit);
+      const hColors = hData.map((v: number) => v >= 0 ? '#22c55e' : '#ef4444');
+      
+      const barConfig = {
+        type: 'bar',
+        data: {
+          labels: hLabels,
+          datasets: [{ label: 'Beneficio Neto ($)', data: hData, backgroundColor: hColors }]
+        },
+        options: { legend: { display: false }, title: { display: true, text: 'Beneficio por Hora' } }
+      };
+      const barUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(barConfig))}&w=500&h=250&bkg=white`;
+      const barRes = await fetch(barUrl);
+      const barBuffer = await barRes.arrayBuffer();
+      
+      const barImageId = wb.addImage({ buffer: barBuffer, extension: 'png' });
+      wsSummary.addImage(barImageId, {
+        tl: { col: 1, row: 12 },
+        ext: { width: 500, height: 250 }
+      });
+    }
+  } catch (e) {
+    console.warn("Fallo al generar gráficos", e);
+  }
+
+  const styleTable = (ws: ExcelJS.Worksheet) => {
+    ws.getRow(1).eachCell((cell) => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: theme.headerBg } };
+      cell.font = { color: { argb: theme.headerFont }, bold: true };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+    ws.columns.forEach(col => { if(col) col.width = 18; });
+  };
+
+  // ==========================================
+  // HOJA 2: DESGLOSE HORARIO
+  // ==========================================
+  const wsHourly = wb.addWorksheet('Desglose Horario');
+  wsHourly.columns = [
+    { header: 'HORA', key: 'hora' },
+    { header: 'OPERACIONES', key: 'total' },
+    { header: 'GANADAS', key: 'wins' },
+    { header: 'PERDIDAS', key: 'losses' },
+    { header: 'BENEFICIO NETO', key: 'profit' }
+  ];
+
+  if (report.hourlyStats) {
+    for (const [hour, stats] of Object.entries(report.hourlyStats)) {
+      const s = stats as any;
+      const profit = s.profit || 0;
+      const r = wsHourly.addRow({ hora: hour, total: s.wins + s.losses, wins: s.wins, losses: s.losses, profit: profit });
+      const profitCell = r.getCell('profit');
+      profitCell.numFmt = '"$"#,##0.00';
+      profitCell.font = { color: { argb: profit > 0 ? theme.successText : (profit < 0 ? theme.dangerText : 'FF000000') }, bold: true };
+    }
+  }
+  styleTable(wsHourly);
+  wsHourly.addConditionalFormatting({
+    ref: `E2:E${Math.max(2, wsHourly.rowCount)}`,
+    rules: [{ type: 'dataBar', gradient: false, color: { argb: 'FF22C55E' }, showValue: true, minLength: 0, maxLength: 100 } as any]
+  });
+
+  // ==========================================
+  // HOJA 3: DESGLOSE DIVISAS
+  // ==========================================
+  const wsPairs = wb.addWorksheet('Desglose Divisas');
+  wsPairs.columns = [
+    { header: 'DIVISA (PAR)', key: 'pair' },
+    { header: 'OPERACIONES', key: 'total' },
+    { header: 'GANADAS', key: 'wins' },
+    { header: 'PERDIDAS', key: 'losses' },
+    { header: 'BENEFICIO NETO', key: 'profit' },
+    { header: 'SEMAFORO', key: 'status' }
+  ];
+
   if (report.pairStats) {
     for (const [pair, stats] of Object.entries(report.pairStats)) {
-      const pStats = stats as any;
-      const profit = pStats.profit || 0;
+      const s = stats as any;
+      const profit = s.profit || 0;
       let semaforo = "🟠 NEUTRAL";
       if (profit > 0) semaforo = "🟢 BUENA";
       else if (profit < 0) semaforo = "🔴 MALA";
 
-      pairData.push({
-        "Divisa (Par)": pair,
-        "Ganadas": pStats.wins,
-        "Perdidas": pStats.losses,
-        "Total Operaciones": pStats.wins + pStats.losses,
-        "Ganancia ($)": profit.toFixed(2),
-        "Semáforo": semaforo
-      });
+      const r = wsPairs.addRow({ pair: pair, total: s.wins + s.losses, wins: s.wins, losses: s.losses, profit: profit, status: semaforo });
+      const profitCell = r.getCell('profit');
+      profitCell.numFmt = '"$"#,##0.00';
+      profitCell.font = { color: { argb: profit > 0 ? theme.successText : (profit < 0 ? theme.dangerText : 'FF000000') }, bold: true };
+      r.getCell('status').alignment = { horizontal: 'center' };
     }
   }
+  styleTable(wsPairs);
 
-  if (pairData.length === 0) {
-    pairData.push({ "Divisa (Par)": "Sin datos", "Ganadas": 0, "Perdidas": 0, "Total Operaciones": 0, "Ganancia ($)": 0, "Semáforo": "-" });
-  }
-
-  // Crear el libro de trabajo
-  const wb = xlsx.utils.book_new();
-  
-  // Agregar hojas
-  const wsSummary = xlsx.utils.json_to_sheet(summaryData);
-  xlsx.utils.book_append_sheet(wb, wsSummary, "Resumen Diario");
-  
-  const wsHourly = xlsx.utils.json_to_sheet(hourlyData);
-  xlsx.utils.book_append_sheet(wb, wsHourly, "Desglose Horario");
-
-  const wsPairs = xlsx.utils.json_to_sheet(pairData);
-  xlsx.utils.book_append_sheet(wb, wsPairs, "Desglose Divisas");
-
-  // Descargar el archivo
-  const fileName = `NeuroTrade_Reporte_Fase${report.planPhase}_Dia${report.planDay}.xlsx`;
-  xlsx.writeFile(wb, fileName);
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  saveAs(blob, `NeuroTrade_Reporte_Fase${report.planPhase}_Dia${report.planDay}.xlsx`);
 }
+
