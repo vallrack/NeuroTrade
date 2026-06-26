@@ -136,7 +136,15 @@ export async function exportReportToExcel(report: any) {
   styleTable(wsHourly, 5);
   wsHourly.addConditionalFormatting({
     ref: `E2:E${Math.max(2, wsHourly.rowCount)}`,
-    rules: [{ type: 'dataBar', gradient: false, color: { argb: 'FF22C55E' }, showValue: true, minLength: 0, maxLength: 100 } as any]
+    rules: [
+      { 
+        type: 'dataBar', 
+        cfvo: [{ type: 'min' }, { type: 'max' }],
+        gradient: false, 
+        color: { argb: 'FF22C55E' }, 
+        showValue: true 
+      } as any
+    ]
   });
 
   // ==========================================
