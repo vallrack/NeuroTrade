@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Zap, Crosshair, TrendingUp, AlertTriangle } from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
-import { useFirestore, useUser } from '@/firebase';
+import { useFirestore, useUser, useDoc } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useBotEngine } from '@/components/dashboard/bot-engine-provider';
@@ -20,9 +20,30 @@ export function PresetsManager() {
   const router = useRouter();
   const { isRunning, toggleEngine } = useBotEngine();
   
+  const { data: uiSettings } = useDoc(user ? `users/${user.uid}/config/ui_settings` : null);
+  
   const [loadingPhase, setLoadingPhase] = useState<number | null>(null);
   const [accountType, setAccountType] = useState<'real' | 'demo'>('real');
   
+  // Sincronizar preferencia guardada al iniciar sesión
+  useEffect(() => {
+    if (uiSettings?.presetAccountType) {
+      setAccountType(uiSettings.presetAccountType);
+    }
+  }, [uiSettings?.presetAccountType]);
+
+  const handleAccountTypeChange = async (type: 'real' | 'demo') => {
+    setAccountType(type);
+    if (user && firestore) {
+      try {
+        const ref = doc(firestore, 'users', user.uid, 'config', 'ui_settings');
+        await setDoc(ref, { presetAccountType: type }, { merge: true });
+      } catch (e) {
+        console.error("Error guardando preferencia:", e);
+      }
+    }
+  };
+
   // Estados para el Modal de Vista Previa
   const [previewPhase, setPreviewPhase] = useState<number | null>(null);
   const [previewData, setPreviewData] = useState<any>(null);
@@ -140,13 +161,13 @@ export function PresetsManager() {
             </div>
             <div className="flex bg-slate-900/50 p-1 rounded-lg border border-white/10 shrink-0">
               <button 
-                onClick={() => setAccountType('real')}
+                onClick={() => handleAccountTypeChange('real')}
                 className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${accountType === 'real' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-white'}`}
               >
                 Real (COP)
               </button>
               <button 
-                onClick={() => setAccountType('demo')}
+                onClick={() => handleAccountTypeChange('demo')}
                 className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${accountType === 'demo' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-white'}`}
               >
                 Demo (USD)
