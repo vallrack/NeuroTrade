@@ -575,6 +575,7 @@ export default function AutopilotPage() {
                           Agregar Horario
                         </Button>
                       </div>
+                    </div>
                     )}
 
                     {/* Auto-connect bridge */}
