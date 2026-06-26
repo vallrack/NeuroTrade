@@ -13,6 +13,7 @@ export function PresetsManager() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [loadingPhase, setLoadingPhase] = useState<number | null>(null);
+  const [accountType, setAccountType] = useState<'real' | 'demo'>('real');
 
   const applyPreset = async (phaseNumber: number) => {
     if (!user || !firestore) {
@@ -30,7 +31,7 @@ export function PresetsManager() {
       presetData = {
         reverseMode: 'always',
         moneyManagementMode: 'martingale',
-        investmentPerTrade: 5000,
+        investmentPerTrade: accountType === 'real' ? 5000 : 50,
         martingaleMultiplier: 2.1,
         maxLosses: 2,
         min_confidence_score: 70,
@@ -49,7 +50,7 @@ export function PresetsManager() {
       presetData = {
         reverseMode: 'none',
         moneyManagementMode: 'fixed',
-        investmentPerTrade: 10000,
+        investmentPerTrade: accountType === 'real' ? 10000 : 100,
         min_confidence_score: 75,
         strategy_mode: 'balanced',
         autopilot: {
@@ -65,7 +66,7 @@ export function PresetsManager() {
       presetData = {
         reverseMode: 'auto', // Reverso solo en trampas
         moneyManagementMode: 'fixed',
-        investmentPerTrade: 20000,
+        investmentPerTrade: accountType === 'real' ? 20000 : 200,
         min_confidence_score: 78,
         strategy_mode: 'conservative',
         autopilot: {
@@ -99,15 +100,29 @@ export function PresetsManager() {
   return (
     <Card className="bg-card/50 border-white/5 backdrop-blur-xl mb-8 border-primary/20 shadow-[0_0_15px_rgba(38,166,154,0.1)]">
       <CardHeader>
-        <div className="flex justify-between items-start">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <CardTitle className="flex items-center gap-2 text-xl">
               <Zap className="h-5 w-5 text-primary" />
               Carga Rápida de Estrategias (Plan 15 Días)
             </CardTitle>
             <CardDescription>
-              Sobreescribe la configuración actual instantáneamente. Los valores se ajustarán a montos base en COP.
+              Sobreescribe la configuración actual instantáneamente. Los valores se ajustarán al tipo de cuenta seleccionado.
             </CardDescription>
+          </div>
+          <div className="flex bg-slate-900/50 p-1 rounded-lg border border-white/10 shrink-0">
+            <button 
+              onClick={() => setAccountType('real')}
+              className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${accountType === 'real' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-white'}`}
+            >
+              Real (COP)
+            </button>
+            <button 
+              onClick={() => setAccountType('demo')}
+              className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${accountType === 'demo' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-white'}`}
+            >
+              Demo (USD)
+            </button>
           </div>
         </div>
       </CardHeader>
@@ -121,7 +136,7 @@ export function PresetsManager() {
               Fase 1: Contrariana
             </div>
             <p className="text-xs text-muted-foreground mb-2">
-              Días 1 al 5. Modo siempre inverso, martingala activa, capital $5,000 COP, caza manipulación OTC.
+              Días 1 al 5. Modo siempre inverso, martingala activa, capital {accountType === 'real' ? '$5,000 COP' : '$50 USD'}, caza manipulación OTC.
             </p>
             <Button 
               onClick={() => applyPreset(1)}
@@ -139,7 +154,7 @@ export function PresetsManager() {
               Fase 2: Tendencial
             </div>
             <p className="text-xs text-muted-foreground mb-2">
-              Días 6 al 10. Bot Normal, operando a favor de tendencia, interés fijo $10,000 COP, modo auto.
+              Días 6 al 10. Bot Normal, operando a favor de tendencia, interés fijo {accountType === 'real' ? '$10,000 COP' : '$100 USD'}, modo auto.
             </p>
             <Button 
               onClick={() => applyPreset(2)}
@@ -157,7 +172,7 @@ export function PresetsManager() {
               Fase 3: Inteligente
             </div>
             <p className="text-xs text-muted-foreground mb-2">
-              Días 11 al 15. Precisión quirúrgica (IA al 78%), interés fijo agresivo ($20,000 COP), cero martingala.
+              Días 11 al 15. Precisión quirúrgica (IA al 78%), interés fijo agresivo {accountType === 'real' ? '($20,000 COP)' : '($200 USD)'}, cero martingala.
             </p>
             <Button 
               onClick={() => applyPreset(3)}
