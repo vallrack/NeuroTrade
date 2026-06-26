@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Terminal as TerminalIcon, Activity, Zap, Database, Cpu, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Terminal as TerminalIcon, Activity, Zap, Database, Cpu, Loader2, Play, Pause } from 'lucide-react';
 import { useBotEngine } from '@/components/dashboard/bot-engine-provider';
 import { TradingChart } from '@/components/dashboard/trading-chart';
 import { getBridgeModeLabel } from '@/lib/bridge';
@@ -13,7 +14,7 @@ export default function TerminalPage() {
   const [mounted, setMounted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   
-  const { logs, analyses, isRunning, bridgeOnline, activePairs } = useBotEngine();
+  const { logs, analyses, isRunning, bridgeOnline, activePairs, toggleEngine } = useBotEngine();
 
   useEffect(() => {
     setMounted(true);
@@ -58,17 +59,29 @@ export default function TerminalPage() {
             </Badge>
           )}
           
-          {isRunning ? (
-            <Badge className="bg-primary/10 text-primary border-primary/20 gap-1.5 py-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              MOTOR ACTIVO
-            </Badge>
-          ) : (
-            <Badge className="bg-slate-500/10 text-slate-500 border-slate-500/20 gap-1.5 py-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-              MOTOR PAUSADO
-            </Badge>
-          )}
+          <Button
+            onClick={toggleEngine}
+            variant={isRunning ? "default" : "outline"}
+            size="sm"
+            className={isRunning 
+              ? "bg-primary/20 text-primary hover:bg-primary/30 border border-primary/50 gap-2 h-7 px-3 rounded-full text-[10px] font-bold tracking-wider"
+              : "bg-slate-500/10 text-slate-400 hover:bg-slate-500/20 border border-slate-500/30 gap-2 h-7 px-3 rounded-full text-[10px] font-bold tracking-wider"
+            }
+          >
+            {isRunning ? (
+              <>
+                <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                MOTOR ACTIVO
+                <Pause className="h-3 w-3 ml-1" />
+              </>
+            ) : (
+              <>
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                MOTOR PAUSADO
+                <Play className="h-3 w-3 ml-1" />
+              </>
+            )}
+          </Button>
         </div>
       </header>
 
