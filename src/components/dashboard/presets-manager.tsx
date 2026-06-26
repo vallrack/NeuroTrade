@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Zap, Crosshair, TrendingUp, AlertTriangle } from 'lucide-react';
@@ -20,7 +20,11 @@ export function PresetsManager() {
   const router = useRouter();
   const { isRunning, toggleEngine } = useBotEngine();
   
-  const uiSettingsRef = user && firestore ? doc(firestore, 'users', user.uid, 'config', 'ui_settings') : null;
+  const uiSettingsRef = useMemo(() => {
+    if (!user || !firestore) return null;
+    return doc(firestore, 'users', user.uid, 'config', 'ui_settings');
+  }, [user, firestore]);
+  
   const { data: uiSettings } = useDoc(uiSettingsRef);
   
   const [loadingPhase, setLoadingPhase] = useState<number | null>(null);
