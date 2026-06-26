@@ -13,6 +13,7 @@ import { useUser, useCollection, useFirestore, useDoc } from '@/firebase';
 import { collection, query, orderBy, limit, where, doc } from 'firebase/firestore';
 import { History, ArrowUpRight, ArrowDownRight, Clock, Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AuditReports } from '@/components/dashboard/audit-reports';
 
 export default function HistoryPage() {
@@ -32,13 +33,34 @@ export default function HistoryPage() {
   const { data: brokerConfig } = useDoc(brokerRef);
   const currentAccountType = brokerConfig?.accountType || 'demo';
 
+  const [timeFilter, setTimeFilter] = useState('today');
+
   const tradesQuery = useMemo(() => {
     if (!mounted || !user || !firestore) return null;
+    
+    let filterDate = new Date();
+    if (timeFilter === 'today') {
+      filterDate.setHours(0, 0, 0, 0);
+    } else if (timeFilter === 'week') {
+      filterDate.setDate(filterDate.getDate() - 7);
+    } else if (timeFilter === 'month') {
+      filterDate.setMonth(filterDate.getMonth() - 1);
+    } else if (timeFilter === 'year') {
+      filterDate.setFullYear(filterDate.getFullYear() - 1);
+    }
+    
+    const baseCol = collection(firestore, 'users', user.uid, 'trades');
+    
+    if (timeFilter === 'all') {
+      return query(baseCol, orderBy('timestamp', 'desc'), limit(500));
+    }
     return query(
-      collection(firestore, 'users', user.uid, 'trades'),
-      limit(100)
+      baseCol,
+      where('timestamp', '>=', filterDate.toISOString()),
+      orderBy('timestamp', 'desc'),
+      limit(500)
     );
-  }, [mounted, user, firestore]);
+  }, [mounted, user, firestore, timeFilter]);
 
   const { data: allTrades, loading } = useCollection(tradesQuery);
 
@@ -105,7 +127,7 @@ export default function HistoryPage() {
       const mockReport = {
         date: new Date().toISOString(),
         planPhase: 'Auditoría',
-        planDay: '50 Operaciones',
+        planDay: `Filtro: ${timeFilter}`,
         accountType: currentAccountType,
         trades: trades.length,
         wins,
@@ -149,8 +171,22 @@ export default function HistoryPage() {
         </div>
 
         <Card className="bg-card/30 border border-primary/20 shadow-[0_0_15px_rgba(38,166,154,0.1)] backdrop-blur-xl">
-          <CardHeader className="flex flex-row items-center justify-between border-b border-white/5">
-            <CardTitle className="text-lg">Últimas 50 Operaciones ({currentAccountType.toUpperCase()})</CardTitle>
+          <CardHeader className="flex flex-col xl:flex-row xl:items-center justify-between border-b border-white/5 gap-4">
+            <CardTitle className="text-lg flex flex-col md:flex-row md:items-center gap-4">
+              <span>Operaciones ({currentAccountType.toUpperCase()})</span>
+              <Select value={timeFilter} onValueChange={setTimeFilter}>
+                <SelectTrigger className="w-[180px] h-8 text-xs border-primary/20 bg-background/50">
+                  <SelectValue placeholder="Filtro" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Hoy</SelectItem>
+                  <SelectItem value="week">Últimos 7 Días</SelectItem>
+                  <SelectItem value="month">Últimos 30 Días</SelectItem>
+                  <SelectItem value="year">Último Año</SelectItem>
+                  <SelectItem value="all">Historial Completo</SelectItem>
+                </SelectContent>
+              </Select>
+            </CardTitle>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={exportToCSV} className="border-primary/50 text-primary hover:bg-primary/10 gap-2 font-bold text-xs uppercase tracking-widest hidden md:flex">
                 <Download className="h-3 w-3" />

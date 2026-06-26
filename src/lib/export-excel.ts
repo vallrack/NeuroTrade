@@ -114,7 +114,10 @@ export async function exportReportToExcel(report: any) {
       cell.font = { color: { argb: theme.headerFont }, bold: true };
       cell.alignment = { vertical: 'middle', horizontal: 'center' };
     });
-    ws.columns.forEach(col => { if(col) col.width = 18; });
+    const colCount = Math.max(1, ws.columnCount || 10);
+    for (let i = 1; i <= colCount; i++) {
+      ws.getColumn(i).width = 18;
+    }
   };
 
   // ==========================================
