@@ -53,7 +53,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [mounted, loading, profileLoading, isExpired, router]);
 
-  if (loading || (mounted && user && profileLoading)) {
+  if (loading || (mounted && user && profileLoading && !profile)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-10 w-10 text-primary animate-spin" />
