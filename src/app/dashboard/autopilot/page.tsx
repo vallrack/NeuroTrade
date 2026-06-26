@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { doc, setDoc, collection, query } from 'firebase/firestore';
-import { useCollection } from '@/firebase';
+import { useCollection, useFirestore, useUser, useDoc } from '@/firebase';
 import { NotificationBell } from '@/components/dashboard/notification-bell';
 import {
   ALL_REGULAR_PAIRS, ALL_OTC_PAIRS, TIMEZONES,
