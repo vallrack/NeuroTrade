@@ -12,8 +12,8 @@ import {
   CheckCircle2, Globe, ShieldCheck, Play, Pause, RefreshCw
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useDoc } from '@/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, query } from 'firebase/firestore';
+import { useCollection } from '@/firebase';
 import { NotificationBell } from '@/components/dashboard/notification-bell';
 import {
   ALL_REGULAR_PAIRS, ALL_OTC_PAIRS, TIMEZONES,
@@ -187,6 +187,36 @@ export default function AutopilotPage() {
   }, [mounted, user, firestore]);
   const { data: profile } = useDoc(profileDocRef);
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super-admin';
+
+  // Obtener reportes para sugerencias de horas
+  const reportsQuery = useMemo(() => {
+    if (!mounted || !user || !firestore) return null;
+    return query(collection(firestore, 'users', user.uid, 'reports'));
+  }, [mounted, user, firestore]);
+  const { data: allReports } = useCollection(reportsQuery);
+
+  const bestHours = useMemo(() => {
+    if (!allReports || allReports.length === 0) return [];
+    
+    const statsByHour: Record<string, { profit: number, wins: number, losses: number }> = {};
+    
+    allReports.forEach((r: any) => {
+      if (r.hourlyStats) {
+        Object.entries(r.hourlyStats).forEach(([hour, stats]: [string, any]) => {
+          if (!statsByHour[hour]) statsByHour[hour] = { profit: 0, wins: 0, losses: 0 };
+          statsByHour[hour].profit += stats.profit || 0;
+          statsByHour[hour].wins += stats.wins || 0;
+          statsByHour[hour].losses += stats.losses || 0;
+        });
+      }
+    });
+
+    return Object.entries(statsByHour)
+      .filter(([_, stats]) => stats.profit > 0)
+      .sort((a, b) => b[1].profit - a[1].profit)
+      .slice(0, 3)
+      .map(([hour, stats]) => ({ hour, profit: stats.profit }));
+  }, [allReports]);
 
   // Estado local
   const [autopilotEnabled, setAutopilotEnabled] = useState(false);
@@ -451,7 +481,25 @@ export default function AutopilotPage() {
                     )}
 
                     {scheduleMode === 'custom' && (
-                      <div className="space-y-3">
+                      <div className="space-y-4">
+                        {/* Sugerencias Cuánticas */}
+                        {bestHours.length > 0 && (
+                          <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-3">
+                            <h4 className="text-xs font-bold text-primary flex items-center gap-2 uppercase tracking-widest">
+                              <Zap className="h-3 w-3" />
+                              Sugerencias de IA
+                            </h4>
+                            <p className="text-[10px] text-muted-foreground">Basado en tu historial, estas son las horas donde has sido más rentable. Te sugerimos programar tu Piloto Automático cerca de estos bloques:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {bestHours.map((bh, i) => (
+                                <Badge key={i} className="bg-primary/20 text-primary border-primary/30">
+                                  {bh.hour} (+${bh.profit.toFixed(2)})
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <div className="space-y-3">
                         {slots.length === 0 && (
                           <p className="text-xs text-muted-foreground text-center py-4">
                             No hay horarios configurados. Agrega uno para comenzar.
