@@ -20,7 +20,8 @@ export function PresetsManager() {
   const router = useRouter();
   const { isRunning, toggleEngine } = useBotEngine();
   
-  const { data: uiSettings } = useDoc(user ? `users/${user.uid}/config/ui_settings` : null);
+  const uiSettingsRef = user && firestore ? doc(firestore, 'users', user.uid, 'config', 'ui_settings') : null;
+  const { data: uiSettings } = useDoc(uiSettingsRef);
   
   const [loadingPhase, setLoadingPhase] = useState<number | null>(null);
   const [accountType, setAccountType] = useState<'real' | 'demo'>('real');
