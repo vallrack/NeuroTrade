@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { useUser, useDoc, useFirestore } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { CalendarDays, Target } from 'lucide-react';
@@ -25,6 +25,33 @@ export function PlanTracker() {
   
   const { planPhase, planDay, dailyGoalPercent } = botParams;
   
+  const handleDayChange = async () => {
+    const newDayStr = window.prompt(`Estás en el Día ${planDay}. ¿A qué día quieres saltar manualmente? (1-15):`, String(planDay));
+    if (!newDayStr) return;
+    const newDay = parseInt(newDayStr);
+    if (isNaN(newDay) || newDay < 1 || newDay > 15) {
+      alert("Día inválido. Debe ser del 1 al 15.");
+      return;
+    }
+    
+    // Determinar la fase en base al nuevo día
+    const phaseNumber = newDay <= 5 ? 1 : newDay <= 10 ? 2 : 3;
+    const dayInPhase = newDay <= 5 ? newDay : newDay <= 10 ? newDay - 5 : newDay - 10;
+    const newGoal = 60 + (dayInPhase - 1) * 10;
+    
+    try {
+      await setDoc(botParamsRef, {
+        planDay: newDay,
+        planPhase: phaseNumber,
+        dailyGoalPercent: newGoal,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      alert(`¡Saltaste al Día ${newDay} (Fase ${phaseNumber})!`);
+    } catch (err: any) {
+      alert("Error cambiando de día: " + err.message);
+    }
+  };
+
   const progress = (planDay / 15) * 100;
   
   return (
@@ -37,7 +64,13 @@ export function PlanTracker() {
               <CalendarDays className="h-4 w-4 text-primary" />
               Progreso del Plan de 15 Días
             </h3>
-            <span className="text-muted-foreground font-mono">Día {planDay} de 15</span>
+            <span 
+              className="text-muted-foreground font-mono cursor-pointer hover:text-white transition-colors"
+              onClick={handleDayChange}
+              title="Clic para cambiar de día manualmente"
+            >
+              Día {planDay} de 15
+            </span>
           </div>
           <Progress value={progress} className="h-2" />
         </div>
