@@ -16,7 +16,7 @@ import { doc, setDoc, collection, query } from 'firebase/firestore';
 import { useCollection, useFirestore, useUser, useDoc } from '@/firebase';
 import { NotificationBell } from '@/components/dashboard/notification-bell';
 import {
-  ALL_REGULAR_PAIRS, ALL_OTC_PAIRS, TIMEZONES,
+  ALL_REGULAR_PAIRS, ALL_OTC_PAIRS, ALL_CRYPTO_PAIRS, ALL_STOCKS, TIMEZONES,
   isForexMarketOpen, isCurrentlyInSchedule, type ScheduleSlot, type AutopilotConfig
 } from '@/lib/market-schedule';
 
@@ -448,6 +448,9 @@ export default function AutopilotPage() {
                             {ALL_REGULAR_PAIRS.map(p => (
                               <PairButton key={p} pair={p} selected={regularPairs.includes(p)} onToggle={() => toggleRegularPair(p)} />
                             ))}
+                            {ALL_STOCKS.map(p => (
+                              <PairButton key={p} pair={p} selected={regularPairs.includes(p)} onToggle={() => toggleRegularPair(p)} />
+                            ))}
                           </div>
                         </div>
                         <div className="space-y-2">
@@ -456,6 +459,9 @@ export default function AutopilotPage() {
                           </Label>
                           <div className="flex flex-wrap gap-2">
                             {ALL_OTC_PAIRS.map(p => (
+                              <PairButton key={p} pair={p} selected={otcPairs.includes(p)} onToggle={() => toggleOtcPair(p)} />
+                            ))}
+                            {ALL_CRYPTO_PAIRS.map(p => (
                               <PairButton key={p} pair={p} selected={otcPairs.includes(p)} onToggle={() => toggleOtcPair(p)} />
                             ))}
                           </div>

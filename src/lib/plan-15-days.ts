@@ -25,7 +25,6 @@ export function getPresetForDay(day: number, accountType: 'real' | 'demo') {
         scheduleMode: 'auto',
         slots: []
       },
-      pairs: ['EURUSD-OTC', 'GBPUSD-OTC'], 
     };
   } else if (phaseNumber === 2) {
     presetData = {

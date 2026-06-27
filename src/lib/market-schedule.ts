@@ -275,11 +275,29 @@ export function getMarketStatus(
 export const ALL_REGULAR_PAIRS = [
   'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD',
   'USDCHF', 'NZDUSD', 'EURGBP', 'EURJPY', 'GBPJPY',
+  'CADCHF', 'AUDJPY', 'GBPCAD', 'EURAUD', 'AUDCAD',
+  'CHFJPY', 'CADJPY', 'NZDJPY', 'GBPAUD', 'EURNZD',
 ];
 
 export const ALL_OTC_PAIRS = [
   'EURUSD-OTC', 'GBPUSD-OTC', 'USDJPY-OTC', 'AUDUSD-OTC',
   'USDCAD-OTC', 'USDCHF-OTC', 'NZDUSD-OTC', 'EURGBP-OTC',
+  'EURJPY-OTC', 'GBPJPY-OTC', 'AUDCAD-OTC', 'EURCAD-OTC',
+  'EURCHF-OTC', 'AUDCHF-OTC', 'CADCHF-OTC', 'AUDNZD-OTC',
+  'GBPCAD-OTC', 'NZDCAD-OTC', 'CHFJPY-OTC', 'GBPCHF-OTC',
+  'EURAUD-OTC', 'GBPAUD-OTC', 'NZDCHF-OTC', 'SGDJPY-OTC',
+];
+
+export const ALL_CRYPTO_PAIRS = [
+  'BTCUSD', 'ETHUSD', 'LTCUSD', 'XRPUSD', 'EOSUSD',
+  'BCHUSD', 'ETCUSD', 'DSHUSD', 'ZECUSD', 'OMGUSD',
+  'TRXUSD', 'QTMUSD', 'ZRXUSD', 'BTCUSD-OTC', 'ETHUSD-OTC'
+];
+
+export const ALL_STOCKS = [
+  'AAPL', 'TSLA', 'MSFT', 'AMZN', 'GOOG', 'META', 
+  'SNAP', 'NFLX', 'BA', 'MCD', 'NKE', 'KO', 'JNJ',
+  'BABA', 'NVDA', 'AMD', 'INTC', 'Gold', 'Silver', 'Crude Oil WTI'
 ];
 
 export const TIMEZONES = [

@@ -26,17 +26,14 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
-// Todos los pares disponibles en IQ Option
+import { ALL_REGULAR_PAIRS, ALL_OTC_PAIRS, ALL_CRYPTO_PAIRS, ALL_STOCKS } from '@/lib/market-schedule';
+
+// Todos los pares disponibles combinados
 const ALL_IQ_PAIRS = [
-  // OTC (disponibles 24/7)
-  'EURUSD-OTC', 'GBPUSD-OTC', 'USDJPY-OTC', 'AUDUSD-OTC', 'USDCAD-OTC',
-  'USDCHF-OTC', 'EURGBP-OTC', 'EURJPY-OTC', 'GBPJPY-OTC', 'AUDCAD-OTC',
-  'NZDUSD-OTC', 'EURCAD-OTC', 'EURCHF-OTC', 'AUDCHF-OTC', 'CADCHF-OTC',
-  'AUDNZD-OTC', 'GBPCAD-OTC', 'NZDCAD-OTC', 'CHFJPY-OTC', 'GBPCHF-OTC',
-  'EURAUD-OTC', 'GBPAUD-OTC', 'EURCAD-OTC', 'NZDCHF-OTC', 'SGDJPY-OTC',
-  // Forex real (solo en horario de mercado)
-  'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD',
-  'USDCHF', 'EURGBP', 'EURJPY', 'GBPJPY', 'NZDUSD',
+  ...ALL_OTC_PAIRS,
+  ...ALL_REGULAR_PAIRS,
+  ...ALL_CRYPTO_PAIRS,
+  ...ALL_STOCKS,
 ];
 
 export default function RiskPage() {
@@ -145,12 +142,14 @@ export default function RiskPage() {
     setActivePairs(prev => prev.filter(p => p !== pair));
   };
 
-  const query = pairSearch.toLowerCase();
   const filteredPairs = ALL_IQ_PAIRS.filter(
     p => !activePairs.includes(p) && p.toLowerCase().includes(query)
   );
-  const filteredOTC  = filteredPairs.filter(p =>  p.includes('-OTC'));
-  const filteredReal = filteredPairs.filter(p => !p.includes('-OTC'));
+  
+  const filteredOTC  = filteredPairs.filter(p => ALL_OTC_PAIRS.includes(p));
+  const filteredReal = filteredPairs.filter(p => ALL_REGULAR_PAIRS.includes(p));
+  const filteredCrypto = filteredPairs.filter(p => ALL_CRYPTO_PAIRS.includes(p));
+  const filteredStocks = filteredPairs.filter(p => ALL_STOCKS.includes(p));
 
   // Par personalizado que no existe en la lista
   const typedIsCustom =
@@ -478,45 +477,50 @@ export default function RiskPage() {
                   </button>
                 )}
 
-                {/* OTC */}
-                {filteredOTC.length > 0 && (
-                  <>
-                    <div className="px-3 py-1.5 text-[9px] text-slate-600 uppercase tracking-widest font-bold bg-white/5 border-b border-white/5">
-                      OTC — Disponibles 24/7
-                    </div>
-                    {filteredOTC.map(pair => (
-                      <button
-                        key={pair}
-                        onClick={() => addPair(pair)}
-                        className="w-full text-left px-4 py-2 text-[11px] font-mono text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-300 flex items-center gap-2 transition-colors"
-                      >
+                {/* Lista Categorizada */}
+                {pairSearch.trim().length > 0 && filteredPairs.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-white/10 rounded-lg shadow-xl overflow-hidden z-50 max-h-60 overflow-y-auto custom-scrollbar">
+                    {filteredOTC.length > 0 && (
+                      <div className="px-3 py-2 text-[10px] font-bold text-emerald-500 uppercase tracking-wider bg-black/40 sticky top-0">🛡️ Forex OTC (24/7)</div>
+                    )}
+                    {filteredOTC.map(p => (
+                      <button key={p} onClick={() => addPair(p)} className="w-full text-left px-4 py-2 text-[11px] font-mono text-slate-300 hover:bg-emerald-500/10 hover:text-white flex items-center gap-2 transition-colors">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/50 shrink-0" />
-                        {pair}
+                        {p}
                       </button>
                     ))}
-                  </>
-                )}
+                    
+                    {filteredReal.length > 0 && (
+                      <div className="px-3 py-2 text-[10px] font-bold text-blue-500 uppercase tracking-wider bg-black/40 sticky top-0">🌍 Forex Normal (Mercado)</div>
+                    )}
+                    {filteredReal.map(p => (
+                      <button key={p} onClick={() => addPair(p)} className="w-full text-left px-4 py-2 text-[11px] font-mono text-slate-300 hover:bg-blue-500/10 hover:text-white flex items-center gap-2 transition-colors">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400/50 shrink-0" />
+                        {p}
+                      </button>
+                    ))}
 
-                {/* Forex real */}
-                {filteredReal.length > 0 && (
-                  <>
-                    <div className="px-3 py-1.5 text-[9px] text-slate-600 uppercase tracking-widest font-bold bg-white/5 border-y border-white/5">
-                      Forex Real — Solo horario de mercado
-                    </div>
-                    {filteredReal.map(pair => (
-                      <button
-                        key={pair}
-                        onClick={() => addPair(pair)}
-                        className="w-full text-left px-4 py-2 text-[11px] font-mono text-slate-300 hover:bg-amber-500/10 hover:text-amber-300 flex items-center gap-2 transition-colors"
-                      >
+                    {filteredCrypto.length > 0 && (
+                      <div className="px-3 py-2 text-[10px] font-bold text-amber-500 uppercase tracking-wider bg-black/40 sticky top-0">🪙 Criptomonedas</div>
+                    )}
+                    {filteredCrypto.map(p => (
+                      <button key={p} onClick={() => addPair(p)} className="w-full text-left px-4 py-2 text-[11px] font-mono text-slate-300 hover:bg-amber-500/10 hover:text-white flex items-center gap-2 transition-colors">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-400/50 shrink-0" />
-                        {pair}
+                        {p}
                       </button>
                     ))}
-                  </>
+
+                    {filteredStocks.length > 0 && (
+                      <div className="px-3 py-2 text-[10px] font-bold text-purple-500 uppercase tracking-wider bg-black/40 sticky top-0">📈 Acciones y Materias Primas</div>
+                    )}
+                    {filteredStocks.map(p => (
+                      <button key={p} onClick={() => addPair(p)} className="w-full text-left px-4 py-2 text-[11px] font-mono text-slate-300 hover:bg-purple-500/10 hover:text-white flex items-center gap-2 transition-colors">
+                        <span className="w-1.5 h-1.5 rounded-full bg-purple-400/50 shrink-0" />
+                        {p}
+                      </button>
+                    ))}
+                  </div>
                 )}
-              </div>
-            )}
           </CardHeader>
 
           <CardContent>
