@@ -8,13 +8,26 @@ import requests
 # ─── INTERCEPCIÓN PARA PYINSTALLER (EJECUCIÓN DE WORKERS) ─────────────
 if getattr(sys, 'frozen', False) and len(sys.argv) >= 3 and sys.argv[1] == "--worker":
     port_str = sys.argv[2]
-    # Modificar sys.argv para que iq_worker lo parsee correctamente (espera el puerto en argv[1])
+    broker = "iqoption"
+    if "--broker" in sys.argv:
+        try:
+            broker_idx = sys.argv.index("--broker")
+            broker = sys.argv[broker_idx + 1]
+        except:
+            pass
+
     sys.argv = [sys.executable, port_str]
-    import iq_worker
     port = int(port_str)
-    print(f"[WORKER {port}] Iniciando desde ejecutable empacado...")
-    iq_worker.WORKER_PORT = port
-    iq_worker.app.run(host="127.0.0.1", port=port, debug=False, threaded=True)
+    
+    if broker == "binance":
+        import binance_worker as worker
+        print(f"[BINANCE WORKER {port}] Iniciando desde ejecutable empacado...")
+    else:
+        import iq_worker as worker
+        print(f"[IQ WORKER {port}] Iniciando desde ejecutable empacado...")
+        
+    worker.WORKER_PORT = port
+    worker.app.run(host="127.0.0.1", port=port, debug=False, threaded=True)
     sys.exit(0)
 # ──────────────────────────────────────────────────────────────────────
 

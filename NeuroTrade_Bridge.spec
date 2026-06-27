@@ -9,12 +9,14 @@ block_cipher = None
 # Empaquetar dependencias completas de iqoptionapi y flask
 iq_datas, iq_binaries, iq_hiddenimports = collect_all('iqoptionapi')
 flask_datas, flask_binaries, flask_hiddenimports = collect_all('flask')
+ccxt_datas, ccxt_binaries, ccxt_hiddenimports = collect_all('ccxt')
 
 hiddenimports = (
     collect_submodules('iqoptionapi')
     + collect_submodules('websocket')
     + iq_hiddenimports
     + flask_hiddenimports
+    + ccxt_hiddenimports
     + [
         'flask_cors',
         'werkzeug',
@@ -30,8 +32,8 @@ hiddenimports = (
 a = Analysis(
     ['bridge_server.py'],
     pathex=[],
-    binaries=iq_binaries + flask_binaries,
-    datas=iq_datas + flask_datas,
+    binaries=iq_binaries + flask_binaries + ccxt_binaries,
+    datas=iq_datas + flask_datas + ccxt_datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
