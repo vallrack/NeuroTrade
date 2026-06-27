@@ -4,9 +4,9 @@ import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useUser, useCollection, useFirestore, useDoc } from '@/firebase';
-import { collection, query, orderBy, doc, getDocs, where, addDoc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, getDocs, where, addDoc, updateDoc } from 'firebase/firestore';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
-import { Download, FileSpreadsheet, AlertTriangle } from 'lucide-react';
+import { Download, FileSpreadsheet, AlertTriangle, Edit3 } from 'lucide-react';
 import { exportReportToExcel } from '@/lib/export-excel';
 
 export function AuditReports() {
@@ -109,6 +109,28 @@ export function AuditReports() {
     }
   };
 
+  const handleFixGrowth = async (e: React.MouseEvent, r: any) => {
+    e.stopPropagation();
+    if (!firestore || !user) return;
+    const balanceStr = window.prompt(`Ingresa el SALDO INICIAL exacto que tenías en tu cuenta esta mañana antes de empezar a operar. Esto nos permitirá calcular el porcentaje de crecimiento real sobre tu resultado de $${r.profit.toFixed(2)}:`, "10000");
+    if (!balanceStr) return;
+    const startBalance = parseFloat(balanceStr.replace(/[^0-9.-]+/g,""));
+    if (isNaN(startBalance) || startBalance <= 0) {
+      alert("Saldo inválido.");
+      return;
+    }
+    const profitPercent = (r.profit / startBalance) * 100;
+    try {
+      await updateDoc(doc(firestore, 'users', user.uid, 'reports', r.id), {
+        profitPercent,
+        finalBalance: startBalance + r.profit
+      });
+      alert(`¡Crecimiento corregido al ${profitPercent.toFixed(2)}%!`);
+    } catch(err: any) {
+      alert("Error actualizando: " + err.message);
+    }
+  };
+
   if (loading) return <div className="animate-pulse p-4">Cargando reportes de eficiencia...</div>;
   if (reports.length === 0) {
     return (
@@ -186,11 +208,20 @@ export function AuditReports() {
                   <div className={`font-bold ${r.profit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                     ${r.profit?.toFixed(2)}
                   </div>
-                  <div className={`text-xs ${
+                  <div className={`text-xs flex items-center justify-end gap-1 ${
                     (r.profitPercent || 0) > 0 ? 'text-green-400' : 
                     (r.profitPercent || 0) < 0 ? 'text-red-400' : 'text-muted-foreground'
                   }`}>
                     Crecimiento: {(r.profitPercent || 0).toFixed(1)}%
+                    {r.profit !== 0 && (r.profitPercent || 0) === 0 && (
+                      <button 
+                        onClick={(e) => handleFixGrowth(e, r)} 
+                        title="Calcular Crecimiento %" 
+                        className="hover:text-white transition-colors opacity-50 hover:opacity-100 p-1"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </CardContent>
