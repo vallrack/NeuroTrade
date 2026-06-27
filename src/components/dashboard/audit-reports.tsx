@@ -128,6 +128,15 @@ export function AuditReports() {
     );
   }
 
+  const currentPhase = brokerConfig?.planPhase || 1;
+  const phaseReports = reports.filter((r: any) => r.planPhase === currentPhase);
+  const totalPhaseProfit = phaseReports.reduce((sum: number, r: any) => sum + (r.profit || 0), 0);
+  const phaseTotalWins = phaseReports.reduce((sum: number, r: any) => sum + (r.wins || 0), 0);
+  const phaseTotalLosses = phaseReports.reduce((sum: number, r: any) => sum + (r.losses || 0), 0);
+  const phaseWinrate = phaseTotalWins + phaseTotalLosses > 0 
+    ? ((phaseTotalWins / (phaseTotalWins + phaseTotalLosses)) * 100).toFixed(1) 
+    : '0.0';
+
   return (
     <div className="space-y-4 mt-8">
       <h3 className="text-xl font-headline font-bold text-primary flex items-center gap-2">
@@ -136,9 +145,34 @@ export function AuditReports() {
       </h3>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 space-y-3">
+        <div className="lg:col-span-1 space-y-4">
+          {/* Tarjeta de Resumen de Fase */}
+          <Card className="bg-primary/5 border-primary/20">
+            <CardContent className="p-4">
+              <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Progreso Global de Fase {currentPhase}</h4>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="bg-black/30 p-2 rounded-md">
+                  <div className="text-[10px] text-muted-foreground uppercase">Días Completados</div>
+                  <div className="font-bold text-sm">{phaseReports.length} / 5</div>
+                </div>
+                <div className="bg-black/30 p-2 rounded-md">
+                  <div className="text-[10px] text-muted-foreground uppercase">Winrate General</div>
+                  <div className="font-bold text-sm">{phaseWinrate}%</div>
+                </div>
+              </div>
+              <div className="bg-black/30 p-2 rounded-md flex justify-between items-center">
+                <div className="text-[10px] text-muted-foreground uppercase">Profit Acumulado Fase</div>
+                <div className={`font-bold text-sm ${totalPhaseProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {totalPhaseProfit >= 0 ? '+' : ''}${totalPhaseProfit.toFixed(2)}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Lista de reportes */}
+          <div className="space-y-2 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
           {reports.map((r: any) => (
-            <Card 
+            <Card
               key={r.id} 
               className={`cursor-pointer transition-all hover:bg-white/5 ${selectedReport?.id === r.id ? 'border-primary bg-primary/10 shadow-[0_0_15px_rgba(38,166,154,0.2)]' : 'border-white/10'}`}
               onClick={() => setSelectedReport(r)}
@@ -162,6 +196,7 @@ export function AuditReports() {
               </CardContent>
             </Card>
           ))}
+          </div>
         </div>
 
         <div className="lg:col-span-2">
