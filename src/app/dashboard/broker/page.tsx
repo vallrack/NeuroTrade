@@ -352,17 +352,17 @@ function BrokerContent() {
           accountType={accountType}
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {isDayLocked && (
-            <div className="mb-6 p-4 rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-400 text-sm flex items-start gap-3">
-              <ShieldCheck className="w-5 h-5 mt-0.5 shrink-0" />
-              <div>
-                <strong className="block text-base mb-1">Sesión Diaria Completada</strong>
-                <p>Ya realizaste la desconexión definitiva de hoy. Tu progreso de fase avanzó y tu reporte ya fue guardado en el sistema de auditoría. El botón de conexión permanecerá bloqueado hasta mañana.</p>
-              </div>
+        {isDayLocked && (
+          <div className="mb-6 p-4 rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-400 text-sm flex items-start gap-3 w-full">
+            <ShieldCheck className="w-5 h-5 mt-0.5 shrink-0" />
+            <div>
+              <strong className="block text-base mb-1">Sesión Diaria Completada</strong>
+              <p>Ya realizaste la desconexión definitiva de hoy. Tu progreso de fase avanzó y tu reporte ya fue guardado en el sistema de auditoría. El botón de conexión permanecerá bloqueado hasta mañana.</p>
             </div>
-          )}
+          </div>
+        )}
 
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* ─── Credenciales ─── */}
           <div className="lg:col-span-7 space-y-4">
             <Card className="bg-black/40 border-white/5 backdrop-blur-xl">
