@@ -206,12 +206,15 @@ def connect():
         print(f"[BINANCE WORKER {WORKER_PORT}] Conectando API Key...")
         
         # Testnet (demo) o Real
+        # Binance testnet ya no soporta futures en ccxt, forzamos spot
+        default_type = 'spot' if acc_type.lower() == 'demo' else 'future'
+        
         binance_instance = ccxt.binance({
             'apiKey': apiKey,
             'secret': secret,
             'enableRateLimit': True,
             'options': {
-                'defaultType': 'future' # O 'spot' dependiendo de lo que el usuario quiera
+                'defaultType': default_type
             }
         })
         
