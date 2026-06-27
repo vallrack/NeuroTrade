@@ -53,6 +53,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [mounted, loading, profileLoading, isExpired, router]);
 
+  // Redirigir si el usuario está inactivo (esperando aprobación)
+  const isDisabled = profile?.disabled === true;
+  useEffect(() => {
+    if (mounted && !loading && !profileLoading && isDisabled) {
+      router.push('/dashboard/pending');
+    }
+  }, [mounted, loading, profileLoading, isDisabled, router]);
+
   if (loading || (mounted && user && profileLoading && !profile)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -62,7 +70,19 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) return null;
-  if (isExpired) return null; // useEffect redirigirá
+  
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+  const isSpecialPage = pathname === '/dashboard/expired' || pathname === '/dashboard/pending';
+
+  // Solo bloquear el renderizado si no estamos en las páginas especiales
+  if (!isSpecialPage && (isExpired || isDisabled)) {
+    return null; // useEffect redirigirá
+  }
+
+  // Si estamos en la página de expirado o pendiente, renderizar solo la página (sin Sidebar ni Bot)
+  if (isSpecialPage) {
+    return <>{children}</>;
+  }
 
   return (
     <BotEngineProvider>
