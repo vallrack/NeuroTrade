@@ -132,7 +132,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   const currentAccountType = brokerConfig?.accountType || 'demo';
 
   const tradesQuery = user && firestore
-    ? query(collection(firestore, 'users', user.uid, 'trades'), orderBy('timestamp', 'desc'), limit(20))
+    ? query(collection(firestore, 'users', user.uid, 'trades'), orderBy('timestamp', 'desc'), limit(100))
     : null;
   const { data: recentTradesRaw } = useCollection(tradesQuery);
   const recentTrades = recentTradesRaw?.filter((t: any) => t.accountType === currentAccountType) || [];
@@ -612,12 +612,26 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   // Manejar meta diaria alcanzada (Plan 15 Días)
   useEffect(() => {
     const handleDailyGoal = async (e: any) => {
-      const { balance, profit, profitPercent, planPhase, planDay } = e.detail;
+      const { planPhase, planDay } = e.detail;
       const currentUser = userRef.current;
       const currentFirestore = firestoreRef.current;
       const currentBroker = brokerConfigRef.current;
       
       if (!currentUser || !currentFirestore || !planDay) return;
+      
+      const todayStr = new Date().toLocaleDateString();
+      const todaysTrades = recentTradesRef.current.filter((t: any) => 
+        t.accountType === (currentBroker?.accountType || 'demo') &&
+        new Date(t.timestamp).toLocaleDateString() === todayStr
+      );
+      
+      const realWins = todaysTrades.filter(t => t.status === 'win').length;
+      const realLosses = todaysTrades.filter(t => t.status === 'loss').length;
+      const realProfit = todaysTrades.reduce((sum, t) => sum + (t.profit || 0), 0);
+      
+      const finalBalance = liveBalanceRef.current ?? 0;
+      const startBalance = finalBalance - realProfit;
+      const profitPercent = startBalance > 0 ? (realProfit / startBalance) * 100 : 0;
       
       try {
         // 1. Guardar informe de eficiencia
@@ -628,14 +642,14 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           planDay,
           planPhase,
           accountType: currentBroker?.accountType || 'demo',
-          profit,
+          profit: realProfit,
           profitPercent,
-          finalBalance: balance,
-          trades: recentTradesRef.current.length,
-          wins: sessionWinsRef.current,
-          losses: sessionLossesRef.current,
-          hourlyStats: e.detail.hourlyStats || {},
-          pairStats: e.detail.pairStats || {}
+          finalBalance,
+          trades: todaysTrades.length,
+          wins: realWins,
+          losses: realLosses,
+          hourlyStats: e.detail.hourlyStats || hourlyStatsRef.current || {},
+          pairStats: e.detail.pairStats || pairStatsRef.current || {}
         });
         
         // 2. Avanzar al siguiente día
@@ -665,12 +679,19 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
       
       if (!currentUser || !currentFirestore || !planDay) return;
       
-      const startBalance = sessionStartBalanceRef.current ?? 0;
-      const finalBalance = liveBalanceRef.current ?? startBalance;
-      // Usar sessionProfitRef en lugar de calcularlo, así si se recargó la página o no hay balance
-      // aún se toma el profit acumulado de la sesión actual (o 0 si no hubo).
-      const profit = sessionProfitRef.current;
-      const profitPercent = startBalance > 0 ? (profit / startBalance) * 100 : 0;
+      const todayStr = new Date().toLocaleDateString();
+      const todaysTrades = recentTradesRef.current.filter((t: any) => 
+        t.accountType === (currentBroker?.accountType || 'demo') &&
+        new Date(t.timestamp).toLocaleDateString() === todayStr
+      );
+      
+      const realWins = todaysTrades.filter(t => t.status === 'win').length;
+      const realLosses = todaysTrades.filter(t => t.status === 'loss').length;
+      const realProfit = todaysTrades.reduce((sum, t) => sum + (t.profit || 0), 0);
+      
+      const finalBalance = liveBalanceRef.current ?? 0;
+      const startBalance = finalBalance - realProfit;
+      const profitPercent = startBalance > 0 ? (realProfit / startBalance) * 100 : 0;
       
       try {
         // 1. Guardar informe en Firebase (alimenta los gráficos de AuditReports)
@@ -681,12 +702,12 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           planDay,
           planPhase,
           accountType: currentBroker?.accountType || 'demo',
-          profit,
+          profit: realProfit,
           profitPercent,
           finalBalance,
-          trades: recentTradesRef.current.length,
-          wins: sessionWinsRef.current,
-          losses: sessionLossesRef.current,
+          trades: todaysTrades.length,
+          wins: realWins,
+          losses: realLosses,
           hourlyStats: hourlyStatsRef.current || {},
           pairStats: pairStatsRef.current || {}
         });
