@@ -108,41 +108,49 @@ export function TradingChart({ data, pair }: TradingChartProps) {
     isDataLoadedRef.current = false;
   }, [pair]);
 
+  const [chartError, setChartError] = useState<string | null>(null);
+
   useEffect(() => {
     if (seriesRef.current && volumeSeriesRef.current && data && data.length > 0) {
-      // Velas
-      const formattedData = data.map(candle => ({
-        time: candle.from,
-        open: candle.open,
-        high: candle.max,
-        low: candle.min,
-        close: candle.close,
-      }));
-      formattedData.sort((a, b) => (a.time as number) - (b.time as number));
+      try {
+        // Velas
+        const formattedData = data.map(candle => ({
+          time: candle.from,
+          open: candle.open,
+          high: candle.max,
+          low: candle.min,
+          close: candle.close,
+        }));
+        formattedData.sort((a, b) => (a.time as number) - (b.time as number));
 
-      // Volumen
-      const formattedVolumeData = data.map(candle => ({
-        time: candle.from,
-        value: candle.volume || 0,
-        color: candle.close > candle.open ? 'rgba(38, 166, 154, 0.35)' : 'rgba(239, 83, 80, 0.35)'
-      }));
-      formattedVolumeData.sort((a, b) => (a.time as number) - (b.time as number));
+        // Volumen
+        const formattedVolumeData = data.map(candle => ({
+          time: candle.from,
+          value: candle.volume || 0,
+          color: candle.close > candle.open ? 'rgba(38, 166, 154, 0.35)' : 'rgba(239, 83, 80, 0.35)'
+        }));
+        formattedVolumeData.sort((a, b) => (a.time as number) - (b.time as number));
 
-      if (!isDataLoadedRef.current) {
-        seriesRef.current.setData(formattedData);
-        volumeSeriesRef.current.setData(formattedVolumeData);
-        chartRef.current?.timeScale().fitContent();
-        isDataLoadedRef.current = true;
-      } else {
-        try {
-          const lastCandle = formattedData[formattedData.length - 1];
-          const lastVolume = formattedVolumeData[formattedVolumeData.length - 1];
-          if (lastCandle) seriesRef.current.update(lastCandle);
-          if (lastVolume) volumeSeriesRef.current.update(lastVolume);
-        } catch (err) {
+        if (!isDataLoadedRef.current) {
           seriesRef.current.setData(formattedData);
           volumeSeriesRef.current.setData(formattedVolumeData);
+          chartRef.current?.timeScale().fitContent();
+          isDataLoadedRef.current = true;
+        } else {
+          try {
+            const lastCandle = formattedData[formattedData.length - 1];
+            const lastVolume = formattedVolumeData[formattedVolumeData.length - 1];
+            if (lastCandle) seriesRef.current.update(lastCandle);
+            if (lastVolume) volumeSeriesRef.current.update(lastVolume);
+          } catch (err) {
+            seriesRef.current.setData(formattedData);
+            volumeSeriesRef.current.setData(formattedVolumeData);
+          }
         }
+        setChartError(null);
+      } catch (err: any) {
+        console.error("TradingChart Error:", err, data);
+        setChartError(err.message || String(err));
       }
     }
   }, [data]);
@@ -155,6 +163,14 @@ export function TradingChart({ data, pair }: TradingChartProps) {
                 IQ OTC: {pair}
             </span>
         </div>
+        {chartError && (
+          <div className="absolute inset-0 z-50 bg-red-900/90 flex items-center justify-center p-4">
+            <div className="text-white text-xs font-mono">
+              Error rendering chart: {chartError}<br/><br/>
+              Data length: {data?.length}
+            </div>
+          </div>
+        )}
         <div ref={chartContainerRef} className="w-full h-full" />
     </div>
   );
