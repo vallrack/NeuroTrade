@@ -57,29 +57,32 @@ export function AuditReports() {
       let hourlyStats: any = {};
       let pairStats: any = {};
       
-      const startOfToday = new Date();
-      startOfToday.setHours(0,0,0,0);
-      const todayTime = startOfToday.getTime();
+      const todayString = new Date().toLocaleDateString();
 
       snap.forEach(d => {
         const t = d.data();
         if (t.accountType === (brokerConfig?.accountType || 'demo')) {
-          const tradeTime = new Date(t.timestamp || 0).getTime();
-          // Filter by today locally to avoid Firebase indexing/timezone issues
-          if (tradeTime >= todayTime) {
+          const tradeDateStr = new Date(t.timestamp || 0).toLocaleDateString();
+          
+          if (tradeDateStr === todayString) {
             totalProfit += (t.profit || 0);
-            if (t.status === 'win') wins++;
-            if (t.status === 'loss') losses++;
+            const isWin = (t.profit > 0);
+            const isLoss = (t.profit < 0);
+            
+            if (isWin) wins++;
+            if (isLoss) losses++;
+            
             const date = new Date(t.timestamp);
             const hourKey = date.toLocaleTimeString('en-US', { hour: '2-digit', hour12: false }) + ':00';
+            
             if (!hourlyStats[hourKey]) hourlyStats[hourKey] = { wins: 0, losses: 0, profit: 0 };
-            hourlyStats[hourKey].wins += (t.status === 'win' ? 1 : 0);
-            hourlyStats[hourKey].losses += (t.status === 'loss' ? 1 : 0);
+            hourlyStats[hourKey].wins += (isWin ? 1 : 0);
+            hourlyStats[hourKey].losses += (isLoss ? 1 : 0);
             hourlyStats[hourKey].profit += (t.profit || 0);
 
             if (!pairStats[t.pair]) pairStats[t.pair] = { wins: 0, losses: 0, profit: 0 };
-            pairStats[t.pair].wins += (t.status === 'win' ? 1 : 0);
-            pairStats[t.pair].losses += (t.status === 'loss' ? 1 : 0);
+            pairStats[t.pair].wins += (isWin ? 1 : 0);
+            pairStats[t.pair].losses += (isLoss ? 1 : 0);
             pairStats[t.pair].profit += (t.profit || 0);
           }
         }
