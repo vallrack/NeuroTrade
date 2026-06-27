@@ -665,12 +665,11 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
       
       if (!currentUser || !currentFirestore || !planDay) return;
       
-      // Solo generar reporte estadístico si hubo saldo inicial válido y algo de actividad
-      if (sessionStartBalanceRef.current === null) return;
-      
-      const startBalance = sessionStartBalanceRef.current;
+      const startBalance = sessionStartBalanceRef.current ?? 0;
       const finalBalance = liveBalanceRef.current ?? startBalance;
-      const profit = finalBalance - startBalance;
+      // Usar sessionProfitRef en lugar de calcularlo, así si se recargó la página o no hay balance
+      // aún se toma el profit acumulado de la sesión actual (o 0 si no hubo).
+      const profit = sessionProfitRef.current;
       const profitPercent = startBalance > 0 ? (profit / startBalance) * 100 : 0;
       
       try {
@@ -692,8 +691,8 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           pairStats: pairStatsRef.current || {}
         });
         
-        // 2. Avanzar de día SOLO si hubo operaciones (wins > 0 o losses > 0)
-        if (planDay < 15 && (sessionWinsRef.current > 0 || sessionLossesRef.current > 0)) {
+        // 2. Avanzar de día (siempre que no esté en el día 15, avanzamos al cerrar)
+        if (planDay < 15) {
           const nextDay = planDay + 1;
           const nextPreset = getPresetForDay(nextDay, (currentBroker?.accountType as any) || 'demo');
           const botParamsDoc = doc(currentFirestore, 'users', currentUser.uid, 'config', 'bot_params');
