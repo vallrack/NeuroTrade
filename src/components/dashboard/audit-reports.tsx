@@ -32,7 +32,9 @@ export function AuditReports() {
 
   const reports = useMemo(() => {
     if (!allReports) return [];
-    return allReports.filter((r: any) => r.accountType === (brokerConfig?.accountType || 'demo'));
+    return allReports
+      .filter((r: any) => r.accountType === (brokerConfig?.accountType || 'demo'))
+      .sort((a: any, b: any) => (a.planDay || 0) - (b.planDay || 0));
   }, [allReports, brokerConfig]);
 
   const handleExport = (report: any) => {
