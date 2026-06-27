@@ -478,48 +478,52 @@ export default function RiskPage() {
                 )}
 
                 {/* Lista Categorizada */}
-                {pairSearch.trim().length > 0 && filteredPairs.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-white/10 rounded-lg shadow-xl overflow-hidden z-50 max-h-60 overflow-y-auto custom-scrollbar">
-                    {filteredOTC.length > 0 && (
-                      <div className="px-3 py-2 text-[10px] font-bold text-emerald-500 uppercase tracking-wider bg-black/40 sticky top-0">🛡️ Forex OTC (24/7)</div>
-                    )}
+                {filteredOTC.length > 0 && (
+                  <>
+                    <div className="px-3 py-2 text-[10px] font-bold text-emerald-500 uppercase tracking-wider bg-black/40 sticky top-0">🛡️ Forex OTC (24/7)</div>
                     {filteredOTC.map(p => (
                       <button key={p} onClick={() => addPair(p)} className="w-full text-left px-4 py-2 text-[11px] font-mono text-slate-300 hover:bg-emerald-500/10 hover:text-white flex items-center gap-2 transition-colors">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/50 shrink-0" />
                         {p}
                       </button>
                     ))}
-                    
-                    {filteredReal.length > 0 && (
-                      <div className="px-3 py-2 text-[10px] font-bold text-blue-500 uppercase tracking-wider bg-black/40 sticky top-0">🌍 Forex Normal (Mercado)</div>
-                    )}
+                  </>
+                )}
+                
+                {filteredReal.length > 0 && (
+                  <>
+                    <div className="px-3 py-2 text-[10px] font-bold text-blue-500 uppercase tracking-wider bg-black/40 sticky top-0">🌍 Forex Normal (Mercado)</div>
                     {filteredReal.map(p => (
                       <button key={p} onClick={() => addPair(p)} className="w-full text-left px-4 py-2 text-[11px] font-mono text-slate-300 hover:bg-blue-500/10 hover:text-white flex items-center gap-2 transition-colors">
                         <span className="w-1.5 h-1.5 rounded-full bg-blue-400/50 shrink-0" />
                         {p}
                       </button>
                     ))}
+                  </>
+                )}
 
-                    {filteredCrypto.length > 0 && (
-                      <div className="px-3 py-2 text-[10px] font-bold text-amber-500 uppercase tracking-wider bg-black/40 sticky top-0">🪙 Criptomonedas</div>
-                    )}
+                {filteredCrypto.length > 0 && (
+                  <>
+                    <div className="px-3 py-2 text-[10px] font-bold text-amber-500 uppercase tracking-wider bg-black/40 sticky top-0">🪙 Criptomonedas</div>
                     {filteredCrypto.map(p => (
                       <button key={p} onClick={() => addPair(p)} className="w-full text-left px-4 py-2 text-[11px] font-mono text-slate-300 hover:bg-amber-500/10 hover:text-white flex items-center gap-2 transition-colors">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-400/50 shrink-0" />
                         {p}
                       </button>
                     ))}
+                  </>
+                )}
 
-                    {filteredStocks.length > 0 && (
-                      <div className="px-3 py-2 text-[10px] font-bold text-purple-500 uppercase tracking-wider bg-black/40 sticky top-0">📈 Acciones y Materias Primas</div>
-                    )}
+                {filteredStocks.length > 0 && (
+                  <>
+                    <div className="px-3 py-2 text-[10px] font-bold text-purple-500 uppercase tracking-wider bg-black/40 sticky top-0">📈 Acciones y Materias Primas</div>
                     {filteredStocks.map(p => (
                       <button key={p} onClick={() => addPair(p)} className="w-full text-left px-4 py-2 text-[11px] font-mono text-slate-300 hover:bg-purple-500/10 hover:text-white flex items-center gap-2 transition-colors">
                         <span className="w-1.5 h-1.5 rounded-full bg-purple-400/50 shrink-0" />
                         {p}
                       </button>
                     ))}
-                  </div>
+                  </>
                 )}
           </CardHeader>
 
