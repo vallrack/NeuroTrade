@@ -2,7 +2,7 @@
 setlocal EnableDelayedExpansion
 
 echo ============================================
-echo   NEUROTRADE V7 - BUILD NeuroTrade_Bridge.exe
+echo   NEUROTRADE V7 - BUILD NeuroBridge_V7_Final.exe
 echo ============================================
 echo.
 
@@ -24,8 +24,8 @@ if errorlevel 1 (
 
 echo.
 echo [2/3] Compilando ejecutable (puede tardar 2-5 minutos)...
-taskkill /F /IM NeuroTrade_Bridge.exe >nul 2>&1
-python -m PyInstaller --noconfirm --clean NeuroTrade_Bridge.spec
+taskkill /F /IM NeuroBridge_V7_Final.exe >nul 2>&1
+python -m PyInstaller --noconfirm --clean NeuroBridge_V7_Final.spec
 if errorlevel 1 (
     echo [ERROR] PyInstaller fallo. Revise los mensajes arriba.
     pause
@@ -35,7 +35,7 @@ if errorlevel 1 (
 echo.
 echo [3/3] Listo!
 echo.
-echo   Ejecutable: dist\NeuroTrade_Bridge.exe
+echo   Ejecutable: dist\NeuroBridge_V7_Final.exe
 echo   Puerto:     5000  (variable PORT para cambiar)
 echo   Token:      neurotrade-secret-2024  (variable BRIDGE_TOKEN)
 echo.
