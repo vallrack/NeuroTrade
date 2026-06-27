@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useUser, useCollection, useFirestore, useDoc } from '@/firebase';
-import { collection, query, orderBy, doc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, getDocs, where, addDoc } from 'firebase/firestore';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { Download, FileSpreadsheet, AlertTriangle } from 'lucide-react';
 import { exportReportToExcel } from '@/lib/export-excel';
@@ -49,8 +49,71 @@ export function AuditReports() {
     }));
   };
 
+  const handleRecoverReport = async () => {
+    if (!user || !firestore) return;
+    const startOfToday = new Date();
+    startOfToday.setHours(0,0,0,0);
+    const tradesQ = query(collection(firestore, 'users', user.uid, 'trades'), where('timestamp', '>=', startOfToday.toISOString()));
+    const snap = await getDocs(tradesQ);
+    let totalProfit = 0, wins = 0, losses = 0;
+    let hourlyStats: any = {};
+    let pairStats: any = {};
+    snap.forEach(d => {
+      const t = d.data();
+      if (t.accountType === (brokerConfig?.accountType || 'demo')) {
+        totalProfit += (t.profit || 0);
+        if (t.status === 'win') wins++;
+        if (t.status === 'loss') losses++;
+        const date = new Date(t.timestamp);
+        const hourKey = date.toLocaleTimeString('en-US', { hour: '2-digit', hour12: false }) + ':00';
+        if (!hourlyStats[hourKey]) hourlyStats[hourKey] = { wins: 0, losses: 0, profit: 0 };
+        hourlyStats[hourKey].wins += (t.status === 'win' ? 1 : 0);
+        hourlyStats[hourKey].losses += (t.status === 'loss' ? 1 : 0);
+        hourlyStats[hourKey].profit += (t.profit || 0);
+
+        if (!pairStats[t.pair]) pairStats[t.pair] = { wins: 0, losses: 0, profit: 0 };
+        pairStats[t.pair].wins += (t.status === 'win' ? 1 : 0);
+        pairStats[t.pair].losses += (t.status === 'loss' ? 1 : 0);
+        pairStats[t.pair].profit += (t.profit || 0);
+      }
+    });
+    if (wins > 0 || losses > 0) {
+      await addDoc(collection(firestore, 'users', user.uid, 'reports'), {
+        date: new Date().toISOString(),
+        type: 'manual_disconnect',
+        planDay: 1,
+        planPhase: 1,
+        accountType: brokerConfig?.accountType || 'demo',
+        profit: totalProfit,
+        profitPercent: 0,
+        finalBalance: 0,
+        trades: wins + losses,
+        wins, losses, hourlyStats, pairStats
+      });
+      alert('¡Reporte generado! Revisa los gráficos (puede tardar unos segundos en actualizar).');
+    } else {
+      alert('No se encontraron operaciones en la base de datos para hoy.');
+    }
+  };
+
   if (loading) return <div className="animate-pulse p-4">Cargando reportes de eficiencia...</div>;
-  if (reports.length === 0) return null;
+  if (reports.length === 0) {
+    return (
+      <div className="space-y-4 mt-8">
+        <h3 className="text-xl font-headline font-bold text-primary flex items-center gap-2">
+          <FileSpreadsheet className="h-5 w-5" />
+          Reportes de Eficiencia (Plan 15 Días)
+        </h3>
+        <Card className="border-dashed border-white/20 bg-transparent flex flex-col items-center justify-center p-12 gap-4">
+          <AlertTriangle className="h-10 w-10 text-muted-foreground opacity-50" />
+          <p className="text-muted-foreground">Aún no hay reportes generados para esta fase.</p>
+          <Button onClick={handleRecoverReport} variant="outline" className="border-primary/50 text-primary hover:bg-primary/10 mt-2">
+            Generar Reporte del Día (Recuperación)
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 mt-8">
