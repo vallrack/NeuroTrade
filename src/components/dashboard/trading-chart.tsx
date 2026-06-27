@@ -173,11 +173,10 @@ export function TradingChart({ data, pair }: TradingChartProps) {
   }, [data]);
 
   return (
-    <div className="relative w-full h-full bg-[#131722] rounded-none overflow-hidden border-0">
-        <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
-            <span className="flex items-center gap-2 text-[10px] font-bold text-primary uppercase tracking-[0.2em] bg-primary/10 px-2.5 py-1 rounded shadow-[0_0_15px_rgba(38,166,154,0.1)]">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_#26a69a]" />
-                IQ OTC: {pair}
+    <div className="relative w-full h-full bg-[#131722] rounded-xl overflow-hidden border border-[#2B3139] group">
+        <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 bg-[#1e222d]/80 backdrop-blur-md rounded-md border border-[#2B3139]">
+            <span className="text-xs font-bold text-white font-mono tracking-wider">
+                {pair}
             </span>
         </div>
         {chartError && (
