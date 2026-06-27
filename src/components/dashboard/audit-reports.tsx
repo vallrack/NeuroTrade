@@ -48,51 +48,61 @@ export function AuditReports() {
       Profit: hourlyStats[hour].profit
     }));
   };
-
   const handleRecoverReport = async () => {
     if (!user || !firestore) return;
-    const startOfToday = new Date();
-    startOfToday.setHours(0,0,0,0);
-    const tradesQ = query(collection(firestore, 'users', user.uid, 'trades'), where('timestamp', '>=', startOfToday.toISOString()));
-    const snap = await getDocs(tradesQ);
-    let totalProfit = 0, wins = 0, losses = 0;
-    let hourlyStats: any = {};
-    let pairStats: any = {};
-    snap.forEach(d => {
-      const t = d.data();
-      if (t.accountType === (brokerConfig?.accountType || 'demo')) {
-        totalProfit += (t.profit || 0);
-        if (t.status === 'win') wins++;
-        if (t.status === 'loss') losses++;
-        const date = new Date(t.timestamp);
-        const hourKey = date.toLocaleTimeString('en-US', { hour: '2-digit', hour12: false }) + ':00';
-        if (!hourlyStats[hourKey]) hourlyStats[hourKey] = { wins: 0, losses: 0, profit: 0 };
-        hourlyStats[hourKey].wins += (t.status === 'win' ? 1 : 0);
-        hourlyStats[hourKey].losses += (t.status === 'loss' ? 1 : 0);
-        hourlyStats[hourKey].profit += (t.profit || 0);
+    try {
+      const tradesQ = query(collection(firestore, 'users', user.uid, 'trades'));
+      const snap = await getDocs(tradesQ);
+      let totalProfit = 0, wins = 0, losses = 0;
+      let hourlyStats: any = {};
+      let pairStats: any = {};
+      
+      const startOfToday = new Date();
+      startOfToday.setHours(0,0,0,0);
+      const todayTime = startOfToday.getTime();
 
-        if (!pairStats[t.pair]) pairStats[t.pair] = { wins: 0, losses: 0, profit: 0 };
-        pairStats[t.pair].wins += (t.status === 'win' ? 1 : 0);
-        pairStats[t.pair].losses += (t.status === 'loss' ? 1 : 0);
-        pairStats[t.pair].profit += (t.profit || 0);
-      }
-    });
-    if (wins > 0 || losses > 0) {
-      await addDoc(collection(firestore, 'users', user.uid, 'reports'), {
-        date: new Date().toISOString(),
-        type: 'manual_disconnect',
-        planDay: 1,
-        planPhase: 1,
-        accountType: brokerConfig?.accountType || 'demo',
-        profit: totalProfit,
-        profitPercent: 0,
-        finalBalance: 0,
-        trades: wins + losses,
-        wins, losses, hourlyStats, pairStats
+      snap.forEach(d => {
+        const t = d.data();
+        if (t.accountType === (brokerConfig?.accountType || 'demo')) {
+          const tradeTime = new Date(t.timestamp || 0).getTime();
+          // Filter by today locally to avoid Firebase indexing/timezone issues
+          if (tradeTime >= todayTime) {
+            totalProfit += (t.profit || 0);
+            if (t.status === 'win') wins++;
+            if (t.status === 'loss') losses++;
+            const date = new Date(t.timestamp);
+            const hourKey = date.toLocaleTimeString('en-US', { hour: '2-digit', hour12: false }) + ':00';
+            if (!hourlyStats[hourKey]) hourlyStats[hourKey] = { wins: 0, losses: 0, profit: 0 };
+            hourlyStats[hourKey].wins += (t.status === 'win' ? 1 : 0);
+            hourlyStats[hourKey].losses += (t.status === 'loss' ? 1 : 0);
+            hourlyStats[hourKey].profit += (t.profit || 0);
+
+            if (!pairStats[t.pair]) pairStats[t.pair] = { wins: 0, losses: 0, profit: 0 };
+            pairStats[t.pair].wins += (t.status === 'win' ? 1 : 0);
+            pairStats[t.pair].losses += (t.status === 'loss' ? 1 : 0);
+            pairStats[t.pair].profit += (t.profit || 0);
+          }
+        }
       });
-      alert('¡Reporte generado! Revisa los gráficos (puede tardar unos segundos en actualizar).');
-    } else {
-      alert('No se encontraron operaciones en la base de datos para hoy.');
+      if (wins > 0 || losses > 0) {
+        await addDoc(collection(firestore, 'users', user.uid, 'reports'), {
+          date: new Date().toISOString(),
+          type: 'manual_disconnect',
+          planDay: brokerConfig?.planDay || 1,
+          planPhase: brokerConfig?.planPhase || 1,
+          accountType: brokerConfig?.accountType || 'demo',
+          profit: totalProfit,
+          profitPercent: 0,
+          finalBalance: 0,
+          trades: wins + losses,
+          wins, losses, hourlyStats, pairStats
+        });
+        alert('¡Reporte generado! Revisa los gráficos (puede tardar unos segundos).');
+      } else {
+        alert('No se encontraron operaciones de hoy para la cuenta ' + (brokerConfig?.accountType || 'demo'));
+      }
+    } catch (err: any) {
+      alert('Error interno: ' + err.message);
     }
   };
 
