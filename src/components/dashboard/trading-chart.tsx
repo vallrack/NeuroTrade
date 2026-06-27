@@ -113,9 +113,14 @@ export function TradingChart({ data, pair }: TradingChartProps) {
   useEffect(() => {
     if (seriesRef.current && volumeSeriesRef.current && data && data.length > 0) {
       try {
+        const nowSecs = Math.floor(Date.now() / 1000);
+        
         // Velas
-        const formattedData = data.map(candle => {
+        const formattedData = data.map((candle, idx) => {
           let t = candle.time || candle.from || candle.timestamp || candle.id;
+          if (!t) {
+             t = nowSecs - ((data.length - 1 - idx) * 60);
+          }
           if (t > 1000000000000) t = Math.floor(t / 1000); // Convert from ms to s if needed
           return {
             time: t,
@@ -128,8 +133,11 @@ export function TradingChart({ data, pair }: TradingChartProps) {
         formattedData.sort((a, b) => (a.time as number) - (b.time as number));
 
         // Volumen
-        const formattedVolumeData = data.map(candle => {
+        const formattedVolumeData = data.map((candle, idx) => {
           let t = candle.time || candle.from || candle.timestamp || candle.id;
+          if (!t) {
+             t = nowSecs - ((data.length - 1 - idx) * 60);
+          }
           if (t > 1000000000000) t = Math.floor(t / 1000);
           return {
             time: t,
@@ -158,7 +166,8 @@ export function TradingChart({ data, pair }: TradingChartProps) {
         setChartError(null);
       } catch (err: any) {
         console.error("TradingChart Error:", err, data);
-        setChartError(err.message || String(err));
+        const keys = data && data.length > 0 ? Object.keys(data[0]).join(", ") : "none";
+        setChartError((err.message || String(err)) + ` | Keys: ${keys}`);
       }
     }
   }, [data]);
