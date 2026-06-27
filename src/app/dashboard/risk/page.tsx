@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import {
   TrendingUp,
   AlertTriangle,
@@ -417,37 +417,93 @@ export default function RiskPage() {
               </div>
             </div>
 
-            {/* Buscador + entrada manual */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none z-10" />
-              <Input
-                ref={searchInputRef}
-                value={pairSearch}
-                onChange={e => setPairSearch(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (filteredPairs.length === 1) addPair(filteredPairs[0]);
-                    else if (typedIsCustom) addPair(pairSearch.trim());
-                  }
-                  if (e.key === 'Escape') setPairSearch('');
-                }}
-                placeholder="Buscar o escribir par (ej: GBPJPY-OTC)…"
-                className="pl-9 pr-24 bg-white/5 border-white/10 h-11 font-mono text-sm text-white placeholder:text-slate-600 focus:border-emerald-500/40 focus:ring-emerald-500/20"
-              />
-              {pairSearch.trim().length >= 3 && (
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    if (filteredPairs.length === 1) addPair(filteredPairs[0]);
-                    else addPair(pairSearch.trim());
+            {/* Buscador + Select manual */}
+            <div className="flex flex-col sm:flex-row gap-3 relative">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none z-10" />
+                <Input
+                  ref={searchInputRef}
+                  value={pairSearch}
+                  onChange={e => setPairSearch(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (filteredPairs.length === 1) addPair(filteredPairs[0]);
+                      else if (typedIsCustom) addPair(pairSearch.trim());
+                    }
+                    if (e.key === 'Escape') setPairSearch('');
                   }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-7 px-3 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold gap-1"
-                >
-                  <Plus className="w-3 h-3" />
-                  Agregar
-                </Button>
-              )}
+                  placeholder="Buscar o escribir par (ej: GBPJPY-OTC)…"
+                  className="pl-9 pr-24 bg-white/5 border-white/10 h-11 font-mono text-sm text-white placeholder:text-slate-600 focus:border-emerald-500/40 focus:ring-emerald-500/20"
+                />
+                {pairSearch.trim().length >= 3 && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (filteredPairs.length === 1) addPair(filteredPairs[0]);
+                      else addPair(pairSearch.trim());
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 h-7 px-3 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Agregar
+                  </Button>
+                )}
+              </div>
+
+              {/* El Select de todos los pares categorizados */}
+              <div className="w-full sm:w-64">
+                <Select onValueChange={(val) => addPair(val)}>
+                  <SelectTrigger className="bg-white/5 border-white/10 h-11 text-slate-300 font-mono text-xs">
+                    <SelectValue placeholder="Catálogo de Pares..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-white/10 max-h-72">
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider bg-black/40">🛡️ Forex OTC (24/7)</SelectLabel>
+                      {ALL_OTC_PAIRS.filter(p => !activePairs.includes(p)).map(p => (
+                        <SelectItem key={p} value={p} className="font-mono text-[11px] text-slate-300 focus:bg-emerald-500/10 focus:text-white">
+                          <span className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/50 shrink-0" /> {p}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                    
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px] font-bold text-blue-500 uppercase tracking-wider bg-black/40 mt-1">🌍 Forex Normal</SelectLabel>
+                      {ALL_REGULAR_PAIRS.filter(p => !activePairs.includes(p)).map(p => (
+                        <SelectItem key={p} value={p} className="font-mono text-[11px] text-slate-300 focus:bg-blue-500/10 focus:text-white">
+                          <span className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400/50 shrink-0" /> {p}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px] font-bold text-amber-500 uppercase tracking-wider bg-black/40 mt-1">🪙 Criptomonedas</SelectLabel>
+                      {ALL_CRYPTO_PAIRS.filter(p => !activePairs.includes(p)).map(p => (
+                        <SelectItem key={p} value={p} className="font-mono text-[11px] text-slate-300 focus:bg-amber-500/10 focus:text-white">
+                          <span className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400/50 shrink-0" /> {p}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px] font-bold text-purple-500 uppercase tracking-wider bg-black/40 mt-1">📈 Acciones</SelectLabel>
+                      {ALL_STOCKS.filter(p => !activePairs.includes(p)).map(p => (
+                        <SelectItem key={p} value={p} className="font-mono text-[11px] text-slate-300 focus:bg-purple-500/10 focus:text-white">
+                          <span className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-400/50 shrink-0" /> {p}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Lista filtrada — solo cuando hay texto */}
