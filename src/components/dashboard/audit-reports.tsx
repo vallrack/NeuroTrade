@@ -152,7 +152,12 @@ export function AuditReports() {
                   <div className={`font-bold ${r.profit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                     ${r.profit?.toFixed(2)}
                   </div>
-                  <div className="text-xs text-green-400">Meta: {r.profitPercent?.toFixed(1)}%</div>
+                  <div className={`text-xs ${
+                    (r.profitPercent || 0) > 0 ? 'text-green-400' : 
+                    (r.profitPercent || 0) < 0 ? 'text-red-400' : 'text-muted-foreground'
+                  }`}>
+                    Crecimiento: {(r.profitPercent || 0).toFixed(1)}%
+                  </div>
                 </div>
               </CardContent>
             </Card>
