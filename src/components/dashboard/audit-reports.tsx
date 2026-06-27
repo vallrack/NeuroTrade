@@ -57,6 +57,14 @@ export function AuditReports() {
       let hourlyStats: any = {};
       let pairStats: any = {};
       
+      const dayStr = window.prompt("¿Para qué día quieres generar este reporte de recuperación? (Ejemplo: 2)", String(brokerConfig?.planDay || 1));
+      if (dayStr === null) return;
+      const planDayToSave = parseInt(dayStr, 10) || brokerConfig?.planDay || 1;
+
+      const phaseStr = window.prompt("¿Para qué fase es este reporte? (Ejemplo: 1)", String(brokerConfig?.planPhase || 1));
+      if (phaseStr === null) return;
+      const planPhaseToSave = parseInt(phaseStr, 10) || brokerConfig?.planPhase || 1;
+
       const todayString = new Date().toLocaleDateString();
 
       snap.forEach(d => {
@@ -91,8 +99,8 @@ export function AuditReports() {
         await addDoc(collection(firestore, 'users', user.uid, 'reports'), {
           date: new Date().toISOString(),
           type: 'manual_disconnect',
-          planDay: brokerConfig?.planDay || 1,
-          planPhase: brokerConfig?.planPhase || 1,
+          planDay: planDayToSave,
+          planPhase: planPhaseToSave,
           accountType: brokerConfig?.accountType || 'demo',
           profit: totalProfit,
           profitPercent: 0,
