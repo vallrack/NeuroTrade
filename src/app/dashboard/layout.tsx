@@ -3,7 +3,7 @@
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/dashboard/app-sidebar';
 import { useUser, useFirestore, useDoc } from '@/firebase';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2, AlertTriangle, Clock } from 'lucide-react';
 import { doc } from 'firebase/firestore';
@@ -71,7 +71,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!user) return null;
   
-  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+  const pathname = usePathname();
   const isSpecialPage = pathname === '/dashboard/expired' || pathname === '/dashboard/pending';
 
   // Solo bloquear el renderizado si no estamos en las páginas especiales
