@@ -68,14 +68,31 @@ export default function HistoryPage() {
   const trades = useMemo(() => {
     if (!allTrades) return [];
     const filtered = allTrades.filter((t: any) => t.accountType === currentAccountType);
-    return filtered.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return filtered.sort((a: any, b: any) => {
+      const getTime = (ts: any) => {
+        if (!ts) return 0;
+        if (typeof ts === 'object' && 'toDate' in ts) return ts.toDate().getTime();
+        if (typeof ts === 'object' && ts.seconds) return ts.seconds * 1000;
+        const d = new Date(ts);
+        return isNaN(d.getTime()) ? 0 : d.getTime();
+      };
+      return getTime(b.timestamp) - getTime(a.timestamp);
+    });
   }, [allTrades, currentAccountType]);
+
+  const getSafeDate = (ts: any) => {
+    if (!ts) return new Date();
+    if (typeof ts === 'object' && 'toDate' in ts) return ts.toDate();
+    if (typeof ts === 'object' && ts.seconds) return new Date(ts.seconds * 1000);
+    const d = new Date(ts);
+    return isNaN(d.getTime()) ? new Date() : d;
+  };
 
   const exportToCSV = () => {
     if (!trades || trades.length === 0) return;
     const headers = ['Fecha', 'Activo', 'Direccion', 'Inversion', 'Resultado', 'Beneficio'];
     const rows = trades.map((t: any) => [
-      new Date(t.timestamp).toLocaleString(),
+      getSafeDate(t.timestamp).toLocaleString(),
       t.pair,
       t.direction,
       t.amount,
@@ -112,7 +129,7 @@ export default function HistoryPage() {
         const p = t.profit || 0;
         totalProfit += p;
 
-        const d = new Date(t.timestamp);
+        const d = getSafeDate(t.timestamp);
         const hour = `${d.getHours().toString().padStart(2, '0')}:00`;
         
         if (!hourlyStats[hour]) hourlyStats[hour] = { wins: 0, losses: 0, profit: 0 };

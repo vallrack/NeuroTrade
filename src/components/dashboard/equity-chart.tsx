@@ -36,18 +36,28 @@ export function EquityChart() {
       (snapshot) => {
         // Filtrar localmente por accountType para no requerir un índice compuesto
         const allTrades = snapshot.docs.map(d => d.data());
-        const filtered = allTrades.filter(t => t.accountType === accountType);
+        const recentTrades = allTrades.filter(t => t.accountType === accountType);
+        const liveBalance = tradingStats?.balance || 0;
         
-        // Están en orden descendente (el más reciente primero)
-        let currentBalance = tradingStats?.balance || 0;
+        let currentBalance = liveBalance;
+        const records: any[] = [];
         
-        const records = [];
-        
-        // Construimos la curva hacia atrás
-        for (let i = 0; i < filtered.length; i++) {
-          const t = filtered[i];
+        for (let i = 0; i < recentTrades.length; i++) {
+          const t = recentTrades[i];
+          
+          let d: Date;
+          if (t.timestamp && typeof t.timestamp === 'object' && 'toDate' in t.timestamp) {
+            d = t.timestamp.toDate();
+          } else if (t.timestamp && typeof t.timestamp === 'object' && t.timestamp.seconds) {
+            d = new Date(t.timestamp.seconds * 1000);
+          } else {
+            d = new Date(t.timestamp || Date.now());
+          }
+          
+          if (isNaN(d.getTime())) d = new Date();
+
           records.unshift({
-            date: new Date(t.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+            date: d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
             equity: currentBalance
           });
           currentBalance -= (t.profit || 0);

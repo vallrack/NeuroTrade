@@ -274,7 +274,7 @@ def analyze():
             # fetch 1-minute candles
             ohlcv = binance_instance.fetch_ohlcv(pair, '1m', limit=250)
             formatted_candles = [
-                {"open": c[1], "max": c[2], "min": c[3], "close": c[4], "volume": c[5]}
+                {"from": int(c[0]/1000), "open": c[1], "max": c[2], "min": c[3], "close": c[4], "volume": c[5]}
                 for c in ohlcv
             ]
             

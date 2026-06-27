@@ -1,0 +1,16 @@
+Binance trade login solo real
+
+api key
+iuFHQuL6NL3y1cZ2UPTTCNzqePUL3kJfFMZsvNwZVgzvgMnCagn71aSw19OvpkNn
+
+clave
+1hJGxxu0SGz0qBjQKkmFFoLyIrQMMRsGT4KXXJ0hNP1UlDkWfzR4KJV2xnggw5fR
+
+demo
+
+HMAC-SHA-256 Key registered
+Save these values right now. They won't be shown ever again!
+
+API Key: UFVjNPnsTuJmajWjoqpNhTsFdSvrN30MrjT4IPB4B5Hcx6pbqYgE9zgNiOuFlv8o
+
+Secret Key: wXwVk6sUzlPSk3PnSMYGO93mJa8aY0yL8gUHgu0iwiMCA7dtMWOvCjNsMsVxBYnh
