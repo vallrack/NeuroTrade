@@ -26,7 +26,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { BotEngineProvider, useBotEngine } from '@/components/dashboard/bot-engine-provider';
-import { ALL_CRYPTO_PAIRS, ALL_STOCKS } from '@/lib/market-schedule';
+import { ALL_CRYPTO_PAIRS, ALL_STOCKS, ALL_OTC_PAIRS, ALL_REGULAR_PAIRS } from '@/lib/market-schedule';
 
 export default function RiskPage() {
   const [mounted, setMounted] = useState(false);

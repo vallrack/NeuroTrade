@@ -786,8 +786,8 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           pairStats: pairStatsRef.current || {}
         });
         
-        // 2. Avanzar de día (siempre que no esté en el día 15, avanzamos al cerrar)
-        if (planDay < 15) {
+        // 2. Avanzar de día (siempre que no esté en el día 15, y se haya operado)
+        if (planDay < 15 && todaysTrades.length > 0) {
           const nextDay = planDay + 1;
           const nextPreset = getPresetForDay(nextDay, (currentBroker?.accountType as any) || 'demo');
           const botParamsDoc = doc(currentFirestore, 'users', currentUser.uid, 'config', 'bot_params');

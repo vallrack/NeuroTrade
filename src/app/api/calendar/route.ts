@@ -51,7 +51,7 @@ export async function GET() {
         impact: ev.impact, // High, Medium, Low, Non-Economic
         forecast: ev.forecast || "",
         previous: ev.previous || "",
-        dateObj: dateObj ? dateObj.toISOString() : null
+        dateObj: dateObj && !isNaN(dateObj.getTime()) ? dateObj.toISOString() : null
       };
     });
 
