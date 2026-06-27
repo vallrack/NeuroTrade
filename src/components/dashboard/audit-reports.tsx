@@ -167,6 +167,43 @@ export function AuditReports() {
     ? ((phaseTotalWins / (phaseTotalWins + phaseTotalLosses)) * 100).toFixed(1) 
     : '0.0';
 
+  const aggregatedHourlyStats: any = {};
+  const aggregatedPairStats: any = {};
+
+  phaseReports.forEach((r: any) => {
+    if (r.hourlyStats) {
+      Object.keys(r.hourlyStats).forEach(hour => {
+        if (!aggregatedHourlyStats[hour]) aggregatedHourlyStats[hour] = { wins: 0, losses: 0, profit: 0 };
+        aggregatedHourlyStats[hour].wins += (r.hourlyStats[hour].wins || 0);
+        aggregatedHourlyStats[hour].losses += (r.hourlyStats[hour].losses || 0);
+        aggregatedHourlyStats[hour].profit += (r.hourlyStats[hour].profit || 0);
+      });
+    }
+    if (r.pairStats) {
+      Object.keys(r.pairStats).forEach(pair => {
+        if (!aggregatedPairStats[pair]) aggregatedPairStats[pair] = { wins: 0, losses: 0, profit: 0 };
+        aggregatedPairStats[pair].wins += (r.pairStats[pair].wins || 0);
+        aggregatedPairStats[pair].losses += (r.pairStats[pair].losses || 0);
+        aggregatedPairStats[pair].profit += (r.pairStats[pair].profit || 0);
+      });
+    }
+  });
+
+  const globalReport = {
+    id: 'global-phase-' + currentPhase,
+    planDay: `Global (Fase ${currentPhase})`,
+    trades: phaseTotalWins + phaseTotalLosses,
+    wins: phaseTotalWins,
+    losses: phaseTotalLosses,
+    hourlyStats: aggregatedHourlyStats,
+    pairStats: aggregatedPairStats
+  };
+
+  // Seleccionar automáticamente el reporte global si no hay nada seleccionado
+  if (!selectedReport && phaseReports.length > 0) {
+    setSelectedReport(globalReport);
+  }
+
   return (
     <div className="space-y-4 mt-8">
       <div className="flex items-center justify-between">
@@ -182,7 +219,10 @@ export function AuditReports() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 space-y-4">
           {/* Tarjeta de Resumen de Fase */}
-          <Card className="bg-primary/5 border-primary/20">
+          <Card 
+            className={`cursor-pointer transition-all hover:bg-white/5 ${selectedReport?.id === globalReport.id ? 'border-primary bg-primary/10 shadow-[0_0_15px_rgba(38,166,154,0.2)]' : 'bg-primary/5 border-primary/20'}`}
+            onClick={() => setSelectedReport(globalReport)}
+          >
             <CardContent className="p-4">
               <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Progreso Global de Fase {currentPhase}</h4>
               <div className="grid grid-cols-2 gap-2 mb-3">
@@ -265,7 +305,7 @@ export function AuditReports() {
             <Card className="border-primary/20 bg-card/50 backdrop-blur-md h-full">
               <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 pb-4">
                 <div>
-                  <CardTitle>Análisis Horario: Día {selectedReport.planDay}</CardTitle>
+                  <CardTitle>Análisis Horario: {String(selectedReport.planDay).includes('Global') ? '' : 'Día '}{selectedReport.planDay}</CardTitle>
                   <p className="text-xs text-muted-foreground mt-1">Precisión: {selectedReport.trades > 0 ? Math.round((selectedReport.wins/selectedReport.trades)*100) : 0}% | Operaciones: {selectedReport.trades}</p>
                 </div>
                 <Button onClick={() => handleExport(selectedReport)} className="bg-green-600 hover:bg-green-700 text-white gap-2 h-9">
