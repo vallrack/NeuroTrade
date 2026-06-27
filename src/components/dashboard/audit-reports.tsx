@@ -4,9 +4,9 @@ import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useUser, useCollection, useFirestore, useDoc } from '@/firebase';
-import { collection, query, orderBy, doc, getDocs, where, addDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, getDocs, where, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
-import { Download, FileSpreadsheet, AlertTriangle, Edit3 } from 'lucide-react';
+import { Download, FileSpreadsheet, AlertTriangle, Edit3, Trash2 } from 'lucide-react';
 import { exportReportToExcel } from '@/lib/export-excel';
 
 export function AuditReports() {
@@ -235,6 +235,23 @@ export function AuditReports() {
                         <Edit3 className="h-3 w-3" />
                       </button>
                     )}
+                    <button 
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (window.confirm("¿Seguro que deseas eliminar este reporte?")) {
+                          try {
+                            await deleteDoc(doc(firestore, 'users', user.uid, 'reports', r.id));
+                            if (selectedReport?.id === r.id) setSelectedReport(null);
+                          } catch (err: any) {
+                            alert("Error eliminando: " + err.message);
+                          }
+                        }
+                      }}
+                      title="Eliminar Reporte" 
+                      className="text-red-500 hover:text-red-400 transition-colors opacity-50 hover:opacity-100 p-1 ml-1"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
                   </div>
                 </div>
               </CardContent>
