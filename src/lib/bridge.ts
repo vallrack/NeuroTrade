@@ -256,6 +256,7 @@ export async function bridgeAnalyze(payload: {
   password: string;
   pair: string;
   accountType: string;
+  brokerType?: string;
   minRsi?: number;
   maxRsi?: number;
   manipulationVolMultiplier?: number;
@@ -272,6 +273,7 @@ export async function bridgeConnect(payload: {
   email: string;
   password: string;
   accountType: string;
+  brokerType?: string;
 }): Promise<{ success: boolean; balance?: number; error?: string }> {
   return bridgePost('/connect', payload);
 }
@@ -279,6 +281,7 @@ export async function bridgeConnect(payload: {
 export async function bridgeDisconnect(payload: {
   email: string;
   accountType: string;
+  brokerType?: string;
 }): Promise<{ success: boolean }> {
   return bridgePost('/disconnect', payload);
 }
@@ -290,6 +293,7 @@ export async function bridgeTrade(payload: {
   direction: 'CALL' | 'PUT';
   amount: number;
   accountType: string;
+  brokerType?: string;
 }): Promise<TradeResponse> {
   return bridgePost<TradeResponse>('/trade', payload);
 }
@@ -302,3 +306,11 @@ export async function bridgeTradeResult(payload: {
   return bridgePost('/trade_result', payload);
 }
 
+export async function bridgeGetActives(payload: {
+  email: string;
+  password: string;
+  accountType: string;
+  brokerType?: string;
+}): Promise<{ success: boolean; pairs?: string[]; otc?: string[]; regular?: string[]; error?: string }> {
+  return bridgePost('/actives', payload);
+}

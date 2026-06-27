@@ -45,6 +45,10 @@ interface BotEngineContextValue {
   sessionStartBalance: number | null;
   // ─ Historial de operaciones (para campana) ─
   recentTrades: any[];
+  // ─ Pares Dinámicos desde el Broker ─
+  availablePairs: string[];
+  availableOtcPairs: string[];
+  availableRegularPairs: string[];
 }
 
 const BotEngineContext = createContext<BotEngineContextValue | null>(null);
@@ -96,6 +100,10 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   const [liveLosses, setLiveLosses] = useState(0);
   const [sessionStartBalance, setSessionStartBalance] = useState<number | null>(null);
 
+  const [availablePairs, setAvailablePairs] = useState<string[]>([]);
+  const [availableOtcPairs, setAvailableOtcPairs] = useState<string[]>([]);
+  const [availableRegularPairs, setAvailableRegularPairs] = useState<string[]>([]);
+
   // Refs
   const loopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isExecutingRef = useRef(false);
@@ -107,6 +115,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   const userRef = useRef(user);
   const firestoreRef = useRef(firestore);
   const rtdbRef2 = useRef(rtdb);
+  const calendarEventsRef = useRef<any[]>([]);
   const lastScheduleLogRef = useRef<number>(0);
   const sessionStartBalanceRef = useRef<number | null>(null);
   const sessionProfitRef = useRef<number>(0);
@@ -164,6 +173,9 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     hourlyStatsRef.current = {};
     pairStatsRef.current = {};
     setAnalyses({});
+    setAvailablePairs([]);
+    setAvailableOtcPairs([]);
+    setAvailableRegularPairs([]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brokerConfig?.email, brokerConfig?.accountType, brokerConfig?.status]);
 
@@ -179,6 +191,28 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
 
   useEffect(() => { setMounted(true); }, []);
+
+  // Fetch pares dinámicos
+  useEffect(() => {
+    import('@/lib/bridge').then(({ bridgeGetActives }) => {
+      if (brokerConfig?.status === 'connected' && brokerConfig.email && brokerConfig.password) {
+        bridgeGetActives({
+          email: brokerConfig.email,
+          password: brokerConfig.password,
+          accountType: brokerConfig.accountType || 'demo',
+          brokerType: brokerConfig.brokerType || 'iqoption'
+        }).then(res => {
+          if (res.success && res.pairs) {
+            setAvailablePairs(res.pairs);
+            setAvailableOtcPairs(res.otc || []);
+            setAvailableRegularPairs(res.regular || []);
+          }
+        }).catch(err => {
+          console.error("Error fetching actives:", err);
+        });
+      }
+    });
+  }, [brokerConfig?.status, brokerConfig?.email, brokerConfig?.password, brokerConfig?.accountType]);
 
   // ─── Función de sincronización de balance ─────────────────────────────────────
   const syncBalance = useCallback(async (balance: number, accountType: string) => {
@@ -251,8 +285,24 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     const onForceSync = () => { checkBridge(); };
     window.addEventListener('nt_force_sync', onForceSync);
 
+    // Fetch calendar events
+    const fetchCalendar = async () => {
+      try {
+        const res = await fetch('/api/calendar');
+        const data = await res.json();
+        if (data.success) {
+          calendarEventsRef.current = data.events || [];
+        }
+      } catch (err) {
+        console.error("Error fetching calendar for bot engine:", err);
+      }
+    };
+    fetchCalendar();
+    const calendarInterval = setInterval(fetchCalendar, 15 * 60 * 1000); // 15 mins
+
     return () => {
       clearInterval(interval);
+      clearInterval(calendarInterval);
       window.removeEventListener('nt_force_sync', onForceSync);
     };
   }, []);
@@ -395,15 +445,37 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     const minConfidence = params?.min_confidence_score ?? 85;
     const pairs = activePairs.length > 0 ? activePairs : manualPairs;
 
+    // ── 3.5. Chequeo de Calendario Económico (High Impact) ──
+    const nowMs = Date.now();
+    const upcomingHighImpact = calendarEventsRef.current.filter(ev => {
+      if (ev.impact !== 'High' || !ev.dateObj) return false;
+      const evTime = new Date(ev.dateObj).getTime();
+      // ± 15 mins
+      return Math.abs(evTime - nowMs) <= 15 * 60 * 1000;
+    });
+
     // ── 4. Analizar cada par ──
     for (const pair of pairs) {
       try {
+        // Verificar si el par contiene alguna moneda con noticia de alto impacto
+        const isImpacted = upcomingHighImpact.some(ev => pair.includes(ev.country));
+        if (isImpacted) {
+          const ev = upcomingHighImpact.find(ev => pair.includes(ev.country));
+          const msg = `Noticia HIGH IMPACT (${ev.country}: ${ev.title}). Pausando operativa en ${pair}.`;
+          if (nowMs - lastScheduleLogRef.current > 60 * 1000) {
+            addLog('SENTINEL', msg, 'error');
+            lastScheduleLogRef.current = nowMs;
+          }
+          continue; // Ignorar análisis y trading para este par
+        }
+
         addLog('BRIDGE', `Analizando ${pair} → ${getBridgeUrl()}/analyze`, 'info');
         const result = await bridgeAnalyze({
           email: config.email,
           password: config.password,
           pair,
           accountType,
+          brokerType: config.brokerType || 'iqoption',
           minRsi: 30,
           maxRsi: 70,
           manipulationVolMultiplier: params?.manipulationVolMultiplier,
@@ -474,7 +546,8 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
             pair,
             direction: finalDirection,
             amount,
-            accountType
+            accountType,
+            brokerType: config.brokerType || 'iqoption'
           });
 
           // ─── Polling para órdenes asíncronas ─────────────────────────────────
@@ -488,7 +561,8 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
                 const pollRes = await bridgeTradeResult({ 
                   orderId: tradeResult.orderId,
                   email: config.email,
-                  accountType: accountType
+                  accountType: accountType,
+                  brokerType: config.brokerType || 'iqoption'
                 });
                 if (pollRes.success && pollRes.result && pollRes.result.status === 'COMPLETED') {
                   tradeResult = { ...tradeResult, ...pollRes.result };
@@ -542,7 +616,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
                   status: tradeStatus, profit,
                   orderId: tradeResult.orderId,
                   timestamp, accountType,
-                  broker: 'IQ Option',
+                  broker: config.brokerType === 'binance' ? 'Binance' : 'IQ Option',
                 });
               });
 
@@ -765,6 +839,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
       marketStatus,
       liveBalance, liveProfit, liveWins, liveLosses, sessionStartBalance,
       recentTrades,
+      availablePairs, availableOtcPairs, availableRegularPairs
     }}>
       {children}
     </BotEngineContext.Provider>

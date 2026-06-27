@@ -168,6 +168,7 @@ function BrokerContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isReal, setIsReal] = useState(false);
+  const [brokerType, setBrokerType] = useState<'iqoption' | 'binance'>('iqoption');
   const [loading, setLoading] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
@@ -196,6 +197,7 @@ function BrokerContent() {
     if (brokerConfig) {
       setEmail(brokerConfig.email || '');
       setIsReal(brokerConfig.accountType === 'real');
+      if (brokerConfig.brokerType) setBrokerType(brokerConfig.brokerType);
     }
     setBridgeSourceState(getBridgeSource());
     setRenderUrlState(getRenderUrl());
@@ -238,12 +240,13 @@ function BrokerContent() {
       if (bridgeSource === 'cloud') setRenderUrl(renderUrl);
       else setLocalUrl(localUrl);
 
-      const result = await bridgeConnect({ email, password, accountType: isReal ? 'real' : 'demo' });
+      const result = await bridgeConnect({ email, password, accountType: isReal ? 'real' : 'demo', brokerType });
 
       if (result.success) {
         await setDoc(brokerRef!, {
           email, password,
           accountType: isReal ? 'real' : 'demo',
+          brokerType,
           status: 'connected',
           lastConnected: new Date()
         }, { merge: true });
@@ -369,15 +372,46 @@ function BrokerContent() {
               <CardHeader>
                 <CardTitle className="text-sm font-bold flex items-center gap-2 uppercase tracking-widest text-slate-400">
                   <Key className="w-4 h-4 text-primary" />
-                  Credenciales IQ Option
+                  Conexión a Broker
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Email</Label>
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Motor de Trading</Label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      onClick={() => setBrokerType('iqoption')}
+                      disabled={loading || isDayLocked}
+                      className={cn(
+                        "flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border transition-all duration-300",
+                        brokerType === 'iqoption'
+                          ? "bg-primary/20 border-primary text-primary shadow-[0_0_20px_rgba(var(--primary),0.2)]"
+                          : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
+                      )}
+                    >
+                      <span className="text-xs font-black font-headline uppercase">IQ Option</span>
+                    </button>
+                    <button
+                      onClick={() => setBrokerType('binance')}
+                      disabled={loading || isDayLocked}
+                      className={cn(
+                        "flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border transition-all duration-300",
+                        brokerType === 'binance'
+                          ? "bg-amber-500/20 border-amber-500/50 text-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.2)]"
+                          : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
+                      )}
+                    >
+                      <span className="text-xs font-black font-headline uppercase">Binance</span>
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    {brokerType === 'binance' ? 'API Key' : 'Email'}
+                  </Label>
                   <Input
-                    type="email"
-                    placeholder="tu-email@ejemplo.com"
+                    type={brokerType === 'binance' ? 'text' : 'email'}
+                    placeholder={brokerType === 'binance' ? 'Binance API Key...' : 'tu-email@ejemplo.com'}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={loading || isDayLocked}
@@ -386,7 +420,9 @@ function BrokerContent() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Contraseña</Label>
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    {brokerType === 'binance' ? 'API Secret' : 'Contraseña'}
+                  </Label>
                   <Input
                     type="password"
                     placeholder="••••••••••••"

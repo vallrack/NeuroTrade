@@ -13,10 +13,11 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { doc, setDoc, collection, query } from 'firebase/firestore';
-import { useCollection, useFirestore, useUser, useDoc } from '@/firebase';
+import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
+import { BotEngineProvider, useBotEngine } from '@/components/dashboard/bot-engine-provider';
 import { NotificationBell } from '@/components/dashboard/notification-bell';
 import {
-  ALL_REGULAR_PAIRS, ALL_OTC_PAIRS, ALL_CRYPTO_PAIRS, ALL_STOCKS, TIMEZONES,
+  ALL_CRYPTO_PAIRS, ALL_STOCKS, TIMEZONES,
   isForexMarketOpen, isCurrentlyInSchedule, type ScheduleSlot, type AutopilotConfig
 } from '@/lib/market-schedule';
 
@@ -180,6 +181,7 @@ export default function AutopilotPage() {
   }, [mounted, user, firestore]);
 
   const { data: botParams } = useDoc(botParamsDocRef);
+  const { availableOtcPairs, availableRegularPairs } = useBotEngine();
 
   // Verificar rol del usuario (mismo patrón que app-sidebar)
   const profileDocRef = useMemo(() => {
@@ -445,12 +447,9 @@ export default function AutopilotPage() {
                             Pares Regulares (mercado abierto L-V)
                           </Label>
                           <div className="flex flex-wrap gap-2">
-                            {ALL_REGULAR_PAIRS.map(p => (
+                            {availableRegularPairs.length > 0 ? availableRegularPairs.map(p => (
                               <PairButton key={p} pair={p} selected={regularPairs.includes(p)} onToggle={() => toggleRegularPair(p)} />
-                            ))}
-                            {ALL_STOCKS.map(p => (
-                              <PairButton key={p} pair={p} selected={regularPairs.includes(p)} onToggle={() => toggleRegularPair(p)} />
-                            ))}
+                            )) : <p className="text-xs text-muted-foreground italic">Conecte su cuenta para ver pares regulares.</p>}
                           </div>
                         </div>
                         <div className="space-y-2">
@@ -458,12 +457,9 @@ export default function AutopilotPage() {
                             Pares OTC (fin de semana / mercado cerrado)
                           </Label>
                           <div className="flex flex-wrap gap-2">
-                            {ALL_OTC_PAIRS.map(p => (
+                            {availableOtcPairs.length > 0 ? availableOtcPairs.map(p => (
                               <PairButton key={p} pair={p} selected={otcPairs.includes(p)} onToggle={() => toggleOtcPair(p)} />
-                            ))}
-                            {ALL_CRYPTO_PAIRS.map(p => (
-                              <PairButton key={p} pair={p} selected={otcPairs.includes(p)} onToggle={() => toggleOtcPair(p)} />
-                            ))}
+                            )) : <p className="text-xs text-muted-foreground italic">Conecte su cuenta para ver pares OTC.</p>}
                           </div>
                         </div>
                       </div>

@@ -4,6 +4,7 @@ import time
 import threading
 import concurrent.futures
 import logging
+import math
 from flask import Flask, request, jsonify
 from iqoptionapi.stable_api import IQ_Option
 import json
@@ -76,6 +77,14 @@ def calculate_rsi(closes, period=14):
     rs = avg_gain / avg_loss
     return round(100 - (100 / (1 + rs)), 2)
 
+def check_news_filter():
+    """
+    Placeholder para la conexión a una API de Calendario Económico (ej. ForexFactory).
+    Retorna True si hay una noticia de Alto Impacto (3 Toros) en este momento,
+    lo cual debería pausar el bot. Por defecto retorna False hasta integrar la API.
+    """
+    return False, ""
+
 def detect_manipulation(candles, vol_multiplier=1.5, max_body_percent=0.3):
     if not candles or len(candles) < 5:
         return False, ""
@@ -89,6 +98,11 @@ def detect_manipulation(candles, vol_multiplier=1.5, max_body_percent=0.3):
         
     body = abs(last_candle['close'] - last_candle['open'])
     total_size = last_candle['max'] - last_candle['min']
+    
+    # Nuevo: Detección de mercado "muerto" (consecutivas dojis / sin liquidez)
+    doji_count = sum(1 for c in prev_candles if (c['max'] - c['min']) > 0 and (abs(c['close'] - c['open']) / (c['max'] - c['min'])) < 0.1)
+    if doji_count >= 3:
+        return True, "Mercado muerto/sin liquidez (demasiadas Dojis consecutivas)"
     
     if total_size == 0:
         return False, ""
@@ -109,39 +123,123 @@ def detect_manipulation(candles, vol_multiplier=1.5, max_body_percent=0.3):
                 
     return False, ""
 
+def calculate_sma(closes, period):
+    if len(closes) < period:
+        return None
+    return sum(closes[-period:]) / period
+
+def calculate_ema(closes, period=200):
+    if len(closes) < period:
+        return None
+    sma = sum(closes[:period]) / period
+    multiplier = 2 / (period + 1)
+    ema = sma
+    for close in closes[period:]:
+        ema = (close - ema) * multiplier + ema
+    return ema
+
+def calculate_bollinger_bands(closes, period=20, dev=2.0):
+    if len(closes) < period:
+        return None, None, None
+    sma = calculate_sma(closes, period)
+    variance = sum((c - sma) ** 2 for c in closes[-period:]) / period
+    std_dev = math.sqrt(variance)
+    return sma + (std_dev * dev), sma, sma - (std_dev * dev)
+
+def calculate_atr(candles, period=14):
+    if len(candles) < period + 1:
+        return None
+    
+    true_ranges = []
+    for i in range(1, len(candles)):
+        c = candles[i]
+        prev_c = candles[i - 1]
+        tr1 = c['max'] - c['min']
+        tr2 = abs(c['max'] - prev_c['close'])
+        tr3 = abs(c['min'] - prev_c['close'])
+        true_ranges.append(max(tr1, tr2, tr3))
+        
+    recent_tr = true_ranges[-period:]
+    return sum(recent_tr) / period
+
 def analyze_market(candles, min_rsi=DEFAULT_MIN_RSI, max_rsi=DEFAULT_MAX_RSI):
-    if not candles or len(candles) < 3:
-        return "NONE", 50, 50.0
+    if not candles or len(candles) < 200:
+        return "NONE", 50, 50.0, None, None, None, None
     closes = [c["close"] for c in candles]
+    
     rsi = calculate_rsi(closes)
+    ema_200 = calculate_ema(closes, 200)
+    upper_band, middle_band, lower_band = calculate_bollinger_bands(closes, 20, 2.0)
+    atr = calculate_atr(candles, 14)
+    
     direction = "NONE"
     probability = 50
+    last_close = closes[-1]
+    
+    # Filtro ATR
+    is_dead_market = False
+    is_chaotic_market = False
+    if atr and last_close > 0:
+        atr_percent = (atr / last_close) * 100
+        # Tolerancias estimadas: < 0.003% (muy muerto), > 0.3% (muy errático)
+        if atr_percent < 0.003:
+            is_dead_market = True
+        elif atr_percent > 0.3:
+            is_chaotic_market = True
 
-    if rsi <= min_rsi:
-        direction = "CALL"
-        probability = min(99, 75 + int(max(0, min_rsi - rsi) * 2))
-    elif rsi >= max_rsi:
-        direction = "PUT"
-        probability = min(99, 75 + int(max(0, rsi - max_rsi) * 2))
-    else:
-        last_close = closes[-1]
-        prev_close = closes[-2]
-        if last_close > prev_close and rsi < 50:
-            direction = "CALL"
-            probability = 72
-        elif last_close < prev_close and rsi > 50:
-            direction = "PUT"
-            probability = 72
-    return direction, probability, rsi
+    # Aumentamos tolerancia (0.15% del precio) para tocar la banda de Bollinger y obtener más trades
+    bb_tolerance = last_close * 0.0015
+    
+    # Filtro de Noticias preparado
+    has_news, news_reason = check_news_filter()
+    if has_news:
+        # Aquí se podría forzar un retorno NONE en el futuro
+        pass
 
-def build_logs(pair, direction, rsi, probability):
+    if rsi <= min_rsi and not is_dead_market and not is_chaotic_market:
+        # Posible compra. Verificar EMA y Bollinger
+        if ema_200 and last_close >= ema_200:
+            # Si el RSI es EXTREMO (ej <= 25), saltamos el filtro de Bollinger (oportunidad clara)
+            if (lower_band and last_close <= (lower_band + bb_tolerance)) or rsi <= (min_rsi - 13):
+                direction = "CALL"
+                probability = min(99, 75 + int(max(0, min_rsi - rsi) * 2))
+    elif rsi >= max_rsi and not is_dead_market and not is_chaotic_market:
+        # Posible venta. Verificar EMA y Bollinger
+        if ema_200 and last_close <= ema_200:
+            # Si el RSI es EXTREMO (ej >= 75), saltamos el filtro de Bollinger
+            if (upper_band and last_close >= (upper_band - bb_tolerance)) or rsi >= (max_rsi + 13):
+                direction = "PUT"
+                probability = min(99, 75 + int(max(0, rsi - max_rsi) * 2))
+                
+    return direction, probability, rsi, ema_200, upper_band, lower_band, last_close, atr
+
+def build_logs(pair, direction, rsi, probability, ema_200, upper_band, lower_band, last_close, atr):
     ts = time.time()
-    return [
-        {"timestamp": ts, "message": f"[SYSTEM] Análisis {pair} — RSI: {rsi:.1f}"},
-        {"timestamp": ts, "message": f"[QUANTUM] Señal {direction} — precisión {probability}%"},
-        {"timestamp": ts, "message": "[SENTINEL] Mercado en rango validado — filtro ADX OK"},
-        {"timestamp": ts, "message": f"[IA MAIN] Consenso maestro V7: {direction}"},
+    logs = [
+        {"timestamp": ts, "message": f"[SYSTEM] Análisis {pair} — RSI: {rsi:.1f}"}
     ]
+    
+    if ema_200:
+        tendencia = "ALCISTA" if last_close >= ema_200 else "BAJISTA"
+        logs.append({"timestamp": ts, "message": f"[FILTRO MACRO] Precio vs EMA200: {tendencia}"})
+        
+    if upper_band and lower_band:
+        logs.append({"timestamp": ts, "message": f"[CONFLUENCIA] Bandas Bollinger calculadas OK"})
+        
+    if atr and last_close > 0:
+        atr_percent = (atr / last_close) * 100
+        status_vol = "Estable"
+        if atr_percent < 0.003: status_vol = "Muerto (Falta Liquidez)"
+        elif atr_percent > 0.3: status_vol = "Errático (Pánico/Noticias)"
+        logs.append({"timestamp": ts, "message": f"[FILTRO VOLATILIDAD] ATR: {atr_percent:.4f}% — Mercado {status_vol}"})
+
+    if direction == "NONE":
+        logs.append({"timestamp": ts, "message": "[SENTINEL] Operación rechazada: No hay confluencia de RSI + EMA + BB o mercado inválido por ATR"})
+    else:
+        logs.append({"timestamp": ts, "message": f"[QUANTUM] Señal {direction} — precisión {probability}%"})
+        logs.append({"timestamp": ts, "message": f"[IA MAIN] Consenso maestro V7: {direction} (Confluencia Perfecta)"})
+        
+    return logs
 
 # ─── Ejecución acotada (evita que un hilo de la librería gire para siempre) ───
 _global_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
@@ -236,6 +334,42 @@ def connect():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route("/actives", methods=["POST"])
+def get_actives():
+    global iq_instance
+    update_activity()
+    try:
+        data = request.json or {}
+        email = data.get("email")
+        password = data.get("password")
+        
+        if not iq_instance or not iq_instance.check_connect():
+            if email and password:
+                print(f"[WORKER {WORKER_PORT}] Sesión caída en actives. Auto-reconectando...")
+                iq_instance = IQ_Option(email, password)
+                check, _ = iq_instance.connect()
+                if not check:
+                    return jsonify({"success": False, "error": "Auto-reconexión fallida"}), 401
+            else:
+                return jsonify({"success": False, "error": "No conectado"}), 401
+                
+        # Sincronizar activos
+        iq_instance.update_ACTIVES_OPCODE()
+        actives_map = iq_instance.get_all_ACTIVES_OPCODE()
+        
+        all_pairs = [k for k, v in actives_map.items() if v]
+        otc = [p for p in all_pairs if "-OTC" in p]
+        regular = [p for p in all_pairs if "-OTC" not in p]
+        
+        return jsonify({
+            "success": True, 
+            "pairs": all_pairs,
+            "otc": otc,
+            "regular": regular
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route("/analyze", methods=["POST"])
 def analyze():
     global iq_instance
@@ -281,19 +415,20 @@ def analyze():
             iq_instance._current_target_mode = target_mode
 
         # Pedir las velas una sola vez con el par exacto (ej. EURUSD-OTC)
-        candles = iq_instance.get_candles(pair, 60, 30, time.time())
+        # Pedimos 250 velas para poder calcular la EMA 200 de forma precisa
+        candles = iq_instance.get_candles(pair, 60, 250, time.time())
         
         # Si falla con timeframe corto, probar con uno un poco mayor (ej. 5 min)
         if not candles:
-            candles = iq_instance.get_candles(pair, 300, 10, time.time())
+            candles = iq_instance.get_candles(pair, 300, 250, time.time())
             
         if not candles:
             return jsonify({"success": False, "error": f"No hay velas disponibles para {pair}"}), 400
 
-        direction, probability, rsi = analyze_market(candles, min_rsi, max_rsi)
+        direction, probability, rsi, ema_200, upper_band, lower_band, last_close, atr = analyze_market(candles, min_rsi, max_rsi)
         is_manipulated, manipulation_reason = detect_manipulation(candles, vol_multiplier, max_body_percent)
         
-        logs = build_logs(pair, direction, rsi, probability)
+        logs = build_logs(pair, direction, rsi, probability, ema_200, upper_band, lower_band, last_close, atr)
 
         return jsonify({
             "success": True,

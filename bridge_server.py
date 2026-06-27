@@ -93,9 +93,9 @@ def health():
         "token_configured": bool(BRIDGE_TOKEN),
     })
 
-def get_or_create_worker(email, acc_type):
+def get_or_create_worker(email, acc_type, broker="iqoption"):
     global next_port
-    session_key = f"{email}_{acc_type.lower()}"
+    session_key = f"{email}_{acc_type.lower()}_{broker.lower()}"
 
     # ── Sección crítica: comprobar/crear el worker y asignar puerto ──
     # Solo se mantiene el lock para mutar el estado compartido. El Popen es
@@ -117,13 +117,15 @@ def get_or_create_worker(email, acc_type):
 
         print(f"[MANAGER] Creando Worker para {session_key} en el puerto {port}...")
         try:
+            worker_script = "binance_worker.py" if broker == "binance" else "iq_worker.py"
             if getattr(sys, 'frozen', False):
-                proc = subprocess.Popen([sys.executable, "--worker", str(port)])
+                # En un binario congelado, asume que binance_worker o iq_worker se manejarán a través del entry point principal
+                proc = subprocess.Popen([sys.executable, "--worker", str(port), "--broker", broker])
             else:
-                proc = subprocess.Popen([sys.executable, "iq_worker.py", str(port)])
+                proc = subprocess.Popen([sys.executable, worker_script, str(port)])
         except Exception as e:
             return None, f"Fallo al crear subproceso: {str(e)}"
-        workers[session_key] = {"port": port, "process": proc}
+        workers[session_key] = {"port": port, "process": proc, "broker": broker}
 
     # ── Esperar el arranque FUERA del lock (otros usuarios siguen siendo atendidos) ──
     for _ in range(20):  # máx ~10s
@@ -151,11 +153,12 @@ def proxy_to_worker(path):
     data = request.json or {}
     email = data.get("email")
     acc_type = data.get("accountType", "demo")
+    broker = data.get("brokerType", "iqoption")
     
     if not email:
-        return jsonify({"success": False, "error": "Email requerido"}), 400
+        return jsonify({"success": False, "error": "Email/API Key requerido"}), 400
         
-    port, err = get_or_create_worker(email, acc_type)
+    port, err = get_or_create_worker(email, acc_type, broker)
     if err:
         return jsonify({"success": False, "error": err}), 500
         
@@ -179,6 +182,10 @@ def proxy_to_worker(path):
 @app.route("/connect", methods=["POST"])
 def connect():
     return proxy_to_worker("/connect")
+
+@app.route("/actives", methods=["POST"])
+def actives():
+    return proxy_to_worker("/actives")
 
 @app.route("/analyze", methods=["POST"])
 def analyze():

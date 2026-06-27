@@ -25,16 +25,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
-
-import { ALL_REGULAR_PAIRS, ALL_OTC_PAIRS, ALL_CRYPTO_PAIRS, ALL_STOCKS } from '@/lib/market-schedule';
-
-// Todos los pares disponibles combinados
-const ALL_IQ_PAIRS = [
-  ...ALL_OTC_PAIRS,
-  ...ALL_REGULAR_PAIRS,
-  ...ALL_CRYPTO_PAIRS,
-  ...ALL_STOCKS,
-];
+import { BotEngineProvider, useBotEngine } from '@/components/dashboard/bot-engine-provider';
+import { ALL_CRYPTO_PAIRS, ALL_STOCKS } from '@/lib/market-schedule';
 
 export default function RiskPage() {
   const [mounted, setMounted] = useState(false);
@@ -45,6 +37,8 @@ export default function RiskPage() {
   const [saving, setSaving] = useState(false);
   const [pairSearch, setPairSearch] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const { availablePairs, availableOtcPairs, availableRegularPairs } = useBotEngine();
 
   const [formData, setFormData] = useState({
     moneyManagementMode: 'fixed', // 'fixed' | 'compound' | 'martingale'
@@ -143,19 +137,19 @@ export default function RiskPage() {
   };
 
   const query = pairSearch.toLowerCase();
-  const filteredPairs = ALL_IQ_PAIRS.filter(
-    p => !activePairs.includes(p) && p.toLowerCase().includes(query)
-  );
+  const filteredPairs = availablePairs.length > 0 
+    ? availablePairs.filter(p => !activePairs.includes(p) && p.toLowerCase().includes(query))
+    : [];
   
-  const filteredOTC  = filteredPairs.filter(p => ALL_OTC_PAIRS.includes(p));
-  const filteredReal = filteredPairs.filter(p => ALL_REGULAR_PAIRS.includes(p));
-  const filteredCrypto = filteredPairs.filter(p => ALL_CRYPTO_PAIRS.includes(p));
-  const filteredStocks = filteredPairs.filter(p => ALL_STOCKS.includes(p));
+  const filteredOTC  = filteredPairs.filter(p => availableOtcPairs.includes(p));
+  const filteredReal = filteredPairs.filter(p => availableRegularPairs.includes(p) && !ALL_CRYPTO_PAIRS.includes(p) && !ALL_STOCKS.includes(p));
+  const filteredCrypto = filteredPairs.filter(p => availableRegularPairs.includes(p) && ALL_CRYPTO_PAIRS.includes(p));
+  const filteredStocks = filteredPairs.filter(p => availableRegularPairs.includes(p) && ALL_STOCKS.includes(p));
 
   // Par personalizado que no existe en la lista
   const typedIsCustom =
     pairSearch.trim().length >= 3 &&
-    !ALL_IQ_PAIRS.some(p => p.toLowerCase() === pairSearch.trim().toLowerCase()) &&
+    !availablePairs.some(p => p.toLowerCase() === pairSearch.trim().toLowerCase()) &&
     !activePairs.includes(pairSearch.trim().toUpperCase());
 
   if (!mounted) return null;
