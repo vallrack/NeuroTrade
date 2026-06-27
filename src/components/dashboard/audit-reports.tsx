@@ -169,10 +169,15 @@ export function AuditReports() {
 
   return (
     <div className="space-y-4 mt-8">
-      <h3 className="text-xl font-headline font-bold text-primary flex items-center gap-2">
-        <FileSpreadsheet className="h-5 w-5" />
-        Reportes de Eficiencia (Plan 15 Días)
-      </h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-xl font-headline font-bold text-primary flex items-center gap-2">
+          <FileSpreadsheet className="h-5 w-5" />
+          Reportes de Eficiencia (Plan 15 Días)
+        </h3>
+        <Button onClick={handleRecoverReport} variant="outline" size="sm" className="border-primary/50 text-primary hover:bg-primary/10">
+          🛠️ Recuperar Reporte Perdido
+        </Button>
+      </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 space-y-4">
