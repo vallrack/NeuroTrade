@@ -304,9 +304,29 @@ export function AuditReports() {
           {selectedReport ? (
             <Card className="border-primary/20 bg-card/50 backdrop-blur-md h-full">
               <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 pb-4">
-                <div>
-                  <CardTitle>Análisis Horario: {String(selectedReport.planDay).includes('Global') ? '' : 'Día '}{selectedReport.planDay}</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">Precisión: {selectedReport.trades > 0 ? Math.round((selectedReport.wins/selectedReport.trades)*100) : 0}% | Operaciones: {selectedReport.trades}</p>
+                <div className="flex-1 mr-4">
+                  <CardTitle className="mb-3">Análisis Horario: {String(selectedReport.planDay).includes('Global') ? '' : 'Día '}{selectedReport.planDay}</CardTitle>
+                  <div className="flex flex-wrap gap-2 text-[11px] uppercase tracking-wider font-semibold">
+                    <span className="px-2 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-md">
+                      Trades: {selectedReport.trades || 0}
+                    </span>
+                    <span className="px-2 py-1 bg-green-500/10 text-green-400 border border-green-500/20 rounded-md">
+                      Ganadas: {selectedReport.wins || 0}
+                    </span>
+                    <span className="px-2 py-1 bg-red-500/10 text-red-400 border border-red-500/20 rounded-md">
+                      Perdidas: {selectedReport.losses || 0}
+                    </span>
+                    <span className="px-2 py-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 rounded-md">
+                      Precisión: {selectedReport.trades > 0 ? Math.round(((selectedReport.wins || 0) / selectedReport.trades) * 100) : 0}%
+                    </span>
+                    <span className={`px-2 py-1 border rounded-md font-bold ${
+                      (selectedReport.profit || 0) >= 0 
+                        ? 'bg-green-500/10 text-green-400 border-green-500/20' 
+                        : 'bg-red-500/10 text-red-400 border-red-500/20'
+                    }`}>
+                      Beneficio: {(selectedReport.profit || 0) >= 0 ? '+' : ''}${(selectedReport.profit || 0).toFixed(2)}
+                    </span>
+                  </div>
                 </div>
                 <Button onClick={() => handleExport(selectedReport)} className="bg-green-600 hover:bg-green-700 text-white gap-2 h-9">
                   <Download className="h-4 w-4" /> Exportar a Excel
