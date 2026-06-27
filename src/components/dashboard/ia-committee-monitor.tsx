@@ -23,8 +23,15 @@ export function IACommitteeMonitor() {
     );
   }
 
-  // Tomamos el primer par para el Dashboard (o podríamos mostrar un selector)
-  const mainPair = activePairs[0] || 'EURUSD-OTC';
+  // Tomamos el par más recientemente actualizado para el Dashboard
+  const mainPair = Object.entries(analyses).length > 0 
+    ? Object.entries(analyses).sort((a, b) => {
+        const timeA = a[1].lastUpdated?.getTime() || 0;
+        const timeB = b[1].lastUpdated?.getTime() || 0;
+        return timeB - timeA;
+      })[0][0]
+    : (activePairs[0] || 'EURUSD-OTC');
+    
   const analysis = analyses[mainPair];
 
   return (
