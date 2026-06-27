@@ -142,6 +142,7 @@ export default function RiskPage() {
     setActivePairs(prev => prev.filter(p => p !== pair));
   };
 
+  const query = pairSearch.toLowerCase();
   const filteredPairs = ALL_IQ_PAIRS.filter(
     p => !activePairs.includes(p) && p.toLowerCase().includes(query)
   );
