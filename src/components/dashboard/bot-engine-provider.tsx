@@ -654,8 +654,66 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
       }
     };
     
+    const handleManualDisconnect = async () => {
+      const currentUser = userRef.current;
+      const currentFirestore = firestoreRef.current;
+      const currentBroker = brokerConfigRef.current;
+      const botParams = botParamsRef2.current;
+      
+      const planDay = botParams?.planDay;
+      const planPhase = botParams?.planPhase;
+      
+      if (!currentUser || !currentFirestore || !planDay) return;
+      
+      // Solo generar reporte estadístico si hubo saldo inicial válido y algo de actividad
+      if (sessionStartBalanceRef.current === null) return;
+      
+      const startBalance = sessionStartBalanceRef.current;
+      const finalBalance = liveBalanceRef.current ?? startBalance;
+      const profit = finalBalance - startBalance;
+      const profitPercent = startBalance > 0 ? (profit / startBalance) * 100 : 0;
+      
+      try {
+        // 1. Guardar informe en Firebase (alimenta los gráficos de AuditReports)
+        const reportRef = collection(currentFirestore, 'users', currentUser.uid, 'reports');
+        await addDoc(reportRef, {
+          date: new Date().toISOString(),
+          type: 'manual_disconnect',
+          planDay,
+          planPhase,
+          accountType: currentBroker?.accountType || 'demo',
+          profit,
+          profitPercent,
+          finalBalance,
+          trades: recentTradesRef.current.length,
+          wins: sessionWinsRef.current,
+          losses: sessionLossesRef.current,
+          hourlyStats: hourlyStatsRef.current || {},
+          pairStats: pairStatsRef.current || {}
+        });
+        
+        // 2. Avanzar de día SOLO si hubo operaciones (wins > 0 o losses > 0)
+        if (planDay < 15 && (sessionWinsRef.current > 0 || sessionLossesRef.current > 0)) {
+          const nextDay = planDay + 1;
+          const nextPreset = getPresetForDay(nextDay, (currentBroker?.accountType as any) || 'demo');
+          const botParamsDoc = doc(currentFirestore, 'users', currentUser.uid, 'config', 'bot_params');
+          await setDoc(botParamsDoc, { ...nextPreset, updatedAt: new Date().toISOString() }, { merge: true });
+          
+          addLog('SISTEMA', `🚀 Cierre manual: Reporte guardado y Plan avanzado al Día ${nextDay} para la próxima sesión.`, 'success');
+        } else {
+          addLog('SISTEMA', `📊 Cierre manual: Reporte generado en la plataforma. (Día no avanzado por cero operaciones)`, 'info');
+        }
+      } catch (err) {
+        console.error("Error guardando reporte manual:", err);
+      }
+    };
+    
     window.addEventListener('nt_daily_goal_reached', handleDailyGoal);
-    return () => window.removeEventListener('nt_daily_goal_reached', handleDailyGoal);
+    window.addEventListener('nt_manual_disconnect', handleManualDisconnect);
+    return () => {
+      window.removeEventListener('nt_daily_goal_reached', handleDailyGoal);
+      window.removeEventListener('nt_manual_disconnect', handleManualDisconnect);
+    };
   }, [addLog]);
 
   // Arrancar el loop UNA SOLA VEZ

@@ -10,6 +10,15 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   RefreshCw,
   Settings,
   ShieldCheck,
@@ -161,6 +170,7 @@ function BrokerContent() {
   const [isReal, setIsReal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
 
   const [bridgeSource, setBridgeSourceState] = useState<'cloud' | 'local'>('cloud');
   const [renderUrl, setRenderUrlState] = useState(DEFAULT_RENDER_URL);
@@ -178,6 +188,8 @@ function BrokerContent() {
   const { data: brokerConfig } = useDoc(brokerRef);
   const isConnected = brokerConfig?.status === 'connected';
   const accountType = brokerConfig?.accountType || (isReal ? 'real' : 'demo');
+  const todayDate = new Date().toLocaleDateString();
+  const isDayLocked = brokerConfig?.lastDefinitiveDisconnectDate === todayDate;
 
   useEffect(() => {
     if (!mounted) return;
@@ -246,7 +258,12 @@ function BrokerContent() {
   };
 
   const handleDisconnect = async () => {
+    setShowDisconnectDialog(true);
+  };
+
+  const handleDisconnectTemporal = async () => {
     if (!user || !brokerRef) return;
+    setShowDisconnectDialog(false);
     setDisconnecting(true);
     try {
       await bridgeDisconnect({
@@ -254,10 +271,38 @@ function BrokerContent() {
         accountType: brokerConfig?.accountType || (isReal ? 'real' : 'demo'),
       });
       await updateDoc(brokerRef, { status: 'disconnected' });
-      toast({ title: '🔌 PUENTE CERRADO', description: 'Comunicación finalizada correctamente.' });
+      toast({ title: '🔌 PAUSA TEMPORAL', description: 'Podrás reconectar hoy si lo deseas.' });
     } catch (e: any) {
       try { await updateDoc(brokerRef, { status: 'disconnected' }); } catch {}
-      toast({ title: 'SESIÓN CERRADA', description: 'Finalizada localmente.' });
+      toast({ title: 'SESIÓN CERRADA', description: 'Finalizada localmente en modo pausa.' });
+    }
+    setDisconnecting(false);
+  };
+
+  const handleDisconnectDefinitiva = async () => {
+    if (!user || !brokerRef) return;
+    setShowDisconnectDialog(false);
+    setDisconnecting(true);
+    
+    // Disparar evento para guardar reporte y avanzar día
+    window.dispatchEvent(new CustomEvent('nt_manual_disconnect'));
+
+    try {
+      await bridgeDisconnect({
+        email: brokerConfig?.email || email,
+        accountType: brokerConfig?.accountType || (isReal ? 'real' : 'demo'),
+      });
+      await updateDoc(brokerRef, { 
+        status: 'disconnected',
+        lastDefinitiveDisconnectDate: todayDate
+      });
+      toast({ title: '🔌 FIN DE SESIÓN', description: 'Reporte generado. ¡Vuelve mañana!' });
+    } catch (e: any) {
+      try { await updateDoc(brokerRef, { 
+        status: 'disconnected',
+        lastDefinitiveDisconnectDate: todayDate
+      }); } catch {}
+      toast({ title: 'SESIÓN CERRADA', description: 'Reporte generado localmente. ¡Vuelve mañana!' });
     }
     setDisconnecting(false);
   };
@@ -308,6 +353,16 @@ function BrokerContent() {
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {isDayLocked && (
+            <div className="mb-6 p-4 rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-400 text-sm flex items-start gap-3">
+              <ShieldCheck className="w-5 h-5 mt-0.5 shrink-0" />
+              <div>
+                <strong className="block text-base mb-1">Sesión Diaria Completada</strong>
+                <p>Ya realizaste la desconexión definitiva de hoy. Tu progreso de fase avanzó y tu reporte ya fue guardado en el sistema de auditoría. El botón de conexión permanecerá bloqueado hasta mañana.</p>
+              </div>
+            </div>
+          )}
+
           {/* ─── Credenciales ─── */}
           <div className="lg:col-span-7 space-y-4">
             <Card className="bg-black/40 border-white/5 backdrop-blur-xl">
@@ -325,7 +380,7 @@ function BrokerContent() {
                     placeholder="tu-email@ejemplo.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    disabled={loading}
+                    disabled={loading || isDayLocked}
                     className="bg-white/5 border-white/10 h-12 focus:ring-primary focus:border-primary transition-all font-mono"
                   />
                 </div>
@@ -337,7 +392,7 @@ function BrokerContent() {
                     placeholder="••••••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    disabled={loading}
+                    disabled={loading || isDayLocked}
                     className="bg-white/5 border-white/10 h-12 focus:ring-primary focus:border-primary transition-all font-mono"
                   />
                 </div>
@@ -347,7 +402,7 @@ function BrokerContent() {
                   <div className="grid grid-cols-2 gap-4">
                     <button
                       onClick={() => setIsReal(false)}
-                      disabled={loading}
+                      disabled={loading || isDayLocked}
                       className={cn(
                         "flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border transition-all duration-300",
                         !isReal
@@ -361,7 +416,7 @@ function BrokerContent() {
 
                     <button
                       onClick={() => setIsReal(true)}
-                      disabled={loading}
+                      disabled={loading || isDayLocked}
                       className={cn(
                         "flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border transition-all duration-300",
                         isReal
@@ -384,11 +439,11 @@ function BrokerContent() {
               <CardFooter className="pt-2 flex flex-col gap-3">
                 <Button
                   onClick={handleConnect}
-                  disabled={loading || !email || !password}
+                  disabled={loading || !email || !password || isDayLocked}
                   className="w-full bg-primary hover:bg-primary/90 h-14 rounded-2xl text-xs font-black uppercase tracking-widest shadow-2xl shadow-primary/20 gap-3"
                 >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                  {isConnected ? 'Reconectar Vínculo' : 'Activar Vínculo Seguro'}
+                  {isDayLocked ? 'Bloqueado hasta mañana' : (isConnected ? 'Reconectar Vínculo' : 'Activar Vínculo Seguro')}
                 </Button>
 
                 {isConnected && (
@@ -528,6 +583,47 @@ function BrokerContent() {
           </div>
         </div>
       </main>
+
+      <AlertDialog open={showDisconnectDialog} onOpenChange={setShowDisconnectDialog}>
+        <AlertDialogContent className="bg-[#1a1b26] border-white/10 text-white max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl">Opciones de Desconexión</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground pt-2">
+              ¿Qué tipo de desconexión deseas realizar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex flex-col gap-3 my-4">
+            <div 
+              className="p-4 rounded-lg border border-white/10 hover:border-blue-500/50 bg-black/20 hover:bg-blue-500/10 cursor-pointer transition-colors"
+              onClick={handleDisconnectTemporal}
+            >
+              <h4 className="font-bold text-blue-400 flex items-center gap-2">
+                <RefreshCw className="h-4 w-4" /> Pausa Temporal
+              </h4>
+              <p className="text-xs text-muted-foreground mt-1">
+                Cierra la conexión sin afectar tu día. Podrás volver a conectar el broker hoy mismo.
+              </p>
+            </div>
+            
+            <div 
+              className="p-4 rounded-lg border border-white/10 hover:border-primary/50 bg-black/20 hover:bg-primary/10 cursor-pointer transition-colors"
+              onClick={handleDisconnectDefinitiva}
+            >
+              <h4 className="font-bold text-primary flex items-center gap-2">
+                <PowerOff className="h-4 w-4" /> Cierre de Sesión Definitivo
+              </h4>
+              <p className="text-xs text-muted-foreground mt-1">
+                Genera tu reporte, avanza tu fase y bloquea la conexión hasta mañana para proteger tus ganancias.
+              </p>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-transparent border-white/10 hover:bg-white/5">
+              Cancelar
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
