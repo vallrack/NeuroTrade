@@ -114,21 +114,29 @@ export function TradingChart({ data, pair }: TradingChartProps) {
     if (seriesRef.current && volumeSeriesRef.current && data && data.length > 0) {
       try {
         // Velas
-        const formattedData = data.map(candle => ({
-          time: candle.from,
-          open: candle.open,
-          high: candle.max,
-          low: candle.min,
-          close: candle.close,
-        }));
+        const formattedData = data.map(candle => {
+          let t = candle.time || candle.from || candle.timestamp || candle.id;
+          if (t > 1000000000000) t = Math.floor(t / 1000); // Convert from ms to s if needed
+          return {
+            time: t,
+            open: candle.open,
+            high: candle.max !== undefined ? candle.max : candle.high,
+            low: candle.min !== undefined ? candle.min : candle.low,
+            close: candle.close,
+          };
+        });
         formattedData.sort((a, b) => (a.time as number) - (b.time as number));
 
         // Volumen
-        const formattedVolumeData = data.map(candle => ({
-          time: candle.from,
-          value: candle.volume || 0,
-          color: candle.close > candle.open ? 'rgba(38, 166, 154, 0.35)' : 'rgba(239, 83, 80, 0.35)'
-        }));
+        const formattedVolumeData = data.map(candle => {
+          let t = candle.time || candle.from || candle.timestamp || candle.id;
+          if (t > 1000000000000) t = Math.floor(t / 1000);
+          return {
+            time: t,
+            value: candle.volume || 0,
+            color: candle.close > candle.open ? 'rgba(38, 166, 154, 0.35)' : 'rgba(239, 83, 80, 0.35)'
+          };
+        });
         formattedVolumeData.sort((a, b) => (a.time as number) - (b.time as number));
 
         if (!isDataLoadedRef.current) {
