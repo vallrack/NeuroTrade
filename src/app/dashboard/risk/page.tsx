@@ -525,6 +525,8 @@ export default function RiskPage() {
                     ))}
                   </>
                 )}
+              </div>
+            )}
           </CardHeader>
 
           <CardContent>
