@@ -123,6 +123,41 @@ def detect_manipulation(candles, vol_multiplier=1.5, max_body_percent=0.3):
                 
     return False, ""
 
+def run_with_timeout(func, timeout_sec):
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(func)
+        return future.result(timeout=timeout_sec)
+
+def smart_change_balance(iq, target_mode):
+    try:
+        profile = iq.get_profile_ansyc()
+        balances = profile.get("balances", [])
+        
+        target_type = 4 if target_mode == "PRACTICE" else 1
+        filtered = [b for b in balances if b.get("type") == target_type]
+        
+        if filtered:
+            # Seleccionar el balance con mayor saldo (evita elegir un balance USD en 0 si hay uno COP con saldo)
+            best_balance = max(filtered, key=lambda x: float(x.get("amount", 0)))
+            best_id = best_balance.get("id")
+            
+            if global_value.balance_id != None:
+                iq.position_change_all("unsubscribeMessage", global_value.balance_id)
+                
+            global_value.balance_id = best_id
+            iq.position_change_all("subscribeMessage", best_id)
+            return True
+    except Exception as e:
+        print(f"Error en smart_change_balance: {e}")
+        
+    # Fallback al original
+    try:
+        iq.change_balance(target_mode)
+        return True
+    except:
+        pass
+    return False
+
 def calculate_sma(closes, period):
     if len(closes) < period:
         return None
@@ -419,7 +454,7 @@ def analyze():
         acc_type = data.get("accountType", "demo")
         target_mode = "PRACTICE" if acc_type.lower() == "demo" else "REAL"
         if getattr(iq_instance, '_current_target_mode', None) != target_mode:
-            iq_instance.change_balance(target_mode)
+            smart_change_balance(iq_instance, target_mode)
             iq_instance._current_target_mode = target_mode
             time.sleep(0.5) # Wait for websocket balance sync
 
@@ -438,14 +473,13 @@ def analyze():
         target_type = 4 if acc_type.lower() == "demo" else 1
         real_balance = getattr(global_value, 'balance', 0)
         try:
-            balances = iq_instance.get_balances()
-            if isinstance(balances, (tuple, list)):
-                for b in balances:
-                    if b.get("type") == target_type:
-                        real_balance = b.get("amount")
-                        break
+            balances = iq_instance.get_profile_ansyc().get("balances", [])
+            for b in balances:
+                if b.get("id") == global_value.balance_id:
+                    real_balance = b.get("amount")
+                    break
         except:
-            real_balance = iq_instance.get_balance()
+            real_balance = getattr(global_value, 'balance', 0)
             
         direction, probability, rsi, ema_200, upper_band, lower_band, last_close, atr = analyze_market(candles, min_rsi, max_rsi)
         is_manipulated, manipulation_reason = detect_manipulation(candles, vol_multiplier, max_body_percent)
@@ -511,7 +545,7 @@ def trade():
         acc_type = data.get("accountType", "demo")
         target_mode = "PRACTICE" if acc_type.lower() == "demo" else "REAL"
         if getattr(iq_instance, '_current_target_mode', None) != target_mode:
-            iq_instance.change_balance(target_mode)
+            smart_change_balance(iq_instance, target_mode)
             iq_instance._current_target_mode = target_mode
             time.sleep(0.5)
 
