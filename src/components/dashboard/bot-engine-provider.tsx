@@ -473,14 +473,44 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     // ── Chequeo de fin de pre-análisis ──
     if (isPreAnalyzingRef.current) {
       const elapsed = Date.now() - preAnalysisStartTimeRef.current;
-      if (elapsed >= 60000) { // 60 segundos
+      if (elapsed >= 90000) { // 90 segundos de pre-análisis
         const probs = preAnalysisProbabilitiesRef.current;
         const avgProb = probs.length > 0 ? probs.reduce((a, b) => a + b, 0) / probs.length : 0;
         
-        if (avgProb > 0) {
-          addLog('EJÉRCITO IA', `🎯 VEREDICTO FINAL: La probabilidad de éxito general hoy se estima en ${avgProb.toFixed(1)}%. Arrancando motor...`, 'success');
+        let finalProb = avgProb > 0 ? avgProb : 50; // default si no hay datos
+        let riskLevel = "Normal";
+        let newCompoundPercent = params?.compoundPercentage || 5;
+        let newGoalPercent = params?.dailyGoalPercent || 60;
+
+        if (finalProb < 60) {
+          riskLevel = "Baja / Riesgo Alto";
+          newCompoundPercent = Math.max(1, Math.floor(newCompoundPercent * 0.5)); // Mitad del riesgo (min 1%)
+          newGoalPercent = Math.max(10, Math.floor(newGoalPercent * 0.6)); // Reducir meta diaria
+        } else if (finalProb >= 60 && finalProb < 75) {
+          riskLevel = "Media / Estable";
+          newCompoundPercent = Math.max(1, Math.floor(newCompoundPercent * 0.8)); // Ligeramente más bajo
+          newGoalPercent = Math.max(10, Math.floor(newGoalPercent * 0.8));
         } else {
-          addLog('EJÉRCITO IA', `⚠️ Análisis completado pero sin datos suficientes. Arrancando motor...`, 'warning');
+          riskLevel = "Alta / Condiciones Óptimas";
+          // Mantener o subir ligeramente, pero sin superar un máximo prudente
+          newCompoundPercent = Math.min(10, newCompoundPercent + 1);
+        }
+
+        if (avgProb > 0) {
+          addLog('EJÉRCITO IA', `🎯 VEREDICTO FINAL: La probabilidad general hoy se estima en ${avgProb.toFixed(1)}% (${riskLevel}).`, 'success');
+          addLog('EJÉRCITO IA', `Ajustando estrategia automáticamente: Inversión al ${newCompoundPercent}% y Meta Diaria al ${newGoalPercent}%.`, 'info');
+        } else {
+          addLog('EJÉRCITO IA', `⚠️ Análisis completado pero sin datos suficientes. Operando con valores por defecto.`, 'warning');
+        }
+
+        // Guardar ajustes en Firestore
+        if (currentUser && currentFirestore) {
+          const botParamsDoc = doc(currentFirestore, 'users', currentUser.uid, 'config', 'bot_params');
+          setDoc(botParamsDoc, {
+            compoundPercentage: newCompoundPercent,
+            dailyGoalPercent: newGoalPercent,
+            moneyManagementMode: 'compound' // Asegurar modo compuesto
+          }, { merge: true }).catch(err => console.error("Error updating params:", err));
         }
         
         setIsPreAnalyzing(false);
