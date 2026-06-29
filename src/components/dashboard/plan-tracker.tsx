@@ -21,10 +21,6 @@ export function PlanTracker() {
   
   const { data: botParams } = useDoc(botParamsRef);
   
-  if (!mounted || !botParams || !botParams.planPhase || !botParams.planDay) return null;
-  
-  const { planPhase, planDay, dailyGoalPercent } = botParams;
-  
   // Auto-avance de día basado en la fecha calendario local
   useEffect(() => {
     if (!mounted || !botParamsRef || !botParams) return;
@@ -57,6 +53,10 @@ export function PlanTracker() {
       }
     }
   }, [mounted, botParams?.lastActiveDate, botParams?.planDay, botParamsRef]);
+
+  if (!mounted || !botParams || !botParams.planPhase || !botParams.planDay) return null;
+  
+  const { planPhase, planDay, dailyGoalPercent } = botParams;
   const handleDayChange = async () => {
     const newDayStr = window.prompt(`Estás en el Día ${planDay}. ¿A qué día quieres saltar manualmente? (1-15):`, String(planDay));
     if (!newDayStr) return;
