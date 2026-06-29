@@ -489,20 +489,25 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
         let finalProb = avgProb > 0 ? avgProb : 50; // default si no hay datos
         let riskLevel = "Normal";
         let newCompoundPercent = params?.compoundPercentage || 5;
-        let newGoalPercent = params?.dailyGoalPercent || 60;
+        
+        // 🚀 CRÍTICO: Asegurar que se cumpla estrictamente el porcentaje de la fase/día correspondiente.
+        let requiredGoalPercent = params?.dailyGoalPercent || 60;
+        if (params?.planDay) {
+          const day = params.planDay;
+          const dayInPhase = day <= 5 ? day : day <= 10 ? day - 5 : day - 10;
+          requiredGoalPercent = 60 + (dayInPhase - 1) * 10;
+        }
+        let newGoalPercent = requiredGoalPercent;
 
         if (finalProb < 60) {
           riskLevel = "Baja / Riesgo Alto";
-          newCompoundPercent = Math.max(1, Math.floor(newCompoundPercent * 0.5)); // Mitad del riesgo (min 1%)
-          newGoalPercent = Math.max(10, Math.floor(newGoalPercent * 0.6)); // Reducir meta diaria
+          newCompoundPercent = Math.max(1, Math.floor(newCompoundPercent * 0.5)); // Proteger capital (bajar inversión)
         } else if (finalProb >= 60 && finalProb < 75) {
           riskLevel = "Media / Estable";
-          newCompoundPercent = Math.max(1, Math.floor(newCompoundPercent * 0.8)); // Ligeramente más bajo
-          newGoalPercent = Math.max(10, Math.floor(newGoalPercent * 0.8));
+          newCompoundPercent = Math.max(1, Math.floor(newCompoundPercent * 0.8)); // Proteger capital levemente
         } else {
           riskLevel = "Alta / Condiciones Óptimas";
-          // Mantener o subir ligeramente, pero sin superar un máximo prudente
-          newCompoundPercent = Math.min(10, newCompoundPercent + 1);
+          newCompoundPercent = Math.min(10, newCompoundPercent + 1); // Subir inversión (máx 10%)
         }
 
         if (avgProb > 0) {
