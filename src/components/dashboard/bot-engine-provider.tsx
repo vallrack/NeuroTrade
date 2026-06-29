@@ -713,6 +713,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
                   status: tradeStatus, profit,
                   orderId: tradeResult.orderId,
                   timestamp, accountType,
+                  balance: tradeResult.balance,
                   broker: config.brokerType === 'binance' ? 'Binance' : 'IQ Option',
                 });
               });

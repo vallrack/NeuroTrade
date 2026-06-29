@@ -69,6 +69,9 @@ export function AuditReports() {
 
       const todayString = new Date().toLocaleDateString();
 
+      let latestTradeTime = 0;
+      let finalBalance = 0;
+
       snap.forEach(d => {
         const t = d.data();
         if (t.accountType === (brokerConfig?.accountType || 'demo')) {
@@ -78,6 +81,11 @@ export function AuditReports() {
             totalProfit += (t.profit || 0);
             const isWin = (t.profit > 0);
             const isLoss = (t.profit < 0);
+            
+            if (t.balance && new Date(t.timestamp).getTime() > latestTradeTime) {
+              latestTradeTime = new Date(t.timestamp).getTime();
+              finalBalance = t.balance;
+            }
             
             if (isWin) wins++;
             if (isLoss) losses++;
@@ -97,6 +105,15 @@ export function AuditReports() {
           }
         }
       });
+
+      let profitPercent = 0;
+      if (finalBalance > 0) {
+        const startBalance = finalBalance - totalProfit;
+        if (startBalance > 0) {
+          profitPercent = (totalProfit / startBalance) * 100;
+        }
+      }
+
       if (wins > 0 || losses > 0) {
         await addDoc(collection(firestore, 'users', user.uid, 'reports'), {
           date: new Date().toISOString(),
@@ -105,8 +122,8 @@ export function AuditReports() {
           planPhase: planPhaseToSave,
           accountType: brokerConfig?.accountType || 'demo',
           profit: totalProfit,
-          profitPercent: 0,
-          finalBalance: 0,
+          profitPercent,
+          finalBalance,
           trades: wins + losses,
           wins, losses, hourlyStats, pairStats
         });
