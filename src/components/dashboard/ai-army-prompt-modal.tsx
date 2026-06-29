@@ -14,7 +14,7 @@ import { useBotEngine } from '@/components/dashboard/bot-engine-provider';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { BrainCircuit, Play, Pause } from 'lucide-react';
-import { playWinSound } from '@/lib/sounds';
+import { playInvestSound } from '@/lib/sounds';
 
 export function AiArmyPromptModal() {
   const [isOpen, setIsOpen] = useState(false);
@@ -31,7 +31,7 @@ export function AiArmyPromptModal() {
       
       // Opcional: Reproducir un sonido para llamar la atención del usuario
       try {
-        playWinSound(); // Reutilizamos el sonido de win para notificar
+        playInvestSound(); // Usamos el sonido de invest como notificación
       } catch (err) {}
     };
 
@@ -57,17 +57,16 @@ export function AiArmyPromptModal() {
     forceStartEngine();
   };
 
-  const handleIgnoreAndPause = () => {
+  const handleIgnoreAndOperate = () => {
     setIsOpen(false);
-    // El motor ya fue pausado en el Provider, no hacemos nada más.
-    // Las configuraciones originales del usuario quedan intactas.
+    forceStartEngine();
   };
 
   if (!promptData) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open) handleIgnoreAndPause(); 
+      if (!open) handleIgnoreAndOperate(); 
     }}>
       <DialogContent className="sm:max-w-md bg-black/95 border-white/10 backdrop-blur-xl z-[9999]">
         <DialogHeader>
@@ -87,7 +86,7 @@ export function AiArmyPromptModal() {
               <li>Meta Diaria: <strong className="text-white">{promptData.newGoalPercent}%</strong></li>
             </ul>
             <br/>
-            ¿Deseas aplicar estos ajustes y arrancar el motor ahora, o prefieres abortar la operación y mantener tu configuración actual?
+            ¿Deseas aplicar estos ajustes y operar, o prefieres mantener tu configuración actual?
           </DialogDescription>
         </DialogHeader>
         
@@ -103,10 +102,10 @@ export function AiArmyPromptModal() {
           <Button 
             variant="default" 
             className="w-full sm:w-auto bg-slate-500/20 text-slate-300 hover:bg-slate-500/30 border border-slate-500/50"
-            onClick={handleIgnoreAndPause}
+            onClick={handleIgnoreAndOperate}
           >
-            <Pause className="w-4 h-4 mr-2" />
-            No, ignorar y pausar
+            <Play className="w-4 h-4 mr-2" />
+            No, mantener mi configuración
           </Button>
         </DialogFooter>
       </DialogContent>
