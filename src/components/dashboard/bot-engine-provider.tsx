@@ -686,9 +686,10 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
           if (tradeResult.success) {
             const timestamp = new Date().toISOString();
-            const { profit, status: tradeStatus } = tradeResult;
-            const isWin = tradeStatus === 'win';
-            const isLoss = tradeStatus === 'loss';
+            const { profit } = tradeResult;
+            const isWin = profit > 0;
+            const isLoss = profit < 0;
+            const tradeStatus = isWin ? 'win' : (isLoss ? 'loss' : 'tie');
 
             // Actualizar contadores de sesión
             sessionProfitRef.current += profit ?? 0;
@@ -812,8 +813,8 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
         new Date(t.timestamp).toLocaleDateString() === todayStr
       );
       
-      const realWins = todaysTrades.filter(t => t.status === 'win').length;
-      const realLosses = todaysTrades.filter(t => t.status === 'loss').length;
+      const realWins = todaysTrades.filter(t => t.profit > 0 || t.status === 'win').length;
+      const realLosses = todaysTrades.filter(t => t.profit < 0 || t.status === 'loss').length;
       const realProfit = todaysTrades.reduce((sum, t) => sum + (t.profit || 0), 0);
       
       const finalBalance = liveBalanceRef.current ?? 0;
@@ -872,8 +873,8 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
         new Date(t.timestamp).toLocaleDateString() === todayStr
       );
       
-      const realWins = todaysTrades.filter(t => t.status === 'win').length;
-      const realLosses = todaysTrades.filter(t => t.status === 'loss').length;
+      const realWins = todaysTrades.filter(t => t.profit > 0 || t.status === 'win').length;
+      const realLosses = todaysTrades.filter(t => t.profit < 0 || t.status === 'loss').length;
       const realProfit = todaysTrades.reduce((sum, t) => sum + (t.profit || 0), 0);
       
       const finalBalance = liveBalanceRef.current ?? 0;
