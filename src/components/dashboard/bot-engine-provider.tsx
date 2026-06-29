@@ -35,6 +35,7 @@ interface BotEngineContextValue {
   isPreAnalyzing: boolean;
   bridgeOnline: boolean | null;
   toggleEngine: () => void;
+  forceStartEngine: () => void;
   activePairs: string[];
   clearLogs: () => void;
   marketStatus: MarketStatus | null;
@@ -215,6 +216,14 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
       // Apagar motor normal
       setIsRunning(false);
     }
+  };
+
+  const forceStartEngine = () => {
+    setIsPreAnalyzing(false);
+    preAnalysisStartTimeRef.current = 0;
+    preAnalysisProbabilitiesRef.current = [];
+    setIsRunning(true);
+    addLog('SISTEMA', 'Motor de trading arrancado manualmente (Bypass Pre-Análisis).', 'success');
   };
 
 
@@ -498,26 +507,20 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
         if (avgProb > 0) {
           addLog('EJÉRCITO IA', `🎯 VEREDICTO FINAL: La probabilidad general hoy se estima en ${avgProb.toFixed(1)}% (${riskLevel}).`, 'success');
-          addLog('EJÉRCITO IA', `Ajustando estrategia automáticamente: Inversión al ${newCompoundPercent}% y Meta Diaria al ${newGoalPercent}%.`, 'info');
+          addLog('EJÉRCITO IA', `Consultando si deseas operar con los ajustes de: Inversión al ${newCompoundPercent}% y Meta Diaria al ${newGoalPercent}%.`, 'warning');
         } else {
-          addLog('EJÉRCITO IA', `⚠️ Análisis completado pero sin datos suficientes. Operando con valores por defecto.`, 'warning');
+          addLog('EJÉRCITO IA', `⚠️ Análisis completado pero sin datos suficientes. Consultando si deseas operar con valores por defecto.`, 'warning');
         }
 
-        // Guardar ajustes en Firestore
-        if (currentUser && currentFirestore) {
-          const botParamsDoc = doc(currentFirestore, 'users', currentUser.uid, 'config', 'bot_params');
-          setDoc(botParamsDoc, {
-            compoundPercentage: newCompoundPercent,
-            dailyGoalPercent: newGoalPercent,
-            moneyManagementMode: 'compound' // Asegurar modo compuesto
-          }, { merge: true }).catch(err => console.error("Error updating params:", err));
-        }
-        
         setIsPreAnalyzing(false);
-        setIsRunning(true);
-        // Actualizar refs para el siguiente ciclo
+        setIsRunning(false);
         isPreAnalyzingRef.current = false;
-        isRunningRef.current = true;
+        isRunningRef.current = false;
+        
+        // Disparar evento para que el modal pregunte al usuario
+        window.dispatchEvent(new CustomEvent('nt_ai_army_prompt', {
+          detail: { avgProb: finalProb, riskLevel, newCompoundPercent, newGoalPercent }
+        }));
         
         loopTimeoutRef.current = setTimeout(engineLoop, 2000);
         return;
@@ -943,9 +946,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <BotEngineContext.Provider value={{
-      logs, analyses, isRunning, isPreAnalyzing, bridgeOnline, toggleEngine, clearLogs,
-      activePairs: uiPairs.length > 0 ? uiPairs : (params?.pairs ?? ['EURUSD-OTC']),
-      marketStatus,
+      logs, analyses, isRunning, isPreAnalyzing, bridgeOnline, toggleEngine, forceStartEngine, activePairs: uiPairs.length > 0 ? uiPairs : (params?.pairs ?? ['EURUSD-OTC']), clearLogs, marketStatus,
       liveBalance, liveProfit, liveWins, liveLosses, sessionStartBalance,
       recentTrades,
       availablePairs, availableOtcPairs, availableRegularPairs

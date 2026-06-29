@@ -288,6 +288,7 @@ def connect():
             if getattr(iq_instance, '_current_target_mode', None) != target_mode:
                 iq_instance.change_balance(target_mode)
                 iq_instance._current_target_mode = target_mode
+                time.sleep(0.5) # Wait for websocket balance sync
             return jsonify({
                 "success": True,
                 "balance": iq_instance.get_balance(),
@@ -413,6 +414,7 @@ def analyze():
         if getattr(iq_instance, '_current_target_mode', None) != target_mode:
             iq_instance.change_balance(target_mode)
             iq_instance._current_target_mode = target_mode
+            time.sleep(0.5) # Wait for websocket balance sync
 
         # Pedir las velas una sola vez con el par exacto (ej. EURUSD-OTC)
         # Pedimos 250 velas para poder calcular la EMA 200 de forma precisa
@@ -491,6 +493,7 @@ def trade():
         if getattr(iq_instance, '_current_target_mode', None) != target_mode:
             iq_instance.change_balance(target_mode)
             iq_instance._current_target_mode = target_mode
+            time.sleep(0.5)
 
         # 'pair' viene normalizado con guion (ej. EURUSD-OTC), que es el formato
         # que usan tanto OP_code.ACTIVES como get_all_open_time().
