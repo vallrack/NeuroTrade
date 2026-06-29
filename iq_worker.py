@@ -197,17 +197,24 @@ def analyze_market(candles, min_rsi=DEFAULT_MIN_RSI, max_rsi=DEFAULT_MAX_RSI):
         pass
 
     if rsi <= min_rsi and not is_dead_market and not is_chaotic_market:
-        # Posible compra. Verificar EMA y Bollinger
-        if ema_200 and last_close >= ema_200:
-            # Si el RSI es EXTREMO (ej <= 25), saltamos el filtro de Bollinger (oportunidad clara)
-            if (lower_band and last_close <= (lower_band + bb_tolerance)) or rsi <= (min_rsi - 13):
+        # Regla de Pánico: Si el RSI es EXTREMO (ej <= 27), ignoramos EMA y Bollinger por rebote inminente
+        if rsi <= (min_rsi - 13):
+            direction = "CALL"
+            probability = min(99, 75 + int(max(0, min_rsi - rsi) * 2))
+        # Regla Normal: Solo comprar si la tendencia es alcista (precio >= EMA 200) y toca Bollinger
+        elif ema_200 and last_close >= ema_200:
+            if lower_band and last_close <= (lower_band + bb_tolerance):
                 direction = "CALL"
                 probability = min(99, 75 + int(max(0, min_rsi - rsi) * 2))
+                
     elif rsi >= max_rsi and not is_dead_market and not is_chaotic_market:
-        # Posible venta. Verificar EMA y Bollinger
-        if ema_200 and last_close <= ema_200:
-            # Si el RSI es EXTREMO (ej >= 75), saltamos el filtro de Bollinger
-            if (upper_band and last_close >= (upper_band - bb_tolerance)) or rsi >= (max_rsi + 13):
+        # Regla de Pánico: Si el RSI es EXTREMO (ej >= 73), ignoramos EMA y Bollinger por retroceso inminente
+        if rsi >= (max_rsi + 13):
+            direction = "PUT"
+            probability = min(99, 75 + int(max(0, rsi - max_rsi) * 2))
+        # Regla Normal: Solo vender si la tendencia es bajista (precio <= EMA 200) y toca Bollinger
+        elif ema_200 and last_close <= ema_200:
+            if upper_band and last_close >= (upper_band - bb_tolerance):
                 direction = "PUT"
                 probability = min(99, 75 + int(max(0, rsi - max_rsi) * 2))
                 
