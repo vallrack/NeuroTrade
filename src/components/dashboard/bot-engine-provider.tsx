@@ -32,6 +32,7 @@ interface BotEngineContextValue {
   logs: LogEntry[];
   analyses: Record<string, AnalysisState>;
   isRunning: boolean;
+  isPreAnalyzing: boolean;
   bridgeOnline: boolean | null;
   toggleEngine: () => void;
   activePairs: string[];
@@ -90,6 +91,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [analyses, setAnalyses] = useState<Record<string, AnalysisState>>({});
   const [isRunning, setIsRunning] = useState(false);
+  const [isPreAnalyzing, setIsPreAnalyzing] = useState(false);
   const [bridgeOnline, setBridgeOnline] = useState<boolean | null>(null);
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
 
@@ -108,6 +110,9 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   const loopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isExecutingRef = useRef(false);
   const isRunningRef = useRef(false);
+  const isPreAnalyzingRef = useRef(false);
+  const preAnalysisStartTimeRef = useRef<number>(0);
+  const preAnalysisProbabilitiesRef = useRef<number[]>([]);
   const bridgeOnlineRef = useRef<boolean | null>(null);
   const brokerConfigRef = useRef<any>(null);
   const botParamsRef2 = useRef<any>(null);
@@ -122,9 +127,11 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   const sessionWinsRef = useRef<number>(0);
   const sessionLossesRef = useRef<number>(0);
   const liveBalanceRef = useRef<number | null>(null);
+  const winsSinceLastPromptRef = useRef<number>(0);
 
   // Sincronizar refs
   useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
+  useEffect(() => { isPreAnalyzingRef.current = isPreAnalyzing; }, [isPreAnalyzing]);
   useEffect(() => { bridgeOnlineRef.current = bridgeOnline; }, [bridgeOnline]);
   useEffect(() => { liveBalanceRef.current = liveBalance; }, [liveBalance]);
   useEffect(() => { userRef.current = user; }, [user]);
@@ -172,10 +179,14 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     sessionLossesRef.current = 0;
     hourlyStatsRef.current = {};
     pairStatsRef.current = {};
+    winsSinceLastPromptRef.current = 0;
     setAnalyses({});
     setAvailablePairs([]);
     setAvailableOtcPairs([]);
     setAvailableRegularPairs([]);
+    setIsPreAnalyzing(false);
+    preAnalysisStartTimeRef.current = 0;
+    preAnalysisProbabilitiesRef.current = [];
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brokerConfig?.email, brokerConfig?.accountType, brokerConfig?.status]);
 
@@ -187,7 +198,24 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearLogs = () => setLogs([]);
-  const toggleEngine = () => setIsRunning(prev => !prev);
+  const toggleEngine = () => {
+    if (!isRunning && !isPreAnalyzing) {
+      // Iniciar en modo Pre-Análisis
+      setIsPreAnalyzing(true);
+      preAnalysisStartTimeRef.current = Date.now();
+      preAnalysisProbabilitiesRef.current = [];
+      addLog('EJÉRCITO IA', 'Desplegando agentes cuánticos para análisis preliminar (60s)...', 'info');
+    } else if (isPreAnalyzing) {
+      // Apagar durante el pre-análisis
+      setIsPreAnalyzing(false);
+      preAnalysisStartTimeRef.current = 0;
+      preAnalysisProbabilitiesRef.current = [];
+      addLog('SISTEMA', 'Análisis preliminar cancelado manualmente.', 'warning');
+    } else {
+      // Apagar motor normal
+      setIsRunning(false);
+    }
+  };
 
 
   useEffect(() => { setMounted(true); }, []);
@@ -436,11 +464,36 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Bot pausado manualmente
-    if (!isRunningRef.current) {
+    // Bot pausado manualmente y no está en pre-análisis
+    if (!isRunningRef.current && !isPreAnalyzingRef.current) {
       loopTimeoutRef.current = setTimeout(engineLoop, 3000);
       return;
     }
+
+    // ── Chequeo de fin de pre-análisis ──
+    if (isPreAnalyzingRef.current) {
+      const elapsed = Date.now() - preAnalysisStartTimeRef.current;
+      if (elapsed >= 60000) { // 60 segundos
+        const probs = preAnalysisProbabilitiesRef.current;
+        const avgProb = probs.length > 0 ? probs.reduce((a, b) => a + b, 0) / probs.length : 0;
+        
+        if (avgProb > 0) {
+          addLog('EJÉRCITO IA', `🎯 VEREDICTO FINAL: La probabilidad de éxito general hoy se estima en ${avgProb.toFixed(1)}%. Arrancando motor...`, 'success');
+        } else {
+          addLog('EJÉRCITO IA', `⚠️ Análisis completado pero sin datos suficientes. Arrancando motor...`, 'warning');
+        }
+        
+        setIsPreAnalyzing(false);
+        setIsRunning(true);
+        // Actualizar refs para el siguiente ciclo
+        isPreAnalyzingRef.current = false;
+        isRunningRef.current = true;
+        
+        loopTimeoutRef.current = setTimeout(engineLoop, 2000);
+        return;
+      }
+    }
+
 
     const minConfidence = params?.min_confidence_score ?? 85;
     const pairs = activePairs.length > 0 ? activePairs : manualPairs;
@@ -504,6 +557,15 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
         }));
 
         addLog('SISTEMA', `${pair} — RSI: ${rsi} | ${direction} (${probability.toFixed(0)}%)`, 'info');
+
+        // ── Lógica de acumulación en Pre-Análisis ──
+        if (isPreAnalyzingRef.current) {
+          if (probability > 0) {
+            preAnalysisProbabilitiesRef.current.push(probability);
+          }
+          // En pre-análisis NUNCA operamos, pasamos al siguiente par
+          continue; 
+        }
 
         if (direction !== 'NONE' && probability >= minConfidence) {
           addLog('QUANTUM-X', `Señal ${direction} en ${pair} — precisión ${probability.toFixed(0)}%`, 'success');
@@ -662,6 +724,23 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
                   profit: pStats.profit + (profit ?? 0)
                 };
               });
+            }
+
+            // ── Lógica Anti-Adicción: Pausa por racha de ganancias ──
+            if (isWin) {
+              winsSinceLastPromptRef.current += 1;
+              if (winsSinceLastPromptRef.current >= 2) {
+                winsSinceLastPromptRef.current = 0; // Resetear
+                setIsRunning(false);
+                isRunningRef.current = false;
+                
+                addLog('SISTEMA', `Pausa Anti-Adicción: Has logrado 2 operaciones ganadoras. Deteniendo motor para evaluación.`, 'warning');
+                
+                // Disparar evento para que un modal (ej. WinsPauseModal) lo recoja
+                window.dispatchEvent(new CustomEvent('nt_wins_pause_prompt', {
+                  detail: { wins: 2, hourlyStats: hourlyStatsRef.current }
+                }));
+              }
             }
           } else {
             addLog('SISTEMA', `Fallo al ejecutar: ${tradeResult.error}`, 'error');
@@ -834,7 +913,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <BotEngineContext.Provider value={{
-      logs, analyses, isRunning, bridgeOnline, toggleEngine, clearLogs,
+      logs, analyses, isRunning, isPreAnalyzing, bridgeOnline, toggleEngine, clearLogs,
       activePairs: uiPairs.length > 0 ? uiPairs : (params?.pairs ?? ['EURUSD-OTC']),
       marketStatus,
       liveBalance, liveProfit, liveWins, liveLosses, sessionStartBalance,

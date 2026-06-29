@@ -14,7 +14,7 @@ export default function TerminalPage() {
   const [mounted, setMounted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   
-  const { logs, analyses, isRunning, bridgeOnline, activePairs, toggleEngine } = useBotEngine();
+  const { logs, analyses, isRunning, isPreAnalyzing, bridgeOnline, activePairs, toggleEngine } = useBotEngine();
 
   useEffect(() => {
     setMounted(true);
@@ -65,6 +65,8 @@ export default function TerminalPage() {
             size="sm"
             className={isRunning 
               ? "bg-primary/20 text-primary hover:bg-primary/30 border border-primary/50 gap-2 h-7 px-3 rounded-full text-[10px] font-bold tracking-wider"
+              : isPreAnalyzing
+              ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/50 gap-2 h-7 px-3 rounded-full text-[10px] font-bold tracking-wider"
               : "bg-slate-500/10 text-slate-400 hover:bg-slate-500/20 border border-slate-500/30 gap-2 h-7 px-3 rounded-full text-[10px] font-bold tracking-wider"
             }
           >
@@ -72,6 +74,12 @@ export default function TerminalPage() {
               <>
                 <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                 MOTOR ACTIVO
+                <Pause className="h-3 w-3 ml-1" />
+              </>
+            ) : isPreAnalyzing ? (
+              <>
+                <Loader2 className="w-3 h-3 animate-spin text-amber-400" />
+                PRE-ANALIZANDO
                 <Pause className="h-3 w-3 ml-1" />
               </>
             ) : (

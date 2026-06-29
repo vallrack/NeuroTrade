@@ -7,13 +7,14 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2, AlertTriangle, Clock } from 'lucide-react';
 import { doc } from 'firebase/firestore';
-
 import { BotEngineProvider } from '@/components/dashboard/bot-engine-provider';
+import { WinsPauseModal } from '@/components/dashboard/wins-pause-modal';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
+  const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
@@ -71,7 +72,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!user) return null;
   
-  const pathname = usePathname();
   const isSpecialPage = pathname === '/dashboard/expired' || pathname === '/dashboard/pending';
 
   // Solo bloquear el renderizado si no estamos en las páginas especiales
@@ -86,6 +86,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   return (
     <BotEngineProvider>
+      <WinsPauseModal />
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset className="bg-background flex flex-col min-h-screen overflow-hidden">
