@@ -227,12 +227,7 @@ export async function bridgePost<T>(path: string, body: Record<string, unknown>)
       const timeoutSecs = path === '/trade' ? 120 : 40;
       throw new Error(`TIMEOUT — El puente no respondió en ${timeoutSecs}s. URL: ${bridgeUrl}${path}`);
     }
-    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-    const isHttp = bridgeUrl.startsWith('http://');
-    if (isHttps && isHttp) {
-      throw new Error(`MIXED-CONTENT BLOQUEADO — Estás en HTTPS pero el puente es HTTP (${bridgeUrl}). Usa modo RENDER o un túnel HTTPS.`);
-    }
-    throw new Error(`Puente no alcanzable (${bridgeUrl}${path}): ${netErr?.message || 'Failed to fetch'}`);
+    throw new Error(`Puente no alcanzable (${bridgeUrl}${path}): Asegúrate de que el .exe esté abierto. (Error original: ${netErr?.message || 'Failed to fetch'})`);
   }
   if (!res.ok) {
     const errText = await res.text().catch(() => `HTTP ${res.status}`);

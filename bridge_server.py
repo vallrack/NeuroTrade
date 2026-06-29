@@ -40,10 +40,15 @@ app = Flask(__name__)
 CORS(
     app,
     resources={r"/*": {"origins": "*"}},
-    allow_headers=["Content-Type", "X-Bridge-Token", "Bypass-Tunnel-Reminder", "Cache-Control", "Authorization"],
+    allow_headers=["Content-Type", "X-Bridge-Token", "Bypass-Tunnel-Reminder", "Cache-Control", "Authorization", "Access-Control-Request-Private-Network"],
     methods=["GET", "POST", "OPTIONS"],
     supports_credentials=False,
 )
+
+@app.after_request
+def add_pna_headers(response):
+    response.headers['Access-Control-Allow-Private-Network'] = 'true'
+    return response
 
 BRIDGE_TOKEN = os.environ.get("BRIDGE_TOKEN", "neurotrade-secret-2024")
 

@@ -301,10 +301,20 @@ _open_lock = threading.Lock()
 OPEN_CACHE_TTL = 30  # segundos
 
 def get_open_map(force=False):
-    return None
+    return
+# Configuración CORS
+CORS(
+    app,
+    resources={r"/*": {"origins": "*"}},
+    allow_headers=["Content-Type", "X-Bridge-Token", "Bypass-Tunnel-Reminder", "Cache-Control", "Authorization", "Access-Control-Request-Private-Network"],
+    methods=["GET", "POST", "OPTIONS"],
+    supports_credentials=False
+)
 
-def asset_status(pair):
-    return {"binary": False, "turbo": False, "digital": False}, False
+@app.after_request
+def add_pna_headers(response):
+    response.headers['Access-Control-Allow-Private-Network'] = 'true'
+    return response
 
 @app.route("/ping", methods=["GET"])
 def ping():
