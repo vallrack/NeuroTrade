@@ -13,7 +13,7 @@ export function getPresetForDay(day: number, accountType: 'real' | 'demo') {
     presetData = {
       reverseMode: 'always',
       moneyManagementMode: 'martingale',
-      investmentPerTrade: accountType === 'real' ? 5000 : 10,
+      investmentPerTrade: accountType === 'real' ? 2000 : 10,
       martingaleMultiplier: 2.1,
       maxLosses: 2,
       min_confidence_score: 70,
@@ -30,7 +30,7 @@ export function getPresetForDay(day: number, accountType: 'real' | 'demo') {
     presetData = {
       reverseMode: 'none',
       moneyManagementMode: 'fixed',
-      investmentPerTrade: accountType === 'real' ? 10000 : 50,
+      investmentPerTrade: accountType === 'real' ? 4000 : 50,
       min_confidence_score: 75,
       strategy_mode: 'balanced',
       autopilot: {
@@ -45,7 +45,7 @@ export function getPresetForDay(day: number, accountType: 'real' | 'demo') {
     presetData = {
       reverseMode: 'auto',
       moneyManagementMode: 'fixed',
-      investmentPerTrade: accountType === 'real' ? 20000 : 200,
+      investmentPerTrade: accountType === 'real' ? 8000 : 200,
       min_confidence_score: 78,
       strategy_mode: 'conservative',
       autopilot: {

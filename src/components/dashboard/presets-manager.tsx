@@ -61,7 +61,7 @@ export function PresetsManager() {
       presetData = {
         reverseMode: 'always',
         moneyManagementMode: 'martingale',
-        investmentPerTrade: accountType === 'real' ? 5000 : 10,
+        investmentPerTrade: accountType === 'real' ? 2000 : 10,
         martingaleMultiplier: 2.1,
         maxLosses: 2,
         min_confidence_score: 70,
@@ -83,7 +83,7 @@ export function PresetsManager() {
       presetData = {
         reverseMode: 'none',
         moneyManagementMode: 'fixed',
-        investmentPerTrade: accountType === 'real' ? 10000 : 50,
+        investmentPerTrade: accountType === 'real' ? 4000 : 50,
         min_confidence_score: 75,
         strategy_mode: 'balanced',
         planPhase: 2,
@@ -102,7 +102,7 @@ export function PresetsManager() {
       presetData = {
         reverseMode: 'auto', // Reverso solo en trampas
         moneyManagementMode: 'fixed',
-        investmentPerTrade: accountType === 'real' ? 20000 : 200,
+        investmentPerTrade: accountType === 'real' ? 8000 : 200,
         min_confidence_score: 78,
         strategy_mode: 'conservative',
         planPhase: 3,
@@ -199,7 +199,7 @@ export function PresetsManager() {
                 Fase 1: Contrariana
               </div>
               <p className="text-xs text-muted-foreground mb-2">
-                Días 1 al 5. Modo siempre inverso, martingala activa, capital {accountType === 'real' ? '$5,000 COP' : '$10 USD'}, caza manipulación OTC.
+                Días 1 al 5. Modo siempre inverso, martingala activa, capital {accountType === 'real' ? '$2,000 COP' : '$10 USD'}, caza manipulación OTC.
               </p>
               <Button 
                 onClick={() => openPreview(1)}
@@ -217,7 +217,7 @@ export function PresetsManager() {
                 Fase 2: Tendencial
               </div>
               <p className="text-xs text-muted-foreground mb-2">
-                Días 6 al 10. Bot Normal, operando a favor de tendencia, interés fijo {accountType === 'real' ? '$10,000 COP' : '$50 USD'}, modo auto.
+                Días 6 al 10. Bot Normal, operando a favor de tendencia, interés fijo {accountType === 'real' ? '$4,000 COP' : '$50 USD'}, modo auto.
               </p>
               <Button 
                 onClick={() => openPreview(2)}
@@ -235,7 +235,7 @@ export function PresetsManager() {
                 Fase 3: Inteligente
               </div>
               <p className="text-xs text-muted-foreground mb-2">
-                Días 11 al 15. Precisión quirúrgica (IA al 78%), interés fijo agresivo {accountType === 'real' ? '($20,000 COP)' : '($200 USD)'}, cero martingala.
+                Días 11 al 15. Precisión quirúrgica (IA al 78%), interés fijo agresivo {accountType === 'real' ? '($8,000 COP)' : '($200 USD)'}, cero martingala.
               </p>
               <Button 
                 onClick={() => openPreview(3)}

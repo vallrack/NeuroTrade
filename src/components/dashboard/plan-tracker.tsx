@@ -25,6 +25,38 @@ export function PlanTracker() {
   
   const { planPhase, planDay, dailyGoalPercent } = botParams;
   
+  // Auto-avance de día basado en la fecha calendario local
+  useEffect(() => {
+    if (!mounted || !botParamsRef || !botParams) return;
+    
+    const today = new Date().toLocaleDateString();
+    
+    if (!botParams.lastActiveDate) {
+      // Registrar por primera vez la fecha de inicio
+      setDoc(botParamsRef, { lastActiveDate: today }, { merge: true }).catch(console.error);
+    } else if (botParams.lastActiveDate !== today) {
+      // Es un nuevo día calendario desde la última vez
+      const currentDay = botParams.planDay || 1;
+      
+      if (currentDay < 15) {
+        const nextDay = currentDay + 1;
+        const phaseNumber = nextDay <= 5 ? 1 : nextDay <= 10 ? 2 : 3;
+        const dayInPhase = nextDay <= 5 ? nextDay : nextDay <= 10 ? nextDay - 5 : nextDay - 10;
+        const newGoal = 60 + (dayInPhase - 1) * 10;
+        
+        setDoc(botParamsRef, {
+          planDay: nextDay,
+          planPhase: phaseNumber,
+          dailyGoalPercent: newGoal,
+          lastActiveDate: today,
+          updatedAt: new Date().toISOString()
+        }, { merge: true }).catch(console.error);
+      } else {
+        // Ya completó los 15 días, solo actualizar la fecha
+        setDoc(botParamsRef, { lastActiveDate: today }, { merge: true }).catch(console.error);
+      }
+    }
+  }, [mounted, botParams?.lastActiveDate, botParams?.planDay, botParamsRef]);
   const handleDayChange = async () => {
     const newDayStr = window.prompt(`Estás en el Día ${planDay}. ¿A qué día quieres saltar manualmente? (1-15):`, String(planDay));
     if (!newDayStr) return;
