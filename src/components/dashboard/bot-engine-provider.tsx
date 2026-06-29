@@ -448,6 +448,26 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     const currentFirestore = firestoreRef.current;
     const accountType = config?.accountType || 'demo';
 
+    // ── 0. Verificar timeout de pre-análisis SIEMPRE (incluso si hay early returns) ──
+    if (isPreAnalyzingRef.current) {
+      const now = Date.now();
+      if (now - preAnalysisStartTimeRef.current >= 90000) { // 90 segundos
+        isPreAnalyzingRef.current = false;
+        setIsPreAnalyzing(false);
+        
+        const probs = preAnalysisProbabilitiesRef.current;
+        const avg = probs.length > 0 ? probs.reduce((a, b) => a + b, 0) / probs.length : 50;
+        
+        window.dispatchEvent(new CustomEvent('nt_ai_army_prompt', {
+          detail: {
+            avgProb: avg,
+            newCompoundPercent: avg >= 75 ? 10 : avg >= 60 ? 5 : 2,
+            newGoalPercent: avg >= 75 ? 30 : avg >= 60 ? 20 : 10
+          }
+        }));
+      }
+    }
+
     // ── 1. AutoPilot: selección de pares y horario ──
     const autopilot = params?.autopilot ?? DEFAULT_AUTOPILOT;
     const regularPairs: string[] = params?.regularPairs ?? ['EURUSD', 'GBPUSD', 'USDJPY'];
@@ -771,26 +791,6 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
       }
 
       await new Promise(r => setTimeout(r, 1500));
-    }
-
-    if (isPreAnalyzingRef.current) {
-      const now = Date.now();
-      if (now - preAnalysisStartTimeRef.current >= 90000) { // 90 segundos
-        // Apagamos el pre-análisis para no disparar el modal múltiples veces
-        isPreAnalyzingRef.current = false;
-        setIsPreAnalyzing(false);
-        
-        const probs = preAnalysisProbabilitiesRef.current;
-        const avg = probs.length > 0 ? probs.reduce((a, b) => a + b, 0) / probs.length : 50;
-        
-        window.dispatchEvent(new CustomEvent('nt_ai_army_prompt', {
-          detail: {
-            avgProb: avg,
-            newCompoundPercent: avg >= 75 ? 10 : avg >= 60 ? 5 : 2,
-            newGoalPercent: avg >= 75 ? 30 : avg >= 60 ? 20 : 10
-          }
-        }));
-      }
     }
 
     loopTimeoutRef.current = setTimeout(engineLoop, 2000);
