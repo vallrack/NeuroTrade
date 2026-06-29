@@ -10,7 +10,7 @@ import { doc } from 'firebase/firestore';
 import { BotEngineProvider } from '@/components/dashboard/bot-engine-provider';
 import { WinsPauseModal } from '@/components/dashboard/wins-pause-modal';
 import { AiArmyPromptModal } from '@/components/dashboard/ai-army-prompt-modal';
-import { Toaster } from 'sonner';
+
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useUser();

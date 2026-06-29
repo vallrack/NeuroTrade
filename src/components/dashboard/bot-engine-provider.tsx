@@ -200,21 +200,12 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
   const clearLogs = () => setLogs([]);
   const toggleEngine = () => {
-    if (!isRunning && !isPreAnalyzing) {
-      // Iniciar en modo Pre-Análisis
-      setIsPreAnalyzing(true);
-      preAnalysisStartTimeRef.current = Date.now();
-      preAnalysisProbabilitiesRef.current = [];
-      addLog('EJÉRCITO IA', 'Desplegando agentes cuánticos para análisis preliminar (60s)...', 'info');
-    } else if (isPreAnalyzing) {
-      // Apagar durante el pre-análisis
-      setIsPreAnalyzing(false);
-      preAnalysisStartTimeRef.current = 0;
-      preAnalysisProbabilitiesRef.current = [];
-      addLog('SISTEMA', 'Análisis preliminar cancelado manualmente.', 'warning');
+    if (!isRunning) {
+      setIsRunning(true);
+      addLog('SISTEMA', 'Motor de trading encendido.', 'success');
     } else {
-      // Apagar motor normal
       setIsRunning(false);
+      addLog('SISTEMA', 'Motor de trading apagado.', 'warning');
     }
   };
 
@@ -346,30 +337,40 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
   const calculateAmount = useCallback((balance: number): number => {
     const params = botParamsRef2.current;
-    if (!params) return 10;
+    const config = brokerConfigRef.current;
+    const accountType = config?.accountType || 'demo';
+    
+    // Si la cuenta es REAL y el balance es grande, asumimos que es COP y el min es 2000.
+    // Si la cuenta es demo, el min es 1 (demo USD).
+    const minAmount = (accountType === 'real' || balance > 10000) ? 2000 : 1;
+
+    if (!params) return minAmount;
     const mode = params.moneyManagementMode || 'fixed';
     const base = params.investmentPerTrade || 500;
-    if (mode === 'fixed') return base;
+    
+    if (mode === 'fixed') return Math.max(base, minAmount);
     if (mode === 'compound') {
       const percent = params.compoundPercentage || 5;
       const amt = Math.floor(balance * (percent / 100));
-      return amt < 1 ? 1 : amt;
+      return amt < minAmount ? minAmount : amt;
     }
     if (mode === 'martingale') {
       // Martingale SOLO si el último trade está guardado en Firestore
       const trades = recentTradesRef.current;
-      if (trades.length === 0) return base; // Sin historial guardado → siempre base
+      if (trades.length === 0) return Math.max(base, minAmount); // Sin historial guardado → siempre base
       const lastTrade = trades[0];
       // Solo doblar si el último trade fue hace menos de 10 minutos (reciente y guardado)
       const lastTradeTime = new Date(lastTrade.timestamp).getTime();
       const tenMinsAgo = Date.now() - 10 * 60 * 1000;
       if (lastTrade.status === 'loss' && lastTradeTime > tenMinsAgo) {
         const multiplier = params.martingaleMultiplier || 2.1;
-        return Math.floor((lastTrade.amount || base) * multiplier);
+        const previousAmount = lastTrade.amount || base;
+        const newAmount = Math.floor(previousAmount * multiplier);
+        return Math.max(newAmount, minAmount);
       }
-      return base;
+      return Math.max(base, minAmount);
     }
-    return base;
+    return Math.max(base, minAmount);
   }, []);
 
   const runGuardianCheck = useCallback((balance: number, proposedAmount: number, params: any): boolean => {
@@ -473,63 +474,10 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Bot pausado manualmente y no está en pre-análisis
-    if (!isRunningRef.current && !isPreAnalyzingRef.current) {
+    // Bot pausado manualmente
+    if (!isRunningRef.current) {
       loopTimeoutRef.current = setTimeout(engineLoop, 3000);
       return;
-    }
-
-    // ── Chequeo de fin de pre-análisis ──
-    if (isPreAnalyzingRef.current) {
-      const elapsed = Date.now() - preAnalysisStartTimeRef.current;
-      if (elapsed >= 90000) { // 90 segundos de pre-análisis
-        const probs = preAnalysisProbabilitiesRef.current;
-        const avgProb = probs.length > 0 ? probs.reduce((a, b) => a + b, 0) / probs.length : 0;
-        
-        let finalProb = avgProb > 0 ? avgProb : 50; // default si no hay datos
-        let riskLevel = "Normal";
-        let newCompoundPercent = params?.compoundPercentage || 5;
-        
-        // 🚀 CRÍTICO: Asegurar que se cumpla estrictamente el porcentaje de la fase/día correspondiente.
-        let requiredGoalPercent = params?.dailyGoalPercent || 60;
-        if (params?.planDay) {
-          const day = params.planDay;
-          const dayInPhase = day <= 5 ? day : day <= 10 ? day - 5 : day - 10;
-          requiredGoalPercent = 60 + (dayInPhase - 1) * 10;
-        }
-        let newGoalPercent = requiredGoalPercent;
-
-        if (finalProb < 60) {
-          riskLevel = "Baja / Riesgo Alto";
-          newCompoundPercent = Math.max(1, Math.floor(newCompoundPercent * 0.5)); // Proteger capital (bajar inversión)
-        } else if (finalProb >= 60 && finalProb < 75) {
-          riskLevel = "Media / Estable";
-          newCompoundPercent = Math.max(1, Math.floor(newCompoundPercent * 0.8)); // Proteger capital levemente
-        } else {
-          riskLevel = "Alta / Condiciones Óptimas";
-          newCompoundPercent = Math.min(10, newCompoundPercent + 1); // Subir inversión (máx 10%)
-        }
-
-        if (avgProb > 0) {
-          addLog('EJÉRCITO IA', `🎯 VEREDICTO FINAL: La probabilidad general hoy se estima en ${avgProb.toFixed(1)}% (${riskLevel}).`, 'success');
-          addLog('EJÉRCITO IA', `Consultando si deseas operar con los ajustes de: Inversión al ${newCompoundPercent}% y Meta Diaria al ${newGoalPercent}%.`, 'warning');
-        } else {
-          addLog('EJÉRCITO IA', `⚠️ Análisis completado pero sin datos suficientes. Consultando si deseas operar con valores por defecto.`, 'warning');
-        }
-
-        setIsPreAnalyzing(false);
-        setIsRunning(false);
-        isPreAnalyzingRef.current = false;
-        isRunningRef.current = false;
-        
-        // Disparar evento para que el modal pregunte al usuario
-        window.dispatchEvent(new CustomEvent('nt_ai_army_prompt', {
-          detail: { avgProb: finalProb, riskLevel, newCompoundPercent, newGoalPercent }
-        }));
-        
-        loopTimeoutRef.current = setTimeout(engineLoop, 2000);
-        return;
-      }
     }
 
 
@@ -559,6 +507,16 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           }
           continue; // Ignorar análisis y trading para este par
         }
+        // Determinar límites de RSI según el modo de estrategia
+        let currentMinRsi = 30;
+        let currentMaxRsi = 70;
+        if (params?.strategy_mode === 'aggressive') {
+          currentMinRsi = 40;
+          currentMaxRsi = 60;
+        } else if (params?.strategy_mode === 'conservative') {
+          currentMinRsi = 25;
+          currentMaxRsi = 75;
+        }
 
         addLog('BRIDGE', `Analizando ${pair} → ${getBridgeUrl()}/analyze`, 'info');
         const result = await bridgeAnalyze({
@@ -567,8 +525,8 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           pair,
           accountType,
           brokerType: config.brokerType || 'iqoption',
-          minRsi: 30,
-          maxRsi: 70,
+          minRsi: currentMinRsi,
+          maxRsi: currentMaxRsi,
           manipulationVolMultiplier: params?.manipulationVolMultiplier,
           manipulationMaxBody: params?.manipulationMaxBody
         });
@@ -587,11 +545,19 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           continue;
         }
 
-        const { direction, probability, rsi, isManipulated, manipulationReason, candles, balance } = result;
+        const { direction = 'NONE', probability = 0, rsi = 50, isManipulated = false, manipulationReason = '', candles = [], balance } = result;
 
-        setAnalyses(prev => ({
+        setAnalyses((prev: Record<string, AnalysisState>) => ({
           ...prev,
-          [pair]: { direction, probability, rsi, isManipulated, manipulationReason, candles, lastUpdated: new Date() }
+          [pair]: { 
+            direction: direction as "CALL" | "PUT" | "NONE", 
+            probability, 
+            rsi, 
+            isManipulated, 
+            manipulationReason, 
+            candles, 
+            lastUpdated: new Date() 
+          }
         }));
 
         addLog('SISTEMA', `${pair} — RSI: ${rsi} | ${direction} (${probability.toFixed(0)}%)`, 'info');
@@ -625,7 +591,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
           isExecutingRef.current = true;
 
-          let finalDirection = direction;
+          let finalDirection: "CALL" | "PUT" = (direction === 'CALL' || direction === 'PUT') ? direction : 'CALL';
           let maestroLog = `EJECUTANDO ${direction} $${amount} en ${pair}...`;
 
           if (params?.reverseMode === 'always') {
@@ -665,7 +631,8 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
                   brokerType: config.brokerType || 'iqoption'
                 });
                 if (pollRes.success && pollRes.result && pollRes.result.status === 'COMPLETED') {
-                  tradeResult = { ...tradeResult, ...pollRes.result };
+                  const newResult = pollRes.result as any;
+                  tradeResult = { ...tradeResult, ...newResult };
                   pending = false;
                 } else if (pollRes.success === false) {
                   tradeResult = { success: false, error: pollRes.error || 'Unknown error from bridge' };

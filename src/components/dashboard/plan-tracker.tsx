@@ -72,6 +72,10 @@ export function PlanTracker() {
     const newGoal = 60 + (dayInPhase - 1) * 10;
     
     try {
+      if (!botParamsRef) {
+        alert("No se pudo cargar la referencia de configuración");
+        return;
+      }
       await setDoc(botParamsRef, {
         planDay: newDay,
         planPhase: phaseNumber,

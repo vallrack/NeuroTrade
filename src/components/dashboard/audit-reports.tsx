@@ -282,6 +282,7 @@ export function AuditReports() {
                         e.stopPropagation();
                         if (window.confirm("¿Seguro que deseas eliminar este reporte?")) {
                           try {
+                            if (!user) return;
                             await deleteDoc(doc(firestore, 'users', user.uid, 'reports', r.id));
                             if (selectedReport?.id === r.id) setSelectedReport(null);
                           } catch (err: any) {

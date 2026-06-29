@@ -53,6 +53,7 @@ function Calendar({
         day_hidden: "invisible",
         ...classNames,
       }}
+      // @ts-ignore - Ignore type error for IconLeft/Right
       components={{
         IconLeft: ({ className, ...props }) => (
           <ChevronLeft className={cn("h-4 w-4", className)} {...props} />

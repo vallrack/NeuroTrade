@@ -427,6 +427,19 @@ def analyze():
         if not candles:
             return jsonify({"success": False, "error": f"No hay velas disponibles para {pair}"}), 400
 
+        # Buscar el balance correcto iterando get_balances()
+        target_type = 4 if acc_type.lower() == "demo" else 1
+        real_balance = getattr(global_value, 'balance', 0)
+        try:
+            balances = iq_instance.get_balances()
+            if isinstance(balances, (tuple, list)):
+                for b in balances:
+                    if b.get("type") == target_type:
+                        real_balance = b.get("amount")
+                        break
+        except:
+            real_balance = iq_instance.get_balance()
+            
         direction, probability, rsi, ema_200, upper_band, lower_band, last_close, atr = analyze_market(candles, min_rsi, max_rsi)
         is_manipulated, manipulation_reason = detect_manipulation(candles, vol_multiplier, max_body_percent)
         
@@ -434,7 +447,7 @@ def analyze():
 
         return jsonify({
             "success": True,
-            "balance": iq_instance.get_balance(),
+            "balance": real_balance,
             "direction": direction,
             "probability": probability,
             "rsi": rsi,
