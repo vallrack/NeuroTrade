@@ -151,7 +151,7 @@ export function AuditReports() {
         </h3>
         <Card className="border-dashed border-white/20 bg-transparent flex flex-col items-center justify-center p-12 gap-4">
           <AlertTriangle className="h-10 w-10 text-muted-foreground opacity-50" />
-          <p className="text-muted-foreground">Aún no hay reportes generados para esta fase.</p>
+          <p className="text-muted-foreground">Aún no hay reportes generados para esta cuenta.</p>
           <Button onClick={handleRecoverReport} variant="outline" className="border-primary/50 text-primary hover:bg-primary/10 mt-2">
             Generar Reporte del Día (Recuperación)
           </Button>
