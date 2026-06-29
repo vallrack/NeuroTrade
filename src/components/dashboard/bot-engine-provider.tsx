@@ -199,10 +199,18 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearLogs = () => setLogs([]);
+  const hasDonePreAnalysisRef = useRef<boolean>(false);
+
   const toggleEngine = () => {
     if (!isRunning) {
-      setIsRunning(true);
-      addLog('SISTEMA', 'Motor de trading encendido.', 'success');
+      if (!hasDonePreAnalysisRef.current) {
+        setIsPreAnalyzing(true);
+        preAnalysisStartTimeRef.current = Date.now();
+        addLog('SISTEMA', 'Iniciando escuadrón de reconocimiento (90s pre-análisis)...', 'info');
+      } else {
+        setIsRunning(true);
+        addLog('SISTEMA', 'Motor de trading encendido (Bypass Pre-análisis).', 'success');
+      }
     } else {
       setIsRunning(false);
       addLog('SISTEMA', 'Motor de trading apagado.', 'warning');
@@ -213,8 +221,9 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     setIsPreAnalyzing(false);
     preAnalysisStartTimeRef.current = 0;
     preAnalysisProbabilitiesRef.current = [];
+    hasDonePreAnalysisRef.current = true; // Marca que ya se hizo
     setIsRunning(true);
-    addLog('SISTEMA', 'Motor de trading arrancado manualmente (Bypass Pre-Análisis).', 'success');
+    addLog('SISTEMA', 'Motor de trading arrancado (Fin del Pre-Análisis).', 'success');
   };
 
 
