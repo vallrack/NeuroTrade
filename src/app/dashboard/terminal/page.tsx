@@ -9,12 +9,14 @@ import { Terminal as TerminalIcon, Activity, Zap, Database, Cpu, Loader2, Play, 
 import { useBotEngine } from '@/components/dashboard/bot-engine-provider';
 import { TradingChart } from '@/components/dashboard/trading-chart';
 import { getBridgeModeLabel } from '@/lib/bridge';
+import { useUser, useFirestore } from '@/firebase';
 
 export default function TerminalPage() {
   const [mounted, setMounted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [injecting, setInjecting] = useState(false);
-  const { user, firestore } = useBotEngine() as any; // Fallback context usage
+  const user = useUser();
+  const firestore = useFirestore();
   
   const { logs, analyses, isRunning, isPreAnalyzing, bridgeOnline, activePairs, toggleEngine } = useBotEngine();
 
