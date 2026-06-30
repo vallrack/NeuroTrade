@@ -14,9 +14,6 @@ import { useUser, useFirestore } from '@/firebase';
 export default function TerminalPage() {
   const [mounted, setMounted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [injecting, setInjecting] = useState(false);
-  const { user } = useUser();
-  const firestore = useFirestore();
   
   const { logs, analyses, isRunning, isPreAnalyzing, bridgeOnline, activePairs, toggleEngine } = useBotEngine();
 
@@ -29,37 +26,6 @@ export default function TerminalPage() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [logs]);
-
-  const injectMissingTrades = async () => {
-    if (!user || !firestore) return;
-    setInjecting(true);
-    try {
-      const { collection, addDoc } = await import('firebase/firestore');
-      const tradesRef = collection(firestore, 'users', user.uid, 'trades');
-      
-      const missingTrades = [
-        { pair: 'EURUSD-OTC', direction: 'call', amount: 2000, profit: 1720, status: 'win', timestamp: '2026-06-30T07:39:00-05:00' },
-        { pair: 'GBPUSD-OTC', direction: 'call', amount: 2000, profit: 1720, status: 'win', timestamp: '2026-06-30T07:40:00-05:00' },
-        { pair: 'EURUSD-OTC', direction: 'call', amount: 2000, profit: 1740, status: 'win', timestamp: '2026-06-30T07:40:30-05:00' },
-        { pair: 'EURUSD-OTC', direction: 'call', amount: 2000, profit: -2000, status: 'loss', timestamp: '2026-06-30T07:41:00-05:00' },
-        { pair: 'GBPUSD-OTC', direction: 'call', amount: 2000, profit: -2000, status: 'loss', timestamp: '2026-06-30T07:41:30-05:00' },
-        { pair: 'GBPUSD-OTC', direction: 'call', amount: 2000, profit: 1720, status: 'win', timestamp: '2026-06-30T07:42:00-05:00' }
-      ];
-
-      for (const t of missingTrades) {
-        await addDoc(tradesRef, {
-          ...t,
-          orderId: 'manual_recovery_' + Math.random().toString(36).substring(7),
-          accountType: 'real',
-          broker: 'IQ Option',
-        });
-      }
-      alert('¡Las 6 operaciones perdidas han sido inyectadas a tu base de datos exitosamente!');
-    } catch (e: any) {
-      alert('Error: ' + e.message);
-    }
-    setInjecting(false);
-  };
 
   if (!mounted) {
     return (
@@ -93,15 +59,6 @@ export default function TerminalPage() {
               BRIDGE OFFLINE
             </Badge>
           )}
-
-          <Button 
-            onClick={injectMissingTrades} 
-            disabled={injecting}
-            className="bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/50 gap-2 h-7 px-3 rounded-full text-[10px] font-bold tracking-wider"
-          >
-            {injecting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Database className="w-3 h-3" />}
-            RECUPERAR OPERACIONES
-          </Button>
           
           <Button
             onClick={toggleEngine}
