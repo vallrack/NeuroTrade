@@ -15,7 +15,7 @@ export default function TerminalPage() {
   const [mounted, setMounted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [injecting, setInjecting] = useState(false);
-  const user = useUser();
+  const { user } = useUser();
   const firestore = useFirestore();
   
   const { logs, analyses, isRunning, isPreAnalyzing, bridgeOnline, activePairs, toggleEngine } = useBotEngine();
