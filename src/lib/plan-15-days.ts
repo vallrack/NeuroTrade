@@ -15,7 +15,7 @@ export function getPresetForDay(day: number, accountType: 'real' | 'demo') {
       moneyManagementMode: 'martingale',
       investmentPerTrade: accountType === 'real' ? 2000 : 10,
       martingaleMultiplier: 2.1,
-      maxLosses: 2,
+      maxLosses: 3, // FIX #6: Aumentado de 2→3 para dar más margen antes de pausar
       min_confidence_score: 70,
       strategy_mode: 'aggressive',
       autopilot: {

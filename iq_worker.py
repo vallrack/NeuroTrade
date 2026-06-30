@@ -55,7 +55,10 @@ def add_pna_headers(response):
 WORKER_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 5001
 iq_instance = None
 last_activity = time.time()
-INACTIVITY_TIMEOUT = 1200  # 20 min sin actividad = auto apagado (libera RAM para otros usuarios)
+INACTIVITY_TIMEOUT = 3600  # FIX #10: Extendido a 60 min (antes 20) para sesiones largas sin señales
+
+# FIX #4: Lock para prevenir condición de carrera al cambiar de cuenta demo/real
+_balance_change_lock = threading.Lock()
 
 # Umbrales
 DEFAULT_MIN_RSI = 38
@@ -631,10 +634,12 @@ def analyze():
         # Sincronizar siempre el tipo de cuenta con la UI solo si es necesario
         acc_type = data.get("accountType", "demo")
         target_mode = "PRACTICE" if acc_type.lower() == "demo" else "REAL"
-        if getattr(iq_instance, '_current_target_mode', None) != target_mode:
-            smart_change_balance(iq_instance, target_mode)
-            iq_instance._current_target_mode = target_mode
-            time.sleep(0.5) # Wait for websocket balance sync
+        # FIX #4: Lock para evitar que dos requests simultáneos cambien de cuenta a la vez
+        with _balance_change_lock:
+            if getattr(iq_instance, '_current_target_mode', None) != target_mode:
+                smart_change_balance(iq_instance, target_mode)
+                iq_instance._current_target_mode = target_mode
+                time.sleep(0.5) # Wait for websocket balance sync
 
         # Pedir las velas una sola vez con el par exacto (ej. EURUSD-OTC)
         # Pedimos 250 velas para poder calcular la EMA 200 de forma precisa
@@ -656,7 +661,9 @@ def analyze():
                 if b.get("id") == global_value.balance_id:
                     real_balance = b.get("amount")
                     break
-        except:
+        except Exception as e:
+            # FIX #9: Avisar que estamos usando balance cacheado (puede estar desactualizado)
+            print(f"[WORKER {WORKER_PORT}] Aviso: usando balance del caché WebSocket (get_profile_ansyc falló: {e})")
             real_balance = getattr(global_value, 'balance', 0)
             
         direction, probability, rsi, ema_200, upper_band, lower_band, last_close, atr = analyze_market(candles, min_rsi, max_rsi)
@@ -719,13 +726,14 @@ def trade():
             else:
                 return jsonify({"success": False, "error": "Sesión desconectada. Falta email/password para reconectar."}), 401
 
-        # Sincronizar siempre el tipo de cuenta con la UI solo si es necesario
+        # FIX #4: Lock para evitar condición de carrera demo/real en /trade
         acc_type = data.get("accountType", "demo")
         target_mode = "PRACTICE" if acc_type.lower() == "demo" else "REAL"
-        if getattr(iq_instance, '_current_target_mode', None) != target_mode:
-            smart_change_balance(iq_instance, target_mode)
-            iq_instance._current_target_mode = target_mode
-            time.sleep(0.5)
+        with _balance_change_lock:
+            if getattr(iq_instance, '_current_target_mode', None) != target_mode:
+                smart_change_balance(iq_instance, target_mode)
+                iq_instance._current_target_mode = target_mode
+                time.sleep(0.5)
 
         # 'pair' viene normalizado con guion (ej. EURUSD-OTC), que es el formato
         # que usan tanto OP_code.ACTIVES como get_all_open_time().

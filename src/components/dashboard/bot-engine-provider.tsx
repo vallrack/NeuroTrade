@@ -129,6 +129,8 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   const sessionLossesRef = useRef<number>(0);
   const liveBalanceRef = useRef<number | null>(null);
   const winsSinceLastPromptRef = useRef<number>(0);
+  // FIX #5: Recolectar RSI durante el pre-análisis para recomendaciones más reales
+  const preAnalysisRsiRef = useRef<number[]>([]);
 
   // Sincronizar refs
   useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
@@ -181,6 +183,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     hourlyStatsRef.current = {};
     pairStatsRef.current = {};
     winsSinceLastPromptRef.current = 0;
+    preAnalysisRsiRef.current = []; // FIX #5: limpiar RSI al cambiar de cuenta
     setAnalyses({});
     setAvailablePairs([]);
     setAvailableOtcPairs([]);
@@ -221,7 +224,10 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     setIsPreAnalyzing(false);
     preAnalysisStartTimeRef.current = 0;
     preAnalysisProbabilitiesRef.current = [];
-    hasDonePreAnalysisRef.current = true; // Marca que ya se hizo
+    preAnalysisRsiRef.current = []; // FIX #5: limpiar colección RSI
+    hasDonePreAnalysisRef.current = true;
+    // FIX #8: resetear contador de ganancias al arrancar motor nuevo día/sesión
+    winsSinceLastPromptRef.current = 0;
     setIsRunning(true);
     addLog('SISTEMA', 'Motor de trading arrancado (Fin del Pre-Análisis).', 'success');
   };
@@ -337,9 +343,24 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     fetchCalendar();
     const calendarInterval = setInterval(fetchCalendar, 15 * 60 * 1000); // 15 mins
 
+    // FIX #10: Keep-alive — ping al worker cada 10 min mientras el motor est\u00e1 activo
+    // Evita que el worker se apague por inactividad si el mercado no da se\u00f1ales
+    const keepAliveInterval = setInterval(async () => {
+      if (!isRunningRef.current) return;
+      try {
+        const { getBridgeUrl, getBridgeHeaders } = await import('@/lib/bridge');
+        await fetch(`${getBridgeUrl()}/health`, {
+          method: 'GET',
+          headers: getBridgeHeaders(),
+          signal: AbortSignal.timeout(5000),
+        });
+      } catch { /* silencioso */ }
+    }, 10 * 60 * 1000); // cada 10 minutos
+
     return () => {
       clearInterval(interval);
       clearInterval(calendarInterval);
+      clearInterval(keepAliveInterval);
       window.removeEventListener('nt_force_sync', onForceSync);
     };
   }, []);
@@ -450,15 +471,42 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
       if (now - preAnalysisStartTimeRef.current >= 90000) { // 90 segundos
         isPreAnalyzingRef.current = false;
         setIsPreAnalyzing(false);
-        
+
         const probs = preAnalysisProbabilitiesRef.current;
-        const avg = probs.length > 0 ? probs.reduce((a, b) => a + b, 0) / probs.length : 50;
-        
+        const rsiArr = preAnalysisRsiRef.current;
+
+        // FIX #5: usar RSI real para calcular condición del mercado
+        const avg = probs.length > 0 ? probs.reduce((a, b) => a + b, 0) / probs.length : 0;
+        const avgRsi = rsiArr.length > 0 ? rsiArr.reduce((a, b) => a + b, 0) / rsiArr.length : 50;
+        const signalCount = probs.length;
+
+        // Determinar condición real del mercado por RSI + señales detectadas
+        let riskLevel = 'Alto (mercado sin señales claras)';
+        let newCompoundPercent = 2;
+        let newGoalPercent = 10;
+
+        if (signalCount >= 3 && avg >= 75) {
+          riskLevel = 'Bajo (señales fuertes detectadas)';
+          newCompoundPercent = 10;
+          newGoalPercent = 30;
+        } else if (signalCount >= 1 && avg >= 60) {
+          riskLevel = 'Medio (señales moderadas)';
+          newCompoundPercent = 5;
+          newGoalPercent = 20;
+        } else if (avgRsi < 40 || avgRsi > 60) {
+          riskLevel = 'Medio (RSI en zona extrema, posible rebote)';
+          newCompoundPercent = 4;
+          newGoalPercent = 15;
+        }
+
         window.dispatchEvent(new CustomEvent('nt_ai_army_prompt', {
           detail: {
-            avgProb: avg,
-            newCompoundPercent: avg >= 75 ? 10 : avg >= 60 ? 5 : 2,
-            newGoalPercent: avg >= 75 ? 30 : avg >= 60 ? 20 : 10
+            avgProb: avg > 0 ? avg : (avgRsi < 40 || avgRsi > 60 ? 62 : 50),
+            avgRsi: Math.round(avgRsi * 10) / 10,
+            signalCount,
+            riskLevel,
+            newCompoundPercent,
+            newGoalPercent
           }
         }));
       }
@@ -608,6 +656,10 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
         if (isPreAnalyzingRef.current) {
           if (probability > 0) {
             preAnalysisProbabilitiesRef.current.push(probability);
+          }
+          // FIX #5: acumular RSI siempre (aunque no haya señal) para evaluar condición de mercado
+          if (result.rsi !== undefined && result.rsi !== 50) {
+            preAnalysisRsiRef.current.push(result.rsi);
           }
           // En pre-análisis NUNCA operamos, pasamos al siguiente par
           continue; 

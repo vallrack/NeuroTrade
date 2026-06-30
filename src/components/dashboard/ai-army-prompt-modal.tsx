@@ -112,6 +112,12 @@ export function AiArmyPromptModal() {
               <div className="text-xs text-slate-400 pl-7">
                 Riesgo del Mercado: <span className="text-white font-medium">{promptData.riskLevel}</span>
               </div>
+              {promptData.avgRsi != null && (
+                <div className="text-xs text-slate-400 pl-7 flex gap-4">
+                  <span>RSI Promedio: <span className="text-white font-medium">{promptData.avgRsi}</span></span>
+                  <span>Señales detectadas: <span className="text-white font-medium">{promptData.signalCount ?? 0}</span></span>
+                </div>
+              )}
             </div>
 
             {/* Recommendations Grid */}

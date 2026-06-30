@@ -67,6 +67,25 @@ export function AuditReports() {
       if (phaseStr === null) return;
       const planPhaseToSave = parseInt(phaseStr, 10) || brokerConfig?.planPhase || 1;
 
+      // FIX #7: Verificar si ya existe un reporte para ese día/fase antes de crear uno nuevo
+      const existingQ = query(
+        collection(firestore, 'users', user.uid, 'reports'),
+        where('planDay', '==', planDayToSave),
+        where('planPhase', '==', planPhaseToSave),
+        where('accountType', '==', brokerConfig?.accountType || 'demo')
+      );
+      const existingSnap = await getDocs(existingQ);
+      if (!existingSnap.empty) {
+        const confirmed = window.confirm(
+          `⚠️ Ya existe un reporte para el Día ${planDayToSave} (Fase ${planPhaseToSave}).\n\n¿Deseas reemplazarlo con los datos actuales?\n\n• OK → Eliminar el anterior y crear uno nuevo\n• Cancelar → Abortar (no se crea nada)`
+        );
+        if (!confirmed) return;
+        // Eliminar el reporte anterior para evitar duplicados
+        for (const docSnap of existingSnap.docs) {
+          await deleteDoc(doc(firestore, 'users', user.uid, 'reports', docSnap.id));
+        }
+      }
+
       const todayString = new Date().toLocaleDateString();
 
       let latestTradeTime = 0;
