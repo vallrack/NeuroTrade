@@ -424,16 +424,12 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Verificar racha de pérdidas
+    // Verificar racha de pérdidas de la sesión actual
     const maxLosses = params?.maxLosses ?? 3;
-    const trades = recentTradesRef.current;
-    if (trades.length >= maxLosses) {
-      const streak = trades.slice(0, maxLosses).every((t: any) => t.status === 'loss');
-      if (streak) {
-        addLog('SISTEMA', `Pausa de seguridad: ${maxLosses} pérdidas consecutivas.`, 'error');
-        setIsRunning(false);
-        return false;
-      }
+    if (sessionLossesRef.current >= maxLosses) {
+      addLog('SISTEMA', `Pausa de seguridad: ${sessionLossesRef.current} pérdidas en esta sesión.`, 'error');
+      setIsRunning(false);
+      return false;
     }
 
     return true;
