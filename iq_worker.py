@@ -54,13 +54,40 @@ def add_pna_headers(response):
 # Configuración y Estado del Worker
 WORKER_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 5001
 iq_instance = None
-trade_results = {}
 last_activity = time.time()
 INACTIVITY_TIMEOUT = 1200  # 20 min sin actividad = auto apagado (libera RAM para otros usuarios)
 
 # Umbrales
 DEFAULT_MIN_RSI = 38
 DEFAULT_MAX_RSI = 62
+
+# ─── FALLA #1 FIX: Persistencia de resultados en disco ────────────────────────
+# trade_results se guarda también en un archivo .json para sobrevivir reinicios
+# del worker (evita pérdida de operaciones que estaban PENDING al caerse).
+RESULTS_CACHE_FILE = f"trade_results_cache_{WORKER_PORT}.json"
+
+def _load_trade_cache():
+    """Carga resultados previos del disco al arrancar (recuperación tras crash)."""
+    try:
+        if os.path.exists(RESULTS_CACHE_FILE):
+            with open(RESULTS_CACHE_FILE, 'r') as f:
+                data = json.load(f)
+                print(f"[WORKER {WORKER_PORT}] Recuperados {len(data)} resultados del caché en disco.")
+                return data
+    except Exception as e:
+        print(f"[WORKER {WORKER_PORT}] No se pudo cargar caché de resultados: {e}")
+    return {}
+
+def _persist_result(order_id, result):
+    """Guarda un resultado en RAM y en disco."""
+    trade_results[str(order_id)] = result
+    try:
+        with open(RESULTS_CACHE_FILE, 'w') as f:
+            json.dump(trade_results, f)
+    except Exception as e:
+        print(f"[WORKER {WORKER_PORT}] Aviso: no se pudo persistir resultado en disco: {e}")
+
+trade_results = _load_trade_cache()
 
 def update_activity():
     global last_activity
@@ -81,25 +108,107 @@ def normalize_pair(pair):
     return pair
 
 def calculate_rsi(closes, period=14):
+    """
+    Wilder's Smoothed RSI — estándar de la industria (coincide con TradingView).
+    Usa suavizado exponencial (EMA) en vez de promedio aritmético simple,
+    lo que produce un RSI más estable y de mayor calidad.
+    """
     if len(closes) < period + 1:
         return 50.0
     deltas = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
-    gains = [d if d > 0 else 0 for d in deltas[-period:]]
-    losses = [-d if d < 0 else 0 for d in deltas[-period:]]
-    avg_gain = sum(gains) / period
-    avg_loss = sum(losses) / period
+    gains  = [max(d, 0.0) for d in deltas]
+    losses = [max(-d, 0.0) for d in deltas]
+
+    # Precalentamiento: SMA de los primeros `period` valores
+    avg_gain = sum(gains[:period]) / period
+    avg_loss = sum(losses[:period]) / period
+
+    # Wilder's smoothing sobre el resto de la serie completa
+    for i in range(period, len(deltas)):
+        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+
     if avg_loss == 0:
         return 100.0
     rs = avg_gain / avg_loss
     return round(100 - (100 / (1 + rs)), 2)
 
-def check_news_filter():
+# ─── FALLA #3 FIX: Filtro de noticias directo desde ForexFactory ──────────────
+_news_cache = {"events": [], "last_fetch": 0.0}
+NEWS_CACHE_TTL = 15 * 60  # Refrescar cada 15 minutos
+FF_CALENDAR_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.xml"
+
+def _fetch_forex_calendar():
+    """Descarga y parsea el calendario de ForexFactory. Solo eventos HIGH impact."""
+    global _news_cache
+    now = time.time()
+    if now - _news_cache["last_fetch"] < NEWS_CACHE_TTL:
+        return _news_cache["events"]
+    try:
+        import requests as req
+        import xml.etree.ElementTree as ET
+        from datetime import datetime, timezone, timedelta
+
+        resp = req.get(FF_CALENDAR_URL, timeout=10)
+        resp.raise_for_status()
+        root = ET.fromstring(resp.text)
+        events = []
+        for ev in root.findall('event'):
+            impact = (ev.findtext('impact') or '').strip()
+            if impact != 'High':
+                continue
+            country  = (ev.findtext('country') or '').strip().upper()
+            title    = (ev.findtext('title')   or '').strip()
+            date_str = (ev.findtext('date')    or '').strip()  # MM-DD-YYYY
+            time_str = (ev.findtext('time')    or '').strip()  # e.g. "8:30am"
+
+            event_ts = None
+            if date_str and time_str and time_str.lower() != 'all day':
+                try:
+                    dt_naive = datetime.strptime(
+                        f"{date_str} {time_str.upper()}", "%m-%d-%Y %I:%M%p"
+                    )
+                    # ForexFactory muestra en Eastern Time.
+                    # EDT (mar–nov) = UTC-4, EST (resto) = UTC-5.
+                    month = dt_naive.month
+                    utc_offset = -4 if 3 <= month <= 11 else -5
+                    et_tz = timezone(timedelta(hours=utc_offset))
+                    event_ts = dt_naive.replace(tzinfo=et_tz).timestamp()
+                except Exception:
+                    pass
+
+            events.append({"country": country, "title": title, "ts": event_ts})
+
+        _news_cache = {"events": events, "last_fetch": now}
+        print(f"[WORKER] Calendario actualizado: {len(events)} eventos HIGH IMPACT esta semana.")
+        return events
+    except Exception as e:
+        print(f"[WORKER] Error al cargar calendario ForexFactory: {e}")
+        return _news_cache.get("events", [])
+
+def check_news_filter(pair=""):
     """
-    Placeholder para la conexión a una API de Calendario Económico (ej. ForexFactory).
-    Retorna True si hay una noticia de Alto Impacto (3 Toros) en este momento,
-    lo cual debería pausar el bot. Por defecto retorna False hasta integrar la API.
+    Consulta el calendario de ForexFactory directamente (cacheado 15 min).
+    Retorna (True, razón) si hay noticia HIGH IMPACT en ±15 min para la moneda del par.
+    Retorna (False, '') si es seguro operar.
     """
-    return False, ""
+    try:
+        events = _fetch_forex_calendar()
+        now_ts = time.time()
+        window = 15 * 60  # ±15 minutos
+        for ev in events:
+            if ev.get("ts") is None:
+                continue
+            if abs(ev["ts"] - now_ts) <= window:
+                country = ev["country"]
+                # Si se pasa un par, solo bloquear si la moneda del evento está en el par
+                if pair and country not in pair.upper():
+                    continue
+                return True, f"Noticia HIGH IMPACT: {ev['title']} ({country}) en {abs(ev['ts'] - now_ts)/60:.0f} min"
+        return False, ""
+    except Exception as e:
+        print(f"[WORKER] Error en check_news_filter: {e}")
+        return False, ""
 
 def detect_manipulation(candles, vol_multiplier=1.5, max_body_percent=0.3):
     if not candles or len(candles) < 5:
@@ -241,11 +350,13 @@ def analyze_market(candles, min_rsi=DEFAULT_MIN_RSI, max_rsi=DEFAULT_MAX_RSI):
     # Aumentamos tolerancia (0.15% del precio) para tocar la banda de Bollinger y obtener más trades
     bb_tolerance = last_close * 0.0015
     
-    # Filtro de Noticias preparado
+    # Filtro de Noticias (ahora real, consulta ForexFactory cada 15 min)
+    # En analyze_market no tenemos el par, así que es un filtro global.
+    # El filtro par-específico se aplica en el endpoint /analyze antes de llegar aquí.
     has_news, news_reason = check_news_filter()
     if has_news:
-        # Aquí se podría forzar un retorno NONE en el futuro
-        pass
+        # Noticias globales de alto impacto: ser conservadores y forzar NONE
+        return "NONE", 0, rsi, ema_200, upper_band, lower_band, last_close, atr
 
     if rsi <= min_rsi and not is_dead_market and not is_chaotic_market:
         # Regla de Pánico: Si el RSI es EXTREMO (ej <= 27), ignoramos EMA y Bollinger por rebote inminente
@@ -445,6 +556,54 @@ def analyze():
         max_rsi = float(data.get("maxRsi", DEFAULT_MAX_RSI))
         vol_multiplier = float(data.get("manipulationVolMultiplier", 1.5))
         max_body_percent = float(data.get("manipulationMaxBody", 0.3))
+
+        # ─── FALLA #3 FIX: Filtro de noticias desde el frontend ───────────────
+        # El frontend envía los pares afectados por noticias de alto impacto.
+        # Retornamos NONE inmediatamente sin operar si el par está bloqueado.
+        blocked_pairs = data.get("blockedPairs", [])
+        if blocked_pairs and any(bp.upper() in pair.upper() for bp in blocked_pairs):
+            print(f"[WORKER {WORKER_PORT}] Par {pair} bloqueado por noticia de alto impacto.")
+            bal = 0
+            try:
+                bal = iq_instance.get_balance() if iq_instance else 0
+            except:
+                pass
+            return jsonify({
+                "success": True,
+                "direction": "NONE",
+                "probability": 0,
+                "rsi": 50,
+                "isManipulated": False,
+                "manipulationReason": f"Par bloqueado por noticia de alto impacto (Calendario Económico)",
+                "balance": bal,
+                "pair": pair,
+                "candles": [],
+                "logs": [{"timestamp": time.time(), "message": f"[SENTINEL] Par {pair} bloqueado por calendario económico (señal del frontend)."}]
+            })
+
+        # ─── FALLA #3 FIX: Filtro de noticias DIRECTO en Python (consulta ForexFactory) ──
+        # Este es el filtro primario — Python mismo consulta el calendario cada 15 min.
+        # El blockedPairs del frontend (arriba) es el filtro de respaldo.
+        has_news_py, news_reason_py = check_news_filter(pair)
+        if has_news_py:
+            print(f"[WORKER {WORKER_PORT}] BLOQUEADO por Python news filter: {news_reason_py}")
+            bal = 0
+            try:
+                bal = iq_instance.get_balance() if iq_instance else 0
+            except:
+                pass
+            return jsonify({
+                "success": True,
+                "direction": "NONE",
+                "probability": 0,
+                "rsi": 50,
+                "isManipulated": False,
+                "manipulationReason": news_reason_py,
+                "balance": bal,
+                "pair": pair,
+                "candles": [],
+                "logs": [{"timestamp": time.time(), "message": f"[SENTINEL] {news_reason_py} — Operación bloqueada automáticamente."}]
+            })
 
         if not iq_instance or not iq_instance.check_connect():
             if email and password:
@@ -683,13 +842,15 @@ def trade():
                 profit = 0.0
 
             status = "win" if profit > 0 else ("loss" if profit < 0 else "tie")
-            trade_results[str(oid)] = {
+            # FALLA #1 FIX: guardar en RAM + disco para sobrevivir reinicios
+            _persist_result(str(oid), {
                 "status": "COMPLETED",
                 "profit": round(profit, 2),
                 "win": status == "win"
-            }
+            })
 
-        trade_results[str(order_id)] = {"status": "PENDING"}
+        # FALLA #1 FIX: persistir el estado PENDING en disco también
+        _persist_result(str(order_id), {"status": "PENDING"})
         threading.Thread(
             target=wait_for_trade,
             args=(iq_instance, order_id, trade_mode, expiration),

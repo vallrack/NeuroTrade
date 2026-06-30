@@ -256,6 +256,8 @@ export async function bridgeAnalyze(payload: {
   maxRsi?: number;
   manipulationVolMultiplier?: number;
   manipulationMaxBody?: number;
+  /** Pares bloqueados por noticias de alto impacto (enviados desde el calendario del frontend) */
+  blockedPairs?: string[];
 }): Promise<AnalyzeResponse> {
   try {
     return await bridgePost<AnalyzeResponse>('/analyze', payload);

@@ -544,6 +544,22 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
         }
 
         addLog('BRIDGE', `Analizando ${pair} → ${getBridgeUrl()}/analyze`, 'info');
+
+        // Calcular monedas bloqueadas por noticias y pasarlas al Python
+        // (doble protección: el JS ya filtra arriba, pero el worker también lo verifica)
+        const blockedCurrencies = [...new Set(
+          upcomingHighImpact.flatMap(ev => {
+            const country = (ev.country || '').toUpperCase();
+            // Mapa país → código de moneda
+            const countryToCurrency: Record<string, string> = {
+              'USD': 'USD', 'EUR': 'EUR', 'GBP': 'GBP', 'JPY': 'JPY',
+              'CAD': 'CAD', 'AUD': 'AUD', 'NZD': 'NZD', 'CHF': 'CHF',
+              'US': 'USD', 'EU': 'EUR', 'UK': 'GBP', 'JP': 'JPY',
+            };
+            return countryToCurrency[country] ? [countryToCurrency[country]] : [country];
+          })
+        )];
+
         const result = await bridgeAnalyze({
           email: config.email,
           password: config.password,
@@ -553,7 +569,8 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           minRsi: currentMinRsi,
           maxRsi: currentMaxRsi,
           manipulationVolMultiplier: params?.manipulationVolMultiplier,
-          manipulationMaxBody: params?.manipulationMaxBody
+          manipulationMaxBody: params?.manipulationMaxBody,
+          blockedPairs: blockedCurrencies,
         });
 
         // Sincronizar balance del analyze response
