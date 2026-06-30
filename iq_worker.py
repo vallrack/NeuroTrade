@@ -6,6 +6,7 @@ import concurrent.futures
 import logging
 import math
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from iqoptionapi.stable_api import IQ_Option
 import json
 import iqoptionapi.stable_api
@@ -34,6 +35,21 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
 app = Flask(__name__)
+
+# Configuracion CORS global
+CORS(
+    app,
+    resources={r"/*": {"origins": "*"}},
+    allow_headers=["Content-Type", "X-Bridge-Token", "Bypass-Tunnel-Reminder", "Cache-Control", "Authorization", "Access-Control-Request-Private-Network"],
+    methods=["GET", "POST", "OPTIONS"],
+    supports_credentials=False
+)
+
+@app.after_request
+def add_pna_headers(response):
+    response.headers['Access-Control-Allow-Private-Network'] = 'true'
+    return response
+
 
 # Configuración y Estado del Worker
 WORKER_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 5001
@@ -302,14 +318,7 @@ OPEN_CACHE_TTL = 30  # segundos
 
 def get_open_map(force=False):
     return
-# Configuración CORS
-CORS(
-    app,
-    resources={r"/*": {"origins": "*"}},
-    allow_headers=["Content-Type", "X-Bridge-Token", "Bypass-Tunnel-Reminder", "Cache-Control", "Authorization", "Access-Control-Request-Private-Network"],
-    methods=["GET", "POST", "OPTIONS"],
-    supports_credentials=False
-)
+
 
 @app.after_request
 def add_pna_headers(response):
@@ -566,12 +575,7 @@ def trade():
         check = False
         order_id = None
 
-        # ── Verificar QUÉ instrumento está abierto ANTES de comprar ──
-        # Esto evita el bucle de espera activa infinito de buy_digital_spot()
-        # cuando el mercado está cerrado (causa principal del "congelamiento").
-        status, open_known = asset_status(pair)
-        use_binary = status["turbo"] or status["binary"]
-        use_digital = status["digital"]
+
 
         trade_pair = pair
         try:

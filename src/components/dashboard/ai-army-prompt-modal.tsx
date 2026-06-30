@@ -87,6 +87,9 @@ export function AiArmyPromptModal() {
                 Análisis Cuántico Finalizado
               </span>
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              Resultados del reconocimiento de mercado por la IA.
+            </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-6">

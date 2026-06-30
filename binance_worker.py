@@ -6,6 +6,7 @@ import concurrent.futures
 import logging
 import math
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import ccxt
 
 # Deshabilitar logs molestos de werkzeug
@@ -13,6 +14,21 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
 app = Flask(__name__)
+
+# Configuracion CORS global
+CORS(
+    app,
+    resources={r"/*": {"origins": "*"}},
+    allow_headers=["Content-Type", "X-Bridge-Token", "Bypass-Tunnel-Reminder", "Cache-Control", "Authorization", "Access-Control-Request-Private-Network"],
+    methods=["GET", "POST", "OPTIONS"],
+    supports_credentials=False
+)
+
+@app.after_request
+def add_pna_headers(response):
+    response.headers['Access-Control-Allow-Private-Network'] = 'true'
+    return response
+
 
 # Configuración y Estado del Worker
 WORKER_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 5001
