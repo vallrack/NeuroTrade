@@ -1,37 +1,62 @@
-# Historial de Cambios: Arquitectura Multi-Usuario (NeuroTrade)
+# Historial de Cambios: NeuroTrade V7
 
-## El Problema Original
-Se detectó un comportamiento anómalo al conectar múltiples clientes (ej. cuenta de Vallrack y cuenta de Daniel) al mismo servidor puente (Render). El problema se manifestaba de la siguiente manera:
-1. Los saldos se mostraban cruzados (la cuenta de Vallrack veía el saldo de Daniel).
-2. Las operaciones ejecutadas por el bot de un usuario se enviaban a la cuenta del otro usuario.
+Este documento registra los cambios arquitectónicos, soluciones de bugs y refactorizaciones realizadas en NeuroTrade.
+
+---
+
+## 📅 [Última Actualización: 01-07-2026]
+
+### 1. Corrección del Bug de Reportes Duplicados o Fallidos al Finalizar Sesión Definitiva
+**Problema:** Al hacer clic en "Finalizar Sesión Definitiva", a veces el reporte no se generaba. Si el usuario usaba "Recuperar Reporte Perdido", se creaban reportes duplicados.
+**Causa:** Una "condición de carrera" (race condition). El botón de desconexión disparaba el evento de cierre (`nt_manual_disconnect`) y acto seguido borraba los datos de la sesión marcándola como `disconnected`. El motor no alcanzaba a leer las operaciones antes de que los datos fueran limpiados.
+**Solución:** 
+- `broker/page.tsx`: Ahora espera activamente (hasta 15 segundos) un evento de confirmación `nt_manual_disconnect_done` antes de desconectar de Firestore.
+- `bot-engine-provider.tsx`: Se añadió una verificación previa (`getDocs` con `where`) para asegurar que no se genere un reporte si ya existe uno para ese día/fase.
+
+### 2. Sincronización del Botón de Emergencia (Kill Switch)
+**Problema:** Al presionar el botón de "Aborto de Emergencia", el estado `bot_activo` cambiaba en base de datos pero el bot seguía operando en el navegador del usuario.
+**Solución:**
+- Se implementó un `useEffect` en `bot-engine-provider.tsx` que escucha en tiempo real la variable `bot_activo`.
+- Si `bot_activo` cambia a `false`, se fuerza la parada inmediata del motor local (`setIsRunning(false)` y `setIsPreAnalyzing(false)`).
+
+### 3. Consolidación de la Lógica de Fases del "Plan de 15 Días"
+**Problema:** El componente `presets-manager.tsx` tenía copiada a mano toda la configuración de cada fase (riesgo, martingale, límites). Estaba desactualizada respecto a la configuración real (`plan-15-days.ts`). Por ejemplo, la Fase 1 manual permitía 2 pérdidas, mientras que la automática permitía 3.
+**Solución:** 
+- Se eliminó el código duplicado en `presets-manager.tsx`.
+- Ahora todas las llamadas a presets utilizan `getPresetForDay()` asegurando una ÚNICA fuente de verdad.
+
+### 4. Corrección en el Seguimiento de Días (`plan-tracker.tsx`)
+**Problema:** Si el usuario abría la aplicación un día después pero no operaba, el sistema adelantaba el día del plan automáticamente.
+**Solución:** 
+- `plan-tracker.tsx` ahora solo actualiza la fecha de última conexión (`lastActiveDate`).
+- El avance del "Día de Plan" fue delegado exclusivamente al momento en que el usuario genera un reporte con operaciones reales.
+
+### 5. Sanitización de Datos Financieros (TypeScript Fixes)
+**Problema:** Los datos devueltos por el puente de IQ Option podrían carecer de valores de beneficio (`profit`) o de `orderId` temporalmente debido a latencias, rompiendo los cálculos y generando errores visuales (NaN).
+**Solución:** 
+- Se asignaron valores de fallback por defecto (`profit ?? 0`) y cadenas vacías para evitar errores de renderizado en tiempo de ejecución.
+
+### 6. Soporte de Análisis Cuántico con Fases (IA Army Prompt)
+**Problema:** El análisis contextual (el cuadro de recomendaciones de la IA) no respetaba la fase en curso. Siempre recomendaba modo compuesto.
+**Solución:**
+- El evento de dispatch en `bot-engine-provider` ahora propaga la fase actual, cuenta, meta diaria y modo de gestión de capital.
+- El modal fue reescrito para proteger el modo de la fase (no alterar Martingala si estamos en Fase 1) y solo ofrecer un reajuste de la meta diaria si el riesgo es bajo.
+
+---
+
+## 📅 [Iteración Previa] Arquitectura Multi-Usuario Aislada
+
+### El Problema Original
+Se detectó un comportamiento anómalo al conectar múltiples clientes al mismo servidor puente. Los saldos se mezclaban y las operaciones de un bot terminaban en la cuenta de otro usuario.
 
 ### Causa Raíz
-La librería subyacente `iqoptionapi` fue diseñada para operar con un único usuario a la vez. Almacena las credenciales de la sesión (`SSID`) y la identificación del balance (`balance_id`) en una variable compartida en memoria (`global_value.py`). Al inicializar múltiples conexiones dentro de un mismo servidor Flask (Render), la última sesión en conectarse sobreescribía los datos de las sesiones previas.
+La librería subyacente `iqoptionapi` fue diseñada para operar de forma "monolítica" (con un único usuario a la vez). Al inicializar múltiples conexiones, la última sesión sobreescribía la memoria RAM global.
+
+### Solución Implementada: Aislamiento por Subprocesos (Worker Manager)
+El servidor puente fue reconstruido:
+- **`bridge_server.py`**: Actúa exclusivamente como un despachador y asignador de puertos HTTP.
+- **`iq_worker.py`**: Cada usuario levanta un sub-proceso independiente de Flask en el sistema operativo (ej. puerto 50000). Al tener su propia memoria RAM aislada, es imposible que las sesiones se crucen.
+- **Auto-Apagado**: Los subprocesos se cierran automáticamente tras 1 hora de inactividad para liberar RAM en Render.com.
 
 ---
-
-## Solución Implementada: Aislamiento por Subprocesos (Worker Manager)
-
-Para solucionar el cruce de sesiones sin tener que contratar múltiples servidores en la nube, se re-arquitectó el backend en Python pasando de una estructura monolítica a un sistema de **Proxy de Subprocesos Aislados**.
-
-### 1. `bridge_server.py` (El Gestor/Manager)
-- Se eliminaron por completo las dependencias y las importaciones a `iqoptionapi`.
-- Ahora actúa exclusivamente como un enrutador inteligente y despachador.
-- **Flujo:** Cuando un usuario realiza una solicitud (ej. `/connect` o `/analyze`), el Gestor identifica el correo y verifica si existe un "Subproceso" activo para ese usuario.
-  - Si **no existe**, asigna un puerto local (ej. 50000) y lanza un nuevo subproceso del sistema operativo.
-  - Si **existe**, actúa como un Proxy inverso y reenvía el JSON mediante HTTP hacia el puerto asignado.
-
-### 2. `iq_worker.py` (El Trabajador/Worker)
-- Es un micro-servidor interno (Flask) que recibe solicitudes en un puerto específico (ej. `127.0.0.1:50000`).
-- **Aislamiento Total:** Al ser un programa de Python independiente levantado por el SO, posee su propio espacio de memoria RAM. Por tanto, su propia instancia de `iqoptionapi` y sus propias variables globales (`global_value`).
-- **Eficiencia:** Para evitar exceder la memoria RAM del plan gratuito de Render (512 MB), el Worker tiene un hilo supervisor que contabiliza la inactividad. Si el usuario no realiza ninguna petición en **1 hora**, el proceso ejecuta `os._exit(0)` y libera la memoria RAM.
-
-### 3. Modificaciones en el Frontend (`bridge.ts` y `bot-engine-provider.tsx`)
-- **Limpieza de errores:** Se corrigió un error visual por el cual los fallos HTTP (como un 401 de sesión desconectada) retornaban su estructura de JSON crudo (`{"error": "...", "success": false}`) directo a la interfaz.
-- **Prevención de colapsos:** Se actualizó `bridgeAnalyze` en `bridge.ts` para que, en caso de fallo, retorne un objeto indicando `success: false` en lugar de lanzar una excepción (throw) y romper el ciclo principal de la máquina del bot. Esto permite reconexiones más elegantes.
-
----
-
-## Observaciones Futuras
-1. **Límites de RAM en Render:** Un subproceso consume aproximadamente 30-45 MB de RAM. Con 512 MB disponibles, el límite teórico es de 10-15 bots operando **simultáneamente**. Si crece tu base de usuarios en línea simultáneos, valora escalar el servidor o implementar un balanceador.
-2. **Puertos Asignados:** Los puertos se incrementan desde el `50000`. En servidores Linux/Unix en la nube no supone problema, pero si requiriera reiniciar, el `bridge_server.py` se reinicia perdiendo el estado actual en memoria y forzando a los usuarios a re-conectar (comportamiento esperado).
+*Este documento será la referencia técnica principal para futuros mantenimientos o auditorías de la arquitectura del bot.*
