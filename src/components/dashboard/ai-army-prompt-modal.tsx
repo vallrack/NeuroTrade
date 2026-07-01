@@ -42,11 +42,21 @@ export function AiArmyPromptModal() {
     if (user && firestore && promptData) {
       const botParamsDoc = doc(firestore, 'users', user.uid, 'config', 'bot_params');
       try {
-        await setDoc(botParamsDoc, {
-          compoundPercentage: promptData.newCompoundPercent,
-          dailyGoalPercent: promptData.newGoalPercent,
-          moneyManagementMode: 'compound' // Asegurar modo compuesto
-        }, { merge: true });
+        if (promptData.hasActivePlan) {
+          // ── FASE ACTIVA: Solo actualizar la meta diaria según las condiciones del mercado.
+          // NO tocar moneyManagementMode ni compoundPercentage — esos pertenecen a la fase
+          // configurada manualmente por el usuario (ej. Fase 1 = martingale, no compound).
+          await setDoc(botParamsDoc, {
+            dailyGoalPercent: promptData.newGoalPercent,
+          }, { merge: true });
+        } else {
+          // ── SIN PLAN ACTIVO: comportamiento original — aplicar todo el ajuste del análisis.
+          await setDoc(botParamsDoc, {
+            compoundPercentage: promptData.newCompoundPercent,
+            dailyGoalPercent: promptData.newGoalPercent,
+            moneyManagementMode: 'compound'
+          }, { merge: true });
+        }
       } catch (err) {
         console.error("Error updating AI params:", err);
       }
@@ -69,6 +79,11 @@ export function AiArmyPromptModal() {
   const probColor = isHighProb ? "text-emerald-400" : isMedProb ? "text-amber-400" : "text-rose-400";
   const probBg = isHighProb ? "bg-emerald-500/10 border-emerald-500/20" : isMedProb ? "bg-amber-500/10 border-amber-500/20" : "bg-rose-500/10 border-rose-500/20";
   const probIconColor = isHighProb ? "text-emerald-500" : isMedProb ? "text-amber-500" : "text-rose-500";
+
+  // Info de fase activa
+  const phaseNames: Record<number, string> = { 1: 'Contrariana', 2: 'Tendencial', 3: 'Inteligente' };
+  const phaseColors: Record<number, string> = { 1: 'bg-rose-500/15 text-rose-400 border-rose-500/30', 2: 'bg-blue-500/15 text-blue-400 border-blue-500/30', 3: 'bg-amber-500/15 text-amber-400 border-amber-500/30' };
+  const activePhaseColor = promptData.hasActivePlan ? (phaseColors[promptData.activePlanPhase] ?? 'bg-slate-500/15 text-slate-400 border-slate-500/30') : '';
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
@@ -97,6 +112,26 @@ export function AiArmyPromptModal() {
             <p className="text-slate-300 text-[15px] leading-relaxed">
               El escuadrón de IA ha terminado el reconocimiento del mercado y evaluado las condiciones actuales para la sesión.
             </p>
+
+            {/* Badge de Fase Activa — solo si hay plan configurado */}
+            {promptData.hasActivePlan && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-slate-500 font-medium">Configuración activa:</span>
+                <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${activePhaseColor}`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80" />
+                  Fase {promptData.activePlanPhase}: {phaseNames[promptData.activePlanPhase] ?? ''}
+                  {' — '}
+                  Día {promptData.activePlanDay}
+                </span>
+                <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                  promptData.activeAccountType === 'real'
+                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                    : 'bg-slate-500/15 text-slate-400 border-slate-500/30'
+                }`}>
+                  {promptData.activeAccountType === 'real' ? '● REAL' : '○ DEMO'}
+                </span>
+              </div>
+            )}
 
             {/* Probability Card */}
             <div className={`p-4 rounded-xl border flex flex-col gap-2 ${probBg}`}>
@@ -128,15 +163,27 @@ export function AiArmyPromptModal() {
               </div>
               
               <div className="grid grid-cols-2 gap-3">
+                {/* Inversión: si hay plan activo, mostrar el modo de la fase (no compound) */}
                 <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col gap-1 transition-colors hover:bg-white/[0.07]">
                   <div className="flex items-center gap-2 text-slate-400 mb-1">
                     <Percent className="w-4 h-4" />
                     <span className="text-xs font-medium uppercase tracking-wider">Inversión</span>
                   </div>
-                  <div className="text-2xl font-bold text-white flex items-baseline gap-1">
-                    {promptData.newCompoundPercent}<span className="text-base text-slate-400 font-normal">%</span>
-                  </div>
-                  <div className="text-xs text-slate-500">Monto por operación</div>
+                  {promptData.hasActivePlan ? (
+                    <>
+                      <div className="text-base font-bold text-white capitalize">
+                        {promptData.currentMoneyMode ?? 'Configurado'}
+                      </div>
+                      <div className="text-xs text-slate-500">Modo de la fase (sin cambios)</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-2xl font-bold text-white flex items-baseline gap-1">
+                        {promptData.newCompoundPercent}<span className="text-base text-slate-400 font-normal">%</span>
+                      </div>
+                      <div className="text-xs text-slate-500">Monto por operación</div>
+                    </>
+                  )}
                 </div>
 
                 <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col gap-1 transition-colors hover:bg-white/[0.07]">
@@ -147,9 +194,20 @@ export function AiArmyPromptModal() {
                   <div className="text-2xl font-bold text-white flex items-baseline gap-1">
                     {promptData.newGoalPercent}<span className="text-base text-slate-400 font-normal">%</span>
                   </div>
-                  <div className="text-xs text-slate-500">Objetivo de la sesión</div>
+                  <div className="text-xs text-slate-500">
+                    {promptData.hasActivePlan && promptData.currentDailyGoal
+                      ? `Plan: ${promptData.currentDailyGoal}% → Mercado: ${promptData.newGoalPercent}%`
+                      : 'Objetivo de la sesión'}
+                  </div>
                 </div>
               </div>
+
+              {/* Nota informativa si hay plan activo */}
+              {promptData.hasActivePlan && (
+                <p className="text-xs text-slate-500 mt-3 text-center leading-relaxed">
+                  ℹ️ Solo se ajustará la meta diaria. El modo de inversión de la fase se mantiene intacto.
+                </p>
+              )}
             </div>
             
             <p className="text-sm text-slate-400 text-center font-medium mt-4">
@@ -180,3 +238,4 @@ export function AiArmyPromptModal() {
     </Dialog>
   );
 }
+

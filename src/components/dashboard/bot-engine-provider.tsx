@@ -480,23 +480,42 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
         const avgRsi = rsiArr.length > 0 ? rsiArr.reduce((a, b) => a + b, 0) / rsiArr.length : 50;
         const signalCount = probs.length;
 
+        // ── FASE-AWARE FIX: leer la configuración activa del usuario ──────────
+        const currentBotParams = botParamsRef2.current;
+        const currentBrokerCfg = brokerConfigRef.current;
+        const activePlanPhase: number | null = currentBotParams?.planPhase ?? null;
+        const activePlanDay: number | null = currentBotParams?.planDay ?? null;
+        const activeAccountType: string = currentBrokerCfg?.accountType || 'demo';
+        const hasActivePlan = activePlanPhase !== null && activePlanDay !== null;
+
         // Determinar condición real del mercado por RSI + señales detectadas
         let riskLevel = 'Alto (mercado sin señales claras)';
-        let newCompoundPercent = 2;
+
+        // Sugerencias de meta diaria según condición del mercado
+        // (el porcentaje de inversión solo se sugiere si NO hay plan activo)
         let newGoalPercent = 10;
+        let newCompoundPercent = 2; // Sólo relevante si !hasActivePlan
 
         if (signalCount >= 3 && avg >= 75) {
           riskLevel = 'Bajo (señales fuertes detectadas)';
-          newCompoundPercent = 10;
           newGoalPercent = 30;
+          newCompoundPercent = 10;
         } else if (signalCount >= 1 && avg >= 60) {
           riskLevel = 'Medio (señales moderadas)';
-          newCompoundPercent = 5;
           newGoalPercent = 20;
+          newCompoundPercent = 5;
         } else if (avgRsi < 40 || avgRsi > 60) {
           riskLevel = 'Medio (RSI en zona extrema, posible rebote)';
-          newCompoundPercent = 4;
           newGoalPercent = 15;
+          newCompoundPercent = 4;
+        }
+
+        // Si hay plan activo, respetar la meta del plan para no ser muy agresivos
+        // (la meta sugerida nunca supera la meta configurada en el plan + 5 puntos)
+        if (hasActivePlan && currentBotParams?.dailyGoalPercent) {
+          const planGoal = currentBotParams.dailyGoalPercent as number;
+          // Sugerir la meta del mercado, pero no más de plan+5 para ser conservadores
+          newGoalPercent = Math.min(newGoalPercent, planGoal + 5);
         }
 
         window.dispatchEvent(new CustomEvent('nt_ai_army_prompt', {
@@ -506,7 +525,14 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
             signalCount,
             riskLevel,
             newCompoundPercent,
-            newGoalPercent
+            newGoalPercent,
+            // ── Datos de la fase activa para que el modal los muestre ──
+            hasActivePlan,
+            activePlanPhase,
+            activePlanDay,
+            activeAccountType,
+            currentDailyGoal: currentBotParams?.dailyGoalPercent ?? null,
+            currentMoneyMode: currentBotParams?.moneyManagementMode ?? null,
           }
         }));
       }
