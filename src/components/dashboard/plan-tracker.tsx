@@ -31,28 +31,14 @@ export function PlanTracker() {
       // Registrar por primera vez la fecha de inicio
       setDoc(botParamsRef, { lastActiveDate: today }, { merge: true }).catch(console.error);
     } else if (botParams.lastActiveDate !== today) {
-      // Es un nuevo día calendario desde la última vez
-      const currentDay = botParams.planDay || 1;
-      
-      if (currentDay < 15) {
-        const nextDay = currentDay + 1;
-        const phaseNumber = nextDay <= 5 ? 1 : nextDay <= 10 ? 2 : 3;
-        const dayInPhase = nextDay <= 5 ? nextDay : nextDay <= 10 ? nextDay - 5 : nextDay - 10;
-        const newGoal = 60 + (dayInPhase - 1) * 10;
-        
-        setDoc(botParamsRef, {
-          planDay: nextDay,
-          planPhase: phaseNumber,
-          dailyGoalPercent: newGoal,
-          lastActiveDate: today,
-          updatedAt: new Date().toISOString()
-        }, { merge: true }).catch(console.error);
-      } else {
-        // Ya completó los 15 días, solo actualizar la fecha
-        setDoc(botParamsRef, { lastActiveDate: today }, { merge: true }).catch(console.error);
-      }
+      // Es un nuevo día calendario — solo avanzar si se operó ayer
+      // Verificamos si el motor ya guardó un reporte del día anterior
+      // (si lastActiveDate cambió, el bot-engine-provider ya habrá avanzado el día al hacer cierre)
+      // Este tracker SOLO actualiza la fecha — el avance real lo hace handleManualDisconnect
+      setDoc(botParamsRef, { lastActiveDate: today }, { merge: true }).catch(console.error);
     }
   }, [mounted, botParams?.lastActiveDate, botParams?.planDay, botParamsRef]);
+
 
   if (!mounted || !botParams || !botParams.planPhase || !botParams.planDay) return null;
   

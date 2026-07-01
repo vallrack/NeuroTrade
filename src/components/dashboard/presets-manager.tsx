@@ -12,6 +12,8 @@ import { useBotEngine } from '@/components/dashboard/bot-engine-provider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { getPresetForDay } from '@/lib/plan-15-days';
+
 
 export function PresetsManager() {
   const { user } = useUser();
@@ -54,73 +56,14 @@ export function PresetsManager() {
   const [previewData, setPreviewData] = useState<any>(null);
 
   const openPreview = (phaseNumber: number) => {
-    let presetData: any = {};
-
-    if (phaseNumber === 1) {
-      // Fase 1: Contrariana (Días 1-5)
-      presetData = {
-        reverseMode: 'always',
-        moneyManagementMode: 'martingale',
-        investmentPerTrade: accountType === 'real' ? 2000 : 10,
-        martingaleMultiplier: 2.1,
-        maxLosses: 2,
-        min_confidence_score: 70,
-        strategy_mode: 'aggressive',
-        planPhase: 1,
-        planDay: 1,
-        dailyGoalPercent: 60,
-        autopilot: {
-          enabled: true,
-          autoConnectBridge: true,
-          pairMode: 'manual',
-          scheduleMode: 'auto',
-          slots: []
-        },
-        pairs: ['EURUSD-OTC', 'GBPUSD-OTC'], // Enfocado en OTC
-      };
-    } else if (phaseNumber === 2) {
-      // Fase 2: Normal Tendencial (Días 6-10)
-      presetData = {
-        reverseMode: 'none',
-        moneyManagementMode: 'fixed',
-        investmentPerTrade: accountType === 'real' ? 4000 : 50,
-        min_confidence_score: 75,
-        strategy_mode: 'balanced',
-        planPhase: 2,
-        planDay: 6,
-        dailyGoalPercent: 60,
-        autopilot: {
-          enabled: true,
-          autoConnectBridge: true,
-          pairMode: 'auto',
-          scheduleMode: 'auto',
-          slots: []
-        }
-      };
-    } else if (phaseNumber === 3) {
-      // Fase 3: IA Francotirador (Días 11-15)
-      presetData = {
-        reverseMode: 'auto', // Reverso solo en trampas
-        moneyManagementMode: 'fixed',
-        investmentPerTrade: accountType === 'real' ? 8000 : 200,
-        min_confidence_score: 78,
-        strategy_mode: 'conservative',
-        planPhase: 3,
-        planDay: 11,
-        dailyGoalPercent: 60,
-        autopilot: {
-          enabled: true,
-          autoConnectBridge: true,
-          pairMode: 'auto',
-          scheduleMode: 'auto',
-          slots: []
-        }
-      };
-    }
-    
+    // Usa getPresetForDay como fuente de verdad única
+    // Fase 1 = Día 1, Fase 2 = Día 6, Fase 3 = Día 11
+    const startDay = phaseNumber === 1 ? 1 : phaseNumber === 2 ? 6 : 11;
+    const presetData = getPresetForDay(startDay, accountType);
     setPreviewData(presetData);
     setPreviewPhase(phaseNumber);
   };
+
 
   const confirmAndApplyPreset = async () => {
     if (!user || !firestore || !previewData || previewPhase === null) {

@@ -287,8 +287,19 @@ function BrokerContent() {
     setShowDisconnectDialog(false);
     setDisconnecting(true);
     
-    // Disparar evento para guardar reporte y avanzar día
-    window.dispatchEvent(new CustomEvent('nt_manual_disconnect'));
+    // Esperamos a que el motor guarde el reporte ANTES de desconectar
+    // (el evento nt_manual_disconnect es asíncrono — puede tardar varios segundos)
+    const reportSaved = await new Promise<boolean>((resolve) => {
+      const timeout = setTimeout(() => resolve(false), 15_000); // 15s máximo
+      const onDone = () => {
+        clearTimeout(timeout);
+        window.removeEventListener('nt_manual_disconnect_done', onDone);
+        resolve(true);
+      };
+      window.addEventListener('nt_manual_disconnect_done', onDone);
+      // Disparar el evento DESPUÉS de registrar el listener
+      window.dispatchEvent(new CustomEvent('nt_manual_disconnect'));
+    });
 
     try {
       await bridgeDisconnect({
@@ -299,16 +310,20 @@ function BrokerContent() {
         status: 'disconnected',
         lastDefinitiveDisconnectDate: todayDate
       });
-      toast({ title: '🔌 FIN DE SESIÓN', description: 'Reporte generado. ¡Vuelve mañana!' });
+      toast({ 
+        title: '🔌 FIN DE SESIÓN', 
+        description: reportSaved ? 'Reporte guardado. ¡Vuelve mañana!' : 'Sesión cerrada. El reporte se guardará cuando haya conexión.' 
+      });
     } catch (e: any) {
       try { await updateDoc(brokerRef, { 
         status: 'disconnected',
         lastDefinitiveDisconnectDate: todayDate
       }); } catch {}
-      toast({ title: 'SESIÓN CERRADA', description: 'Reporte generado localmente. ¡Vuelve mañana!' });
+      toast({ title: 'SESIÓN CERRADA', description: reportSaved ? 'Reporte guardado localmente. ¡Vuelve mañana!' : 'Sesión cerrada. Usa "Recuperar Reporte" si el reporte no aparece.' });
     }
     setDisconnecting(false);
   };
+
 
   if (!mounted) return null;
 

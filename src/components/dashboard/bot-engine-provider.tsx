@@ -224,13 +224,22 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     setIsPreAnalyzing(false);
     preAnalysisStartTimeRef.current = 0;
     preAnalysisProbabilitiesRef.current = [];
-    preAnalysisRsiRef.current = []; // FIX #5: limpiar colección RSI
+    preAnalysisRsiRef.current = [];
     hasDonePreAnalysisRef.current = true;
-    // FIX #8: resetear contador de ganancias al arrancar motor nuevo día/sesión
     winsSinceLastPromptRef.current = 0;
     setIsRunning(true);
     addLog('SISTEMA', 'Motor de trading arrancado (Fin del Pre-Análisis).', 'success');
   };
+
+  // ─── Kill Switch: escuchar bot_activo en Firestore ────────────────────────
+  useEffect(() => {
+    if (botParams?.bot_activo === false && isRunningRef.current) {
+      setIsRunning(false);
+      setIsPreAnalyzing(false);
+      addLog('SISTEMA', '🛑 ABORTO DE EMERGENCIA recibido — Motor detenido.', 'error');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [botParams?.bot_activo]);
 
 
   useEffect(() => { setMounted(true); }, []);
@@ -745,7 +754,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
               await new Promise(r => setTimeout(r, 6000));
               try {
                 const pollRes = await bridgeTradeResult({ 
-                  orderId: tradeResult.orderId,
+                  orderId: tradeResult.orderId ?? '',
                   email: config.email,
                   accountType: accountType,
                   brokerType: config.brokerType || 'iqoption'
@@ -777,13 +786,13 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
           if (tradeResult.success) {
             const timestamp = new Date().toISOString();
-            const { profit } = tradeResult;
+            const profit = tradeResult.profit ?? 0;
             const isWin = profit > 0;
             const isLoss = profit < 0;
             const tradeStatus = isWin ? 'win' : (isLoss ? 'loss' : 'tie');
 
             // Actualizar contadores de sesión
-            sessionProfitRef.current += profit ?? 0;
+            sessionProfitRef.current += profit;
             if (isWin) sessionWinsRef.current += 1;
             if (isLoss) sessionLossesRef.current += 1;
             setLiveProfit(sessionProfitRef.current);
@@ -793,7 +802,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
             if (isWin) playWinSound();
             else if (isLoss) playLossSound();
 
-            addLog('SISTEMA', `Resultado: ${tradeStatus!.toUpperCase()} | ${profit >= 0 ? '+' : ''}$${profit}`, isWin ? 'success' : 'error');
+            addLog('SISTEMA', `Resultado: ${tradeStatus.toUpperCase()} | ${profit >= 0 ? '+' : ''}$${profit}`, isWin ? 'success' : 'error');
 
             // ─── Guardar en Firestore CON REINTENTO ──────────────────────────────
             if (currentUser && currentFirestore) {
@@ -956,57 +965,87 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
       
       const planDay = botParams?.planDay;
       const planPhase = botParams?.planPhase;
+      const accountType = currentBroker?.accountType || 'demo';
       
-      if (!currentUser || !currentFirestore || !planDay) return;
+      if (!currentUser || !currentFirestore || !planDay) {
+        window.dispatchEvent(new CustomEvent('nt_manual_disconnect_done', { detail: { success: false } }));
+        return;
+      }
+      
+      // Parar el motor inmediatamente al desconectar
+      setIsRunning(false);
+      setIsPreAnalyzing(false);
       
       const todayStr = new Date().toLocaleDateString();
       const todaysTrades = recentTradesRef.current.filter((t: any) => 
-        t.accountType === (currentBroker?.accountType || 'demo') &&
+        t.accountType === accountType &&
         new Date(t.timestamp).toLocaleDateString() === todayStr
       );
       
-      const realWins = todaysTrades.filter(t => t.profit > 0 || t.status === 'win').length;
-      const realLosses = todaysTrades.filter(t => t.profit < 0 || t.status === 'loss').length;
-      const realProfit = todaysTrades.reduce((sum, t) => sum + (t.profit || 0), 0);
+      const realWins = todaysTrades.filter((t: any) => t.profit > 0 || t.status === 'win').length;
+      const realLosses = todaysTrades.filter((t: any) => t.profit < 0 || t.status === 'loss').length;
+      const realProfit = todaysTrades.reduce((sum: number, t: any) => sum + (t.profit || 0), 0);
       
       const finalBalance = liveBalanceRef.current ?? 0;
       const startBalance = finalBalance - realProfit;
       const profitPercent = startBalance > 0 ? (realProfit / startBalance) * 100 : 0;
       
       try {
-        // 1. Guardar informe en Firebase (alimenta los gráficos de AuditReports)
-        const reportRef = collection(currentFirestore, 'users', currentUser.uid, 'reports');
-        await addDoc(reportRef, {
-          date: new Date().toISOString(),
-          type: 'manual_disconnect',
-          planDay,
-          planPhase,
-          accountType: currentBroker?.accountType || 'demo',
-          profit: realProfit,
-          profitPercent,
-          finalBalance,
-          trades: todaysTrades.length,
-          wins: realWins,
-          losses: realLosses,
-          hourlyStats: hourlyStatsRef.current || {},
-          pairStats: pairStatsRef.current || {}
-        });
+        // ── Verificar si ya existe un reporte para hoy (evitar duplicados) ──────
+        const { getDocs: getDocsLocal, where, query: queryLocal } = await import('firebase/firestore');
+        const existingQ = queryLocal(
+          collection(currentFirestore, 'users', currentUser.uid, 'reports'),
+          where('planDay', '==', planDay),
+          where('planPhase', '==', planPhase),
+          where('accountType', '==', accountType),
+          where('date', '>=', new Date(new Date().setHours(0,0,0,0)).toISOString())
+        );
+        const existingSnap = await getDocsLocal(existingQ);
         
-        // 2. Avanzar de día (siempre que no esté en el día 15, y se haya operado)
-        if (planDay < 15 && todaysTrades.length > 0) {
-          const nextDay = planDay + 1;
-          const nextPreset = getPresetForDay(nextDay, (currentBroker?.accountType as any) || 'demo');
-          const botParamsDoc = doc(currentFirestore, 'users', currentUser.uid, 'config', 'bot_params');
-          await setDoc(botParamsDoc, { ...nextPreset, updatedAt: new Date().toISOString() }, { merge: true });
-          
-          addLog('SISTEMA', `🚀 Cierre manual: Reporte guardado y Plan avanzado al Día ${nextDay} para la próxima sesión.`, 'success');
+        if (!existingSnap.empty) {
+          // Ya existe un reporte de hoy — no duplicar, solo avisar
+          addLog('SISTEMA', `ℹ️ Reporte del Día ${planDay} ya estaba guardado. No se duplicó.`, 'info');
+          window.dispatchEvent(new CustomEvent('nt_manual_disconnect_done', { detail: { success: true, skipped: true } }));
         } else {
-          addLog('SISTEMA', `📊 Cierre manual: Reporte generado en la plataforma. (Día no avanzado por cero operaciones)`, 'info');
+          // 1. Guardar informe en Firebase
+          const reportRef = collection(currentFirestore, 'users', currentUser.uid, 'reports');
+          await addDoc(reportRef, {
+            date: new Date().toISOString(),
+            type: 'manual_disconnect',
+            planDay,
+            planPhase,
+            accountType,
+            profit: realProfit,
+            profitPercent,
+            finalBalance,
+            trades: todaysTrades.length,
+            wins: realWins,
+            losses: realLosses,
+            hourlyStats: hourlyStatsRef.current || {},
+            pairStats: pairStatsRef.current || {}
+          });
+          
+          // 2. Avanzar de día (solo si hubo operaciones y no estamos en día 15)
+          if (planDay < 15 && todaysTrades.length > 0) {
+            const nextDay = planDay + 1;
+            const nextPreset = getPresetForDay(nextDay, (accountType as any));
+            const botParamsDoc = doc(currentFirestore, 'users', currentUser.uid, 'config', 'bot_params');
+            await setDoc(botParamsDoc, { ...nextPreset, updatedAt: new Date().toISOString() }, { merge: true });
+            addLog('SISTEMA', `🚀 Cierre: Reporte guardado y Plan avanzado al Día ${nextDay}.`, 'success');
+          } else if (todaysTrades.length === 0) {
+            addLog('SISTEMA', `📊 Reporte generado sin operaciones (día no avanzado).`, 'info');
+          } else {
+            addLog('SISTEMA', `🏆 ¡Plan de 15 días completado! Reporte final guardado.`, 'success');
+          }
+          
+          window.dispatchEvent(new CustomEvent('nt_manual_disconnect_done', { detail: { success: true } }));
         }
       } catch (err) {
         console.error("Error guardando reporte manual:", err);
+        window.dispatchEvent(new CustomEvent('nt_manual_disconnect_done', { detail: { success: false } }));
       }
     };
+
     
     window.addEventListener('nt_daily_goal_reached', handleDailyGoal);
     window.addEventListener('nt_manual_disconnect', handleManualDisconnect);
