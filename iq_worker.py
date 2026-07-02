@@ -281,8 +281,15 @@ def get_actives():
                 
         # Sincronizar activos
         iq_instance.update_ACTIVES_OPCODE()
-        actives_map = iq_instance.get_all_ACTIVES_OPCODE()
         
+        # Esperar un poco a que el websocket reciba la respuesta de activos
+        actives_map = {}
+        for _ in range(5):
+            actives_map = iq_instance.get_all_ACTIVES_OPCODE()
+            if actives_map:
+                break
+            time.sleep(1)
+            
         all_pairs = [k for k, v in actives_map.items() if v]
         otc = [p for p in all_pairs if "-OTC" in p]
         regular = [p for p in all_pairs if "-OTC" not in p]
