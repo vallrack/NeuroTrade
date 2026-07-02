@@ -27,7 +27,13 @@ export function PresetsManager() {
     return doc(firestore, 'users', user.uid, 'config', 'ui_settings');
   }, [user, firestore]);
   
+  const brokerConfigRef = useMemo(() => {
+    if (!user || !firestore) return null;
+    return doc(firestore, 'users', user.uid, 'config', 'broker');
+  }, [user, firestore]);
+
   const { data: uiSettings } = useDoc(uiSettingsRef);
+  const { data: brokerConfig } = useDoc(brokerConfigRef);
   
   const [loadingPhase, setLoadingPhase] = useState<number | null>(null);
   const [accountType, setAccountType] = useState<'real' | 'demo'>('real');
@@ -59,7 +65,7 @@ export function PresetsManager() {
     // Usa getPresetForDay como fuente de verdad única
     // Fase 1 = Día 1, Fase 2 = Día 6, Fase 3 = Día 11
     const startDay = phaseNumber === 1 ? 1 : phaseNumber === 2 ? 6 : 11;
-    const presetData = getPresetForDay(startDay, accountType);
+    const presetData = getPresetForDay(startDay, accountType, brokerConfig?.brokerType || 'iqoption');
     setPreviewData(presetData);
     setPreviewPhase(phaseNumber);
   };

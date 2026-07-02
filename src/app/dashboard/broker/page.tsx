@@ -168,7 +168,7 @@ function BrokerContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isReal, setIsReal] = useState(false);
-  const [brokerType, setBrokerType] = useState<'iqoption' | 'binance'>('iqoption');
+  const [brokerType, setBrokerType] = useState<'iqoption' | 'binance' | 'mt5' | 'alpaca' | 'oanda'>('iqoption');
   const [loading, setLoading] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
@@ -393,12 +393,12 @@ function BrokerContent() {
               <CardContent className="space-y-6">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Motor de Trading</Label>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <button
                       onClick={() => setBrokerType('iqoption')}
                       disabled={loading || isDayLocked}
                       className={cn(
-                        "flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border transition-all duration-300",
+                        "flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all duration-300",
                         brokerType === 'iqoption'
                           ? "bg-primary/20 border-primary text-primary shadow-[0_0_20px_rgba(var(--primary),0.2)]"
                           : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
@@ -410,7 +410,7 @@ function BrokerContent() {
                       onClick={() => setBrokerType('binance')}
                       disabled={loading || isDayLocked}
                       className={cn(
-                        "flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border transition-all duration-300",
+                        "flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all duration-300",
                         brokerType === 'binance'
                           ? "bg-amber-500/20 border-amber-500/50 text-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.2)]"
                           : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
@@ -418,15 +418,51 @@ function BrokerContent() {
                     >
                       <span className="text-xs font-black font-headline uppercase">Binance</span>
                     </button>
+                    <button
+                      onClick={() => setBrokerType('mt5')}
+                      disabled={loading || isDayLocked}
+                      className={cn(
+                        "flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all duration-300",
+                        brokerType === 'mt5'
+                          ? "bg-blue-500/20 border-blue-500/50 text-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.2)]"
+                          : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
+                      )}
+                    >
+                      <span className="text-xs font-black font-headline uppercase">MetaTrader 5</span>
+                    </button>
+                    <button
+                      onClick={() => setBrokerType('alpaca')}
+                      disabled={loading || isDayLocked}
+                      className={cn(
+                        "flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all duration-300",
+                        brokerType === 'alpaca'
+                          ? "bg-yellow-500/20 border-yellow-500/50 text-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.2)]"
+                          : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
+                      )}
+                    >
+                      <span className="text-xs font-black font-headline uppercase">Alpaca</span>
+                    </button>
+                    <button
+                      onClick={() => setBrokerType('oanda')}
+                      disabled={loading || isDayLocked}
+                      className={cn(
+                        "flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all duration-300",
+                        brokerType === 'oanda'
+                          ? "bg-indigo-500/20 border-indigo-500/50 text-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.2)]"
+                          : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
+                      )}
+                    >
+                      <span className="text-xs font-black font-headline uppercase">OANDA</span>
+                    </button>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    {brokerType === 'binance' ? 'API Key' : 'Email'}
+                    {brokerType === 'binance' ? 'API Key' : brokerType === 'mt5' ? 'Account ID (Login)' : brokerType === 'alpaca' ? 'API Key' : brokerType === 'oanda' ? 'Account ID' : 'Email'}
                   </Label>
                   <Input
-                    type={brokerType === 'binance' ? 'text' : 'email'}
-                    placeholder={brokerType === 'binance' ? 'Binance API Key...' : 'tu-email@ejemplo.com'}
+                    type={brokerType === 'iqoption' ? 'email' : 'text'}
+                    placeholder={brokerType === 'iqoption' ? 'tu-email@ejemplo.com' : brokerType === 'mt5' ? 'Ej: 10459382' : 'Ingresar credencial...'}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={loading || isDayLocked}
@@ -436,7 +472,7 @@ function BrokerContent() {
 
                 <div className="space-y-2">
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    {brokerType === 'binance' ? 'API Secret' : 'Contraseña'}
+                    {brokerType === 'binance' ? 'API Secret' : brokerType === 'mt5' ? 'Password' : brokerType === 'alpaca' ? 'API Secret' : brokerType === 'oanda' ? 'API Token' : 'Contraseña'}
                   </Label>
                   <Input
                     type="password"

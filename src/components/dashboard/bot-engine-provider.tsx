@@ -988,7 +988,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
         // 2. Avanzar al siguiente día
         if (planDay < 15) {
           const nextDay = planDay + 1;
-          const nextPreset = getPresetForDay(nextDay, (currentBroker?.accountType as any) || 'demo');
+          const nextPreset = getPresetForDay(nextDay, (currentBroker?.accountType as any) || 'demo', currentBroker?.brokerType || 'iqoption');
           const botParamsRef = doc(currentFirestore, 'users', currentUser.uid, 'config', 'bot_params');
           await setDoc(botParamsRef, { ...nextPreset, updatedAt: new Date().toISOString() }, { merge: true });
           
@@ -1072,7 +1072,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           // 2. Avanzar de día (solo si hubo operaciones y no estamos en día 15)
           if (planDay < 15 && todaysTrades.length > 0) {
             const nextDay = planDay + 1;
-            const nextPreset = getPresetForDay(nextDay, (accountType as any));
+            const nextPreset = getPresetForDay(nextDay, (accountType as any), brokerConfigRef.current?.brokerType || 'iqoption');
             const botParamsDoc = doc(currentFirestore, 'users', currentUser.uid, 'config', 'bot_params');
             await setDoc(botParamsDoc, { ...nextPreset, updatedAt: new Date().toISOString() }, { merge: true });
             addLog('SISTEMA', `🚀 Cierre: Reporte guardado y Plan avanzado al Día ${nextDay}.`, 'success');

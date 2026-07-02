@@ -135,9 +135,9 @@ def get_or_create_worker(email, acc_type, broker="iqoption"):
 
         print(f"[MANAGER] Creando Worker para {session_key} en el puerto {port}...")
         try:
-            worker_script = "binance_worker.py" if broker == "binance" else "iq_worker.py"
+            worker_script = f"{broker.lower()}_worker.py"
             if getattr(sys, 'frozen', False):
-                # En un binario congelado, asume que binance_worker o iq_worker se manejarán a través del entry point principal
+                # En un binario congelado, asume que los workers se manejarán a través del entry point principal
                 proc = subprocess.Popen([sys.executable, "--worker", str(port), "--broker", broker])
             else:
                 proc = subprocess.Popen([sys.executable, worker_script, str(port)])

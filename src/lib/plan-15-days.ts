@@ -1,21 +1,28 @@
-export function getPresetForDay(day: number, accountType: 'real' | 'demo') {
+export function getPresetForDay(day: number, accountType: 'real' | 'demo', brokerType: string = 'iqoption') {
   let presetData: any = {};
   
   // Determinar la fase en base al día
   const phaseNumber = day <= 5 ? 1 : day <= 10 ? 2 : 3;
   
-  // Calcular la meta diaria (aumenta 10% cada día dentro de la fase)
-  // Día 1=60%, Día 2=70%, Día 3=80%, Día 4=90%, Día 5=100%
+  // Calcular la meta diaria
   const dayInPhase = day <= 5 ? day : day <= 10 ? day - 5 : day - 10;
   const dailyGoalPercent = 60 + (dayInPhase - 1) * 10;
+
+  // Montos base cambian según el broker
+  // Binance y otros brokers usan USD para real, min $10
+  // IQ Option COP usa min $2000 COP
+  const isCrypto = brokerType === 'binance' || brokerType === 'alpaca';
+  const minRealInvestment = isCrypto ? 10 : 2000;
+  const midRealInvestment = isCrypto ? 25 : 4000;
+  const maxRealInvestment = isCrypto ? 50 : 8000;
 
   if (phaseNumber === 1) {
     presetData = {
       reverseMode: 'always',
       moneyManagementMode: 'martingale',
-      investmentPerTrade: accountType === 'real' ? 2000 : 10,
+      investmentPerTrade: accountType === 'real' ? minRealInvestment : 10,
       martingaleMultiplier: 2.1,
-      maxLosses: 3, // FIX #6: Aumentado de 2→3 para dar más margen antes de pausar
+      maxLosses: 3, 
       min_confidence_score: 70,
       strategy_mode: 'aggressive',
       autopilot: {
@@ -30,7 +37,7 @@ export function getPresetForDay(day: number, accountType: 'real' | 'demo') {
     presetData = {
       reverseMode: 'none',
       moneyManagementMode: 'fixed',
-      investmentPerTrade: accountType === 'real' ? 4000 : 50,
+      investmentPerTrade: accountType === 'real' ? midRealInvestment : 50,
       min_confidence_score: 75,
       strategy_mode: 'balanced',
       autopilot: {
@@ -45,7 +52,7 @@ export function getPresetForDay(day: number, accountType: 'real' | 'demo') {
     presetData = {
       reverseMode: 'auto',
       moneyManagementMode: 'fixed',
-      investmentPerTrade: accountType === 'real' ? 8000 : 200,
+      investmentPerTrade: accountType === 'real' ? maxRealInvestment : 200,
       min_confidence_score: 78,
       strategy_mode: 'conservative',
       autopilot: {
