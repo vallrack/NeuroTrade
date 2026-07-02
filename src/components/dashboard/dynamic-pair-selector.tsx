@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 export function DynamicPairSelector() {
-  const { availablePairs, bridgeOnline, activePairs } = useBotEngine();
+  const { availablePairs, bridgeOnline, activePairs, refreshPairs } = useBotEngine();
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -28,6 +28,16 @@ export function DynamicPairSelector() {
       setSelectedPairs(activePairs);
     }
   }, [activePairs]);
+
+  // Auto-retry si no hay pares después de 3 segundos
+  useEffect(() => {
+    if (availablePairs.length === 0 && bridgeOnline) {
+      const timer = setTimeout(() => {
+        refreshPairs();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [availablePairs.length, bridgeOnline, refreshPairs]);
 
   const filteredPairs = availablePairs.filter(p => 
     p.toLowerCase().includes(searchTerm.toLowerCase())
@@ -97,9 +107,12 @@ export function DynamicPairSelector() {
         </div>
 
         {availablePairs.length === 0 ? (
-          <div className="text-center p-8 text-muted-foreground border border-dashed border-white/10 rounded-xl">
-            <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 opacity-50" />
-            Leyendo lista completa de activos del broker...
+          <div className="text-center p-8 text-muted-foreground border border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin mb-4 opacity-50" />
+            <p className="mb-4">Leyendo lista completa de activos del broker...</p>
+            <Button onClick={refreshPairs} variant="outline" className="border-white/20 text-xs h-8">
+              Forzar Actualización
+            </Button>
           </div>
         ) : (
           <ScrollArea className="h-48 border border-white/5 rounded-xl bg-black/20 p-4">

@@ -51,6 +51,7 @@ interface BotEngineContextValue {
   availablePairs: string[];
   availableOtcPairs: string[];
   availableRegularPairs: string[];
+  refreshPairs: () => void;
   // ─ Motor Autónomo ─
   isAutoManaged: boolean;
   toggleAutoManaged: () => void;
@@ -270,8 +271,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Fetch pares dinámicos
-  useEffect(() => {
+  const refreshPairs = useCallback(() => {
     import('@/lib/bridge').then(({ bridgeGetActives }) => {
       if (brokerConfig?.status === 'connected' && brokerConfig.email && brokerConfig.password) {
         bridgeGetActives({
@@ -290,7 +290,12 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
         });
       }
     });
-  }, [brokerConfig?.status, brokerConfig?.email, brokerConfig?.password, brokerConfig?.accountType]);
+  }, [brokerConfig?.status, brokerConfig?.email, brokerConfig?.password, brokerConfig?.accountType, brokerConfig?.brokerType]);
+
+  // Fetch pares dinámicos
+  useEffect(() => {
+    refreshPairs();
+  }, [refreshPairs]);
 
   // ─── Función de sincronización de balance ─────────────────────────────────────
   const syncBalance = useCallback(async (balance: number, accountType: string) => {
@@ -1139,7 +1144,7 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
       logs, analyses, isRunning, isPreAnalyzing, bridgeOnline, toggleEngine, forceStartEngine, activePairs: uiPairs.length > 0 ? uiPairs : (params?.pairs ?? ['EURUSD-OTC']), clearLogs, marketStatus,
       liveBalance, liveProfit, liveWins, liveLosses, sessionStartBalance,
       recentTrades,
-      availablePairs, availableOtcPairs, availableRegularPairs,
+      availablePairs, availableOtcPairs, availableRegularPairs, refreshPairs,
       isAutoManaged, toggleAutoManaged,
     }}>
       {children}
