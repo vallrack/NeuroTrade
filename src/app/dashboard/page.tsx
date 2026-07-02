@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { NotificationBell } from '@/components/dashboard/notification-bell';
 import { PlanTracker } from '@/components/dashboard/plan-tracker';
+import { DynamicPairSelector } from '@/components/dashboard/dynamic-pair-selector';
 
 export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
@@ -138,6 +139,7 @@ export default function DashboardPage() {
         </div>
 
         <PlanTracker />
+        <DynamicPairSelector />
         <StatsGrid />
         
         <div className="space-y-6 pb-20">
