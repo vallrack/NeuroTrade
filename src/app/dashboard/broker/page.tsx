@@ -484,6 +484,13 @@ function BrokerContent() {
                   />
                 </div>
 
+                {brokerType === 'binance' && (
+                  <div className="text-[10px] text-amber-500/80 bg-amber-500/10 border border-amber-500/20 p-2 rounded-lg flex gap-2 items-start mt-2">
+                    <span className="font-bold">¡IMPORTANTE!</span>
+                    <span>El bot operará en el mercado de <strong>Futuros USD-M</strong>. Asegúrate de tener saldo en la billetera de futuros y de haber aprobado los términos de futuros en tu cuenta de Binance antes de conectar.</span>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Tipo de Cuenta</Label>
                   <div className="grid grid-cols-2 gap-4">

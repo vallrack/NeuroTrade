@@ -203,18 +203,123 @@ def trade():
     pair = data.get("pair")
     direction = data.get("direction", "CALL")
     amount = float(data.get("amount", 10))
+    leverage = 10 # Fijo por ahora para simular opciones binarias de forma segura
 
     if not pair:
         return jsonify({"success": False, "error": "Par no proporcionado"}), 400
     
-    return jsonify({
-        "success": False,
-        "error": "El modo Trading en Binance requiere Futuros y manejo de Margen, aún en desarrollo."
-    }), 400
+    def _do_trade():
+        try:
+            # Asegurar margen cruzado o aislado y apalancamiento
+            try:
+                binance_instance.set_margin_mode('isolated', pair)
+            except Exception:
+                pass
+            try:
+                binance_instance.set_leverage(leverage, pair)
+            except Exception:
+                pass
+
+            binance_instance.load_markets()
+            market = binance_instance.market(pair)
+            ticker = binance_instance.fetch_ticker(pair)
+            price = ticker['last']
+            
+            if not price:
+                return {"success": False, "error": "No se pudo obtener precio actual"}
+
+            raw_qty = (amount * leverage) / price
+            qty_str = binance_instance.amount_to_precision(pair, raw_qty)
+            qty = float(qty_str)
+
+            if qty <= 0:
+                return {"success": False, "error": f"Cantidad demasiado baja para el par {pair}"}
+
+            side = 'buy' if direction == 'CALL' else 'sell'
+            
+            print(f"[BINANCE] Ejecutando {side} de {qty} {pair} a precio aprox {price}")
+            order = binance_instance.create_market_order(pair, side, qty)
+            order_id = order['id']
+            
+            # Registrar estado inicial
+            trade_results[order_id] = {
+                'status': 'PENDING',
+                'profit': 0,
+                'entry_price': price,
+                'qty': qty,
+                'side': side,
+                'pair': pair
+            }
+            
+            # Crear hilo para cerrar la operación en 1 minuto (simulando binarias)
+            def auto_close():
+                time.sleep(60) # 1 minuto exacto
+                close_side = 'sell' if side == 'buy' else 'buy'
+                try:
+                    print(f"[BINANCE] Cerrando posición {order_id} por expiración...")
+                    close_order = binance_instance.create_market_order(pair, close_side, qty, params={'reduceOnly': True})
+                    
+                    # Estimar PNL
+                    entry_p = float(order.get('average') or price)
+                    exit_p = float(close_order.get('average') or binance_instance.fetch_ticker(pair)['last'])
+                    
+                    if side == 'buy':
+                        pnl = (exit_p - entry_p) * qty
+                    else:
+                        pnl = (entry_p - exit_p) * qty
+                        
+                    trade_results[order_id]['status'] = 'COMPLETED'
+                    trade_results[order_id]['profit'] = pnl
+                    print(f"[BINANCE] Operación {order_id} cerrada. PNL: {pnl}")
+                except Exception as e:
+                    print(f"[BINANCE ERROR] Fallo al cerrar operación: {e}")
+                    trade_results[order_id]['status'] = 'COMPLETED'
+                    trade_results[order_id]['profit'] = 0
+                    trade_results[order_id]['error'] = str(e)
+                    
+            threading.Thread(target=auto_close, daemon=True).start()
+
+            return {
+                "success": True,
+                "orderId": order_id,
+                "status": "PENDING"
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    res = run_with_timeout(_do_trade, 10)
+    if res.get("success"):
+        # Enviar también el balance actualizado rápido
+        try:
+            bal = binance_instance.fetch_balance()
+            res["balance"] = float(bal.get('USDT', {}).get('free', 0))
+        except:
+            pass
+    return jsonify(res)
 
 @app.route("/trade_result", methods=["POST"])
 def trade_result():
-    return jsonify({"success": False, "error": "Not implemented"})
+    update_activity()
+    data = request.json or {}
+    order_id = data.get("orderId")
+    
+    if not order_id or order_id not in trade_results:
+        return jsonify({"success": False, "error": "Orden no encontrada o ID inválido"}), 404
+        
+    result = trade_results[order_id]
+    
+    if result['status'] == 'COMPLETED':
+        # Agregar balance al final
+        try:
+            bal = binance_instance.fetch_balance()
+            result["balance"] = float(bal.get('USDT', {}).get('free', 0))
+        except:
+            pass
+            
+    return jsonify({
+        "success": True,
+        "result": result
+    })
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=WORKER_PORT, debug=False, threaded=True)
+    app.run(host="0.0.0.0", port=WORKER_PORT, debug=False, threaded=True)
