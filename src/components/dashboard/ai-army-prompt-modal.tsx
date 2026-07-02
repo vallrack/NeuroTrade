@@ -12,16 +12,26 @@ import { Button } from '@/components/ui/button';
 import { useBotEngine } from '@/components/dashboard/bot-engine-provider';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { BrainCircuit, Play, ShieldAlert, Target, Percent, ArrowRight, Zap } from 'lucide-react';
+import { BrainCircuit, Play, ShieldAlert, Target, Percent, ArrowRight, Zap, TrendingUp, TrendingDown, Pause, BarChart2 } from 'lucide-react';
 import { playInvestSound } from '@/lib/sounds';
+import {
+  getStrategyLabel,
+  getSignalColor,
+  getSignalBg,
+  getSignalEmoji,
+  type StrategyAdvice,
+} from '@/lib/ai-strategy-advisor';
+
 
 export function AiArmyPromptModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [promptData, setPromptData] = useState<any>(null);
+  const [strategyAdvice, setStrategyAdvice] = useState<StrategyAdvice | null>(null);
   
   const { forceStartEngine } = useBotEngine();
   const { user } = useUser();
   const firestore = useFirestore();
+
 
   useEffect(() => {
     const handleArmyPrompt = (e: any) => {
@@ -34,9 +44,19 @@ export function AiArmyPromptModal() {
       } catch (err) {}
     };
 
+    // Escuchar recomendación de estrategia del StrategyAdvisorBadge
+    const handleStrategyAdvice = (e: any) => {
+      setStrategyAdvice(e.detail as StrategyAdvice);
+    };
+
     window.addEventListener('nt_ai_army_prompt', handleArmyPrompt);
-    return () => window.removeEventListener('nt_ai_army_prompt', handleArmyPrompt);
+    window.addEventListener('nt_strategy_advice', handleStrategyAdvice);
+    return () => {
+      window.removeEventListener('nt_ai_army_prompt', handleArmyPrompt);
+      window.removeEventListener('nt_strategy_advice', handleStrategyAdvice);
+    };
   }, []);
+
 
   const handleApplyAndOperate = async () => {
     if (user && firestore && promptData) {
@@ -209,6 +229,64 @@ export function AiArmyPromptModal() {
                 </p>
               )}
             </div>
+
+            {/* ═══ SECCIÓN CONSEJO IA AUTÓNOMO ═══════════════════════════════ */}
+            {strategyAdvice && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <BarChart2 className="w-4 h-4 text-violet-400" />
+                  <h3 className="text-sm font-medium text-slate-200 uppercase tracking-wider">Consejo IA Autónomo</h3>
+                </div>
+
+                <div className={`p-3 rounded-xl border flex flex-col gap-2 ${getSignalBg(strategyAdvice.signal)}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {strategyAdvice.signal === 'bullish' && <TrendingUp className={`w-4 h-4 ${getSignalColor(strategyAdvice.signal)}`} />}
+                      {strategyAdvice.signal === 'bearish' && <TrendingDown className={`w-4 h-4 ${getSignalColor(strategyAdvice.signal)}`} />}
+                      {strategyAdvice.signal === 'neutral' && <BarChart2 className={`w-4 h-4 ${getSignalColor(strategyAdvice.signal)}`} />}
+                      {strategyAdvice.signal === 'recovery' && <Pause className={`w-4 h-4 ${getSignalColor(strategyAdvice.signal)}`} />}
+                      <span className="text-slate-300 text-sm font-medium">Estrategia Recomendada</span>
+                    </div>
+                    <span className={`font-bold text-sm ${getSignalColor(strategyAdvice.signal)}`}>
+                      {getSignalEmoji(strategyAdvice.signal)} {getStrategyLabel(strategyAdvice.mode)}
+                    </span>
+                  </div>
+
+                  {/* Win rate */}
+                  {strategyAdvice.winRate !== null && (
+                    <div className="text-xs text-slate-400 pl-6">
+                      Win rate reciente:
+                      <span className={`ml-1 font-bold ${getSignalColor(strategyAdvice.signal)}`}>
+                        {strategyAdvice.winRate}%
+                      </span>
+                      <span className="ml-1 text-slate-500">
+                        ({strategyAdvice.sampleSize} operaciones analizadas)
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Razonamiento */}
+                  <p className="text-[11px] text-slate-400 pl-6 leading-relaxed">
+                    {strategyAdvice.reasoning}
+                  </p>
+
+                  {/* Advertencia de pausa */}
+                  {strategyAdvice.mode === 'pause' && (
+                    <div className="mt-1 p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 font-medium text-center">
+                      ⛔ El Consejo IA recomienda NO operar en este momento.
+                    </div>
+                  )}
+
+                  {/* Nota plan activo */}
+                  {strategyAdvice.hasActivePlan && strategyAdvice.mode !== 'pause' && (
+                    <p className="text-[10px] text-slate-600 pl-6">
+                      * Plan activo detectado — el modo de la fase no será modificado.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+            {/* ═══════════════════════════════════════════════════════════════ */}
             
             <p className="text-sm text-slate-400 text-center font-medium mt-4">
               ¿Deseas aplicar estos ajustes óptimos o mantener tu configuración actual?

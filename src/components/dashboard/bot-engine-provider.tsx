@@ -51,7 +51,11 @@ interface BotEngineContextValue {
   availablePairs: string[];
   availableOtcPairs: string[];
   availableRegularPairs: string[];
+  // ─ Motor Autónomo ─
+  isAutoManaged: boolean;
+  toggleAutoManaged: () => void;
 }
+
 
 const BotEngineContext = createContext<BotEngineContextValue | null>(null);
 
@@ -95,6 +99,15 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   const [isPreAnalyzing, setIsPreAnalyzing] = useState(false);
   const [bridgeOnline, setBridgeOnline] = useState<boolean | null>(null);
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
+  // ─── Motor Autónomo ───────────────────────────────────────────────────
+  const [isAutoManaged, setIsAutoManaged] = useState(false);
+  const isAutoManagedRef = useRef(false);
+  // Timestamp del último auto-stop (para auto-restart a los 30 min)
+  const autoStopTimeRef = useRef<number>(0);
+  const autoStopReasonRef = useRef<string>('');
+  // Probabilidad mínima para que el motor se encienda solo (Bloque B)
+  const AUTO_START_MIN_PROB = 65;
+
 
   // ─── Estado en tiempo real (fuente de verdad: el puente, NO Firestore) ──────
   const [liveBalance, setLiveBalance] = useState<number | null>(null);
@@ -450,8 +463,15 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
       if (lossPercent >= maxDrawdown) {
         addLog('SISTEMA', `⛔ STOP-LOSS ACTIVADO — pérdida del ${lossPercent.toFixed(1)}% (límite: ${maxDrawdown}%)`, 'error');
         setIsRunning(false);
+        // Notificar al sistema para auto-restart si está en modo autónomo
+        autoStopTimeRef.current = Date.now();
+        autoStopReasonRef.current = `Stop-loss activado (${lossPercent.toFixed(1)}% pérdida)`;
+        window.dispatchEvent(new CustomEvent('nt_engine_auto_stopped', {
+          detail: { reason: autoStopReasonRef.current, type: 'drawdown', restartIn: 30 }
+        }));
         return false;
       }
+
     }
 
     // Verificar racha de pérdidas de la sesión actual
@@ -459,8 +479,15 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
     if (sessionLossesRef.current >= maxLosses) {
       addLog('SISTEMA', `Pausa de seguridad: ${sessionLossesRef.current} pérdidas en esta sesión.`, 'error');
       setIsRunning(false);
+      // Notificar para auto-restart si está en modo autónomo
+      autoStopTimeRef.current = Date.now();
+      autoStopReasonRef.current = `Pausa de seguridad (${sessionLossesRef.current} pérdidas consecutivas)`;
+      window.dispatchEvent(new CustomEvent('nt_engine_auto_stopped', {
+        detail: { reason: autoStopReasonRef.current, type: 'max_losses', restartIn: 30 }
+      }));
       return false;
     }
+
 
     return true;
   }, [addLog]);
@@ -527,6 +554,23 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
           newGoalPercent = Math.min(newGoalPercent, planGoal + 5);
         }
 
+        // ─── AUTO-START por señales (Motor Autónomo): si la probabilidad promedio es alta
+        //     durante el pre-análisis, arrancar el motor automáticamente si está en modo autónomo
+        if (isAutoManagedRef.current && avg >= AUTO_START_MIN_PROB && signalCount >= 2) {
+          addLog('MOTOR-AUTO', `⚡ Condiciones favorables detectadas (prob ${avg.toFixed(0)}%, ${signalCount} señales). Arrancando motor automáticamente...`, 'success');
+          // forceStartEngine sin modal si está en modo auto-managed
+          isPreAnalyzingRef.current = false;
+          setIsPreAnalyzing(false);
+          preAnalysisStartTimeRef.current = 0;
+          preAnalysisProbabilitiesRef.current = [];
+          preAnalysisRsiRef.current = [];
+          hasDonePreAnalysisRef.current = true;
+          winsSinceLastPromptRef.current = 0;
+          setIsRunning(true);
+          loopTimeoutRef.current = setTimeout(engineLoop, 1000);
+          return;
+        }
+        
         window.dispatchEvent(new CustomEvent('nt_ai_army_prompt', {
           detail: {
             avgProb: avg > 0 ? avg : (avgRsi < 40 || avgRsi > 60 ? 62 : 50),
@@ -1082,9 +1126,11 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
       logs, analyses, isRunning, isPreAnalyzing, bridgeOnline, toggleEngine, forceStartEngine, activePairs: uiPairs.length > 0 ? uiPairs : (params?.pairs ?? ['EURUSD-OTC']), clearLogs, marketStatus,
       liveBalance, liveProfit, liveWins, liveLosses, sessionStartBalance,
       recentTrades,
-      availablePairs, availableOtcPairs, availableRegularPairs
+      availablePairs, availableOtcPairs, availableRegularPairs,
+      isAutoManaged, toggleAutoManaged,
     }}>
       {children}
     </BotEngineContext.Provider>
   );
+
 }

@@ -325,15 +325,125 @@ def calculate_atr(candles, period=14):
     recent_tr = true_ranges[-period:]
     return sum(recent_tr) / period
 
+def calculate_macd(closes, fast=12, slow=26, signal_period=9):
+    """
+    MACD estándar (12, 26, 9) — 4º filtro de confluencia.
+    Retorna: (macd_line, signal_line, histogram)
+    - macd_line > signal_line  → momentum alcista (refuerza CALL)
+    - macd_line < signal_line  → momentum bajista (refuerza PUT)
+    - histogram creciente      → aceleración de tendencia
+    Requiere al menos slow + signal_period velas para ser fiable.
+    """
+    min_candles = slow + signal_period
+    if len(closes) < min_candles:
+        return None, None, None
+
+    def _ema_series(data, period):
+        """EMA progresiva sobre una lista completa de valores."""
+        multiplier = 2 / (period + 1)
+        ema = sum(data[:period]) / period  # seed con SMA
+        results = [ema]
+        for price in data[period:]:
+            ema = (price - ema) * multiplier + ema
+            results.append(ema)
+        return results
+
+    ema_fast = _ema_series(closes, fast)
+    ema_slow = _ema_series(closes, slow)
+
+    # Alinear las dos series (ema_slow es más corta al inicio)
+    diff = len(ema_fast) - len(ema_slow)
+    ema_fast_aligned = ema_fast[diff:]
+
+    macd_series = [f - s for f, s in zip(ema_fast_aligned, ema_slow)]
+
+    if len(macd_series) < signal_period:
+        return None, None, None
+
+    signal_series = _ema_series(macd_series, signal_period)
+
+    # Alinear señal con MACD
+    diff2 = len(macd_series) - len(signal_series)
+    macd_aligned = macd_series[diff2:]
+
+    macd_val   = round(macd_aligned[-1], 8)
+    signal_val = round(signal_series[-1], 8)
+    hist_val   = round(macd_val - signal_val, 8)
+
+    return macd_val, signal_val, hist_val
+
+
+def evaluate_strategy_mode(recent_trades):
+    """
+    Consejo IA Autónomo — analiza el rendimiento reciente y recomienda
+    el modo de gestión de capital más adecuado:
+
+    - 'fixed'     → rendimiento neutro/desconocido (inicio seguro)
+    - 'compound'  → racha ganadora (win rate > 65% en últimas 10 ops)
+    - 'martingale'→ racha perdedora leve (win rate 35-50%, para recuperar)
+    - 'pause'     → racha perdedora fuerte (win rate < 35%, mejor detenerse)
+
+    recent_trades: lista de dicts con claves 'status' ("win"/"loss") y 'amount'.
+    Retorna dict con: mode, win_rate, signal, reasoning
+    """
+    if not recent_trades or len(recent_trades) < 5:
+        return {
+            "mode": "fixed",
+            "win_rate": None,
+            "signal": "neutral",
+            "reasoning": "Historial insuficiente (< 5 operaciones). Operando en modo fijo por seguridad."
+        }
+
+    # Analizar las últimas 10 operaciones (o las disponibles)
+    window = recent_trades[:10]
+    wins   = sum(1 for t in window if t.get("status") == "win")
+    total  = len(window)
+    win_rate = round((wins / total) * 100, 1)
+
+    if win_rate >= 65:
+        return {
+            "mode": "compound",
+            "win_rate": win_rate,
+            "signal": "bullish",
+            "reasoning": f"Racha GANADORA detectada ({win_rate}% éxito en últimas {total} ops). "
+                         f"Modo compuesto activado para capitalizar el momentum."
+        }
+    elif win_rate >= 50:
+        return {
+            "mode": "fixed",
+            "win_rate": win_rate,
+            "signal": "neutral",
+            "reasoning": f"Rendimiento NEUTRAL ({win_rate}% éxito en últimas {total} ops). "
+                         f"Modo fijo para estabilidad y conservación de capital."
+        }
+    elif win_rate >= 35:
+        return {
+            "mode": "martingale",
+            "win_rate": win_rate,
+            "signal": "recovery",
+            "reasoning": f"Racha perdedora LEVE ({win_rate}% éxito en últimas {total} ops). "
+                         f"Martingala (máx 2 niveles) para recuperar pérdidas de forma controlada."
+        }
+    else:
+        return {
+            "mode": "pause",
+            "win_rate": win_rate,
+            "signal": "bearish",
+            "reasoning": f"Racha perdedora FUERTE ({win_rate}% éxito en últimas {total} ops). "
+                         f"Se recomienda PAUSAR el motor hasta que el mercado mejore."
+        }
+
+
 def analyze_market(candles, min_rsi=DEFAULT_MIN_RSI, max_rsi=DEFAULT_MAX_RSI):
     if not candles or len(candles) < 200:
-        return "NONE", 50, 50.0, None, None, None, None
+        return "NONE", 50, 50.0, None, None, None, None, None, None, None
     closes = [c["close"] for c in candles]
     
     rsi = calculate_rsi(closes)
     ema_200 = calculate_ema(closes, 200)
     upper_band, middle_band, lower_band = calculate_bollinger_bands(closes, 20, 2.0)
     atr = calculate_atr(candles, 14)
+    macd_val, signal_val, hist_val = calculate_macd(closes, 12, 26, 9)
     
     direction = "NONE"
     probability = 50
@@ -353,13 +463,23 @@ def analyze_market(candles, min_rsi=DEFAULT_MIN_RSI, max_rsi=DEFAULT_MAX_RSI):
     # Aumentamos tolerancia (0.15% del precio) para tocar la banda de Bollinger y obtener más trades
     bb_tolerance = last_close * 0.0015
     
+    # ─── MACD: señal de momentum (bonus/malus de probabilidad) ──────────────
+    # El MACD NO bloquea la señal por sí solo. Refuerza o reduce la probabilidad.
+    # macd_bullish: histograma positivo y MACD > señal → refuerza CALL
+    # macd_bearish: histograma negativo y MACD < señal → refuerza PUT
+    macd_bullish = (macd_val is not None and signal_val is not None and
+                    macd_val > signal_val and hist_val > 0)
+    macd_bearish = (macd_val is not None and signal_val is not None and
+                    macd_val < signal_val and hist_val < 0)
+    macd_available = macd_val is not None
+    
     # Filtro de Noticias (ahora real, consulta ForexFactory cada 15 min)
     # En analyze_market no tenemos el par, así que es un filtro global.
     # El filtro par-específico se aplica en el endpoint /analyze antes de llegar aquí.
     has_news, news_reason = check_news_filter()
     if has_news:
         # Noticias globales de alto impacto: ser conservadores y forzar NONE
-        return "NONE", 0, rsi, ema_200, upper_band, lower_band, last_close, atr
+        return "NONE", 0, rsi, ema_200, upper_band, lower_band, last_close, atr, macd_val, signal_val
 
     if rsi <= min_rsi and not is_dead_market and not is_chaotic_market:
         # Regla de Pánico: Si el RSI es EXTREMO (ej <= 27), ignoramos EMA y Bollinger por rebote inminente
@@ -382,10 +502,26 @@ def analyze_market(candles, min_rsi=DEFAULT_MIN_RSI, max_rsi=DEFAULT_MAX_RSI):
             if upper_band and last_close >= (upper_band - bb_tolerance):
                 direction = "PUT"
                 probability = min(99, 75 + int(max(0, rsi - max_rsi) * 2))
-                
-    return direction, probability, rsi, ema_200, upper_band, lower_band, last_close, atr
 
-def build_logs(pair, direction, rsi, probability, ema_200, upper_band, lower_band, last_close, atr):
+    # ─── Ajuste de probabilidad por MACD (4º filtro) ─────────────────────────
+    if macd_available and direction != "NONE":
+        if direction == "CALL" and macd_bullish:
+            # Confluencia perfecta: MACD confirma la señal → +5% probabilidad
+            probability = min(99, probability + 5)
+        elif direction == "CALL" and macd_bearish:
+            # Contradicción: MACD bearish pero RSI/BB dicen CALL → -8% probabilidad
+            probability = max(50, probability - 8)
+        elif direction == "PUT" and macd_bearish:
+            # Confluencia perfecta: MACD confirma la señal → +5% probabilidad
+            probability = min(99, probability + 5)
+        elif direction == "PUT" and macd_bullish:
+            # Contradicción: MACD bullish pero RSI/BB dicen PUT → -8% probabilidad
+            probability = max(50, probability - 8)
+                
+    return direction, probability, rsi, ema_200, upper_band, lower_band, last_close, atr, macd_val, signal_val
+
+
+def build_logs(pair, direction, rsi, probability, ema_200, upper_band, lower_band, last_close, atr, macd_val=None, signal_val=None):
     ts = time.time()
     logs = [
         {"timestamp": ts, "message": f"[SYSTEM] Análisis {pair} — RSI: {rsi:.1f}"}
@@ -397,6 +533,15 @@ def build_logs(pair, direction, rsi, probability, ema_200, upper_band, lower_ban
         
     if upper_band and lower_band:
         logs.append({"timestamp": ts, "message": f"[CONFLUENCIA] Bandas Bollinger calculadas OK"})
+
+    # ─── Log MACD ────────────────────────────────────────────────────────────
+    if macd_val is not None and signal_val is not None:
+        hist = round(macd_val - signal_val, 8)
+        if macd_val > signal_val:
+            macd_status = f"ALCISTA (MACD {macd_val:.6f} > Señal {signal_val:.6f}, Hist: +{hist:.6f})"
+        else:
+            macd_status = f"BAJISTA (MACD {macd_val:.6f} < Señal {signal_val:.6f}, Hist: {hist:.6f})"
+        logs.append({"timestamp": ts, "message": f"[CONFLUENCIA MACD] Momentum {macd_status}"})
         
     if atr and last_close > 0:
         atr_percent = (atr / last_close) * 100
@@ -409,9 +554,10 @@ def build_logs(pair, direction, rsi, probability, ema_200, upper_band, lower_ban
         logs.append({"timestamp": ts, "message": "[SENTINEL] Operación rechazada: No hay confluencia de RSI + EMA + BB o mercado inválido por ATR"})
     else:
         logs.append({"timestamp": ts, "message": f"[QUANTUM] Señal {direction} — precisión {probability}%"})
-        logs.append({"timestamp": ts, "message": f"[IA MAIN] Consenso maestro V7: {direction} (Confluencia Perfecta)"})
+        logs.append({"timestamp": ts, "message": f"[IA MAIN] Consenso maestro V7: {direction} (Confluencia Perfecta RSI+EMA200+BB+MACD)"})
         
     return logs
+
 
 # ─── Ejecución acotada (evita que un hilo de la librería gire para siempre) ───
 _global_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
@@ -666,10 +812,15 @@ def analyze():
             print(f"[WORKER {WORKER_PORT}] Aviso: usando balance del caché WebSocket (get_profile_ansyc falló: {e})")
             real_balance = getattr(global_value, 'balance', 0)
             
-        direction, probability, rsi, ema_200, upper_band, lower_band, last_close, atr = analyze_market(candles, min_rsi, max_rsi)
+        direction, probability, rsi, ema_200, upper_band, lower_band, last_close, atr, macd_val, signal_val = analyze_market(candles, min_rsi, max_rsi)
         is_manipulated, manipulation_reason = detect_manipulation(candles, vol_multiplier, max_body_percent)
         
-        logs = build_logs(pair, direction, rsi, probability, ema_200, upper_band, lower_band, last_close, atr)
+        logs = build_logs(pair, direction, rsi, probability, ema_200, upper_band, lower_band, last_close, atr, macd_val, signal_val)
+
+        # ─── Consejo IA: evaluar el rendimiento reciente y recomendar estrategia ──
+        # El frontend puede enviar el historial de trades recientes para análisis.
+        recent_trades_data = data.get("recentTrades", [])
+        strategy_advice = evaluate_strategy_mode(recent_trades_data)
 
         return jsonify({
             "success": True,
@@ -682,7 +833,14 @@ def analyze():
             "pair": pair,
             "candles": candles[-20:] if candles else [],
             "logs": logs,
+            # ─── NUEVO: Indicadores avanzados para el frontend ─────────────────
+            "macd": {"macd": macd_val, "signal": signal_val, "histogram": round(macd_val - signal_val, 8) if macd_val and signal_val else None},
+            "atr": atr,
+            "ema200": ema_200,
+            # ─── NUEVO: Recomendación del Consejo IA ──────────────────────────
+            "strategy_recommendation": strategy_advice,
         })
+
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
