@@ -108,6 +108,19 @@ export function BotEngineProvider({ children }: { children: React.ReactNode }) {
   // Probabilidad mínima para que el motor se encienda solo (Bloque B)
   const AUTO_START_MIN_PROB = 65;
 
+  const toggleAutoManaged = useCallback(() => {
+    setIsAutoManaged(prev => {
+      const next = !prev;
+      isAutoManagedRef.current = next;
+      if (next) {
+        setLogs(logs => [{ id: Math.random().toString(36).substring(7), timestamp: new Date(), source: 'SISTEMA', message: 'Motor Autónomo ACTIVADO. La IA decidirá cuándo operar.', type: 'info' }, ...logs].slice(0, 200));
+      } else {
+        setLogs(logs => [{ id: Math.random().toString(36).substring(7), timestamp: new Date(), source: 'SISTEMA', message: 'Motor Autónomo DESACTIVADO. Operación manual requerida.', type: 'warning' }, ...logs].slice(0, 200));
+      }
+      return next;
+    });
+  }, []);
+
 
   // ─── Estado en tiempo real (fuente de verdad: el puente, NO Firestore) ──────
   const [liveBalance, setLiveBalance] = useState<number | null>(null);
